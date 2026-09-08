@@ -45,6 +45,15 @@ use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Workflow\Send_Gate;
+use WAcr\RecoveryFlow\Integration\Abstract_Source;
+use WAcr\RecoveryFlow\Integration\Event_Batch;
+use WAcr\RecoveryFlow\Integration\Pollable_Source_Interface;
+use WAcr\RecoveryFlow\Jobs\Stage_Stats;
+use WAcr\RecoveryFlow\Jobs\Stages\Evaluate;
+use WAcr\RecoveryFlow\Jobs\Time_Budget;
+use WAcr\RecoveryFlow\Recovery\Event_Draft;
+use WAcr\RecoveryFlow\Recovery\Event_Ingest;
+use WAcr\RecoveryFlow\Recovery\Recovery_Event;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Script;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Consent_Field;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Session;
@@ -3410,6 +3419,142 @@ $GLOBALS['recoveryflow_styles'] = array();
 $plugin->admin_assets()->enqueue( 'edit.php' );
 
 check( 'and nothing loads on a screen that is not ours', $GLOBALS['recoveryflow_styles'], array() );
+
+
+/*
+ * ---------------------------------------------------------------------------
+ * Pollable sources.
+ *
+ * Pollable_Source_Interface shipped in slice 1 and nothing ever called
+ * detect_recovery_events(). The interface, the Event_Batch value object and a
+ * paragraph of documentation all described a feature that did not exist, and
+ * no gate could tell -- an interface nobody implements is green in every
+ * static check there is. These assertions exist to make the wiring itself the
+ * thing under test.
+ * ---------------------------------------------------------------------------
+ */
+
+require_once __DIR__ . '/fixtures/pollable-source.php';
+
+/**
+ * Build a draft that will actually be written, so a poll can be counted.
+ */
+function recoveryflow_poll_draft( string $source_id, string $key ): Event_Draft {
+	$draft = new Event_Draft( $source_id, 'booking', $key );
+
+	return $draft->with_value( '49.00', 'GBP' )->with_items(
+		array(
+			array(
+				'name' => 'A slot',
+				'qty'  => 1,
+			),
+		)
+	);
+}
+
+function recoveryflow_run_evaluate( Plugin $plugin ): Stage_Stats {
+	$evaluate = new Evaluate(
+		$plugin->events(),
+		$plugin->journeys(),
+		$plugin->customers(),
+		$plugin->eligibility(),
+		$plugin->sources(),
+		$plugin->workflows(),
+		$plugin->ingest(),
+		$plugin->source_cursors(),
+		$plugin->clock(),
+		$plugin->logger()
+	);
+
+	return $evaluate->run( new Time_Budget( 30.0 ) );
+}
+
+$recoveryflow_pollable = new Recoveryflow_Fake_Pollable( $plugin->ingest() );
+$plugin->sources()->add( $recoveryflow_pollable );
+
+// A source beyond the built-in set is a paid feature, and the gate is asked
+// before a single row is read: an entitlement that only hid the card while the
+// integration went on working would be no gate at all.
+$recoveryflow_pollable->pages = array( new Event_Batch( array( recoveryflow_poll_draft( 'fake_pollable', 'b:1' ) ), 'cur-1', false ) );
+recoveryflow_run_evaluate( $plugin );
+check( 'a source the plan does not include is never even asked', $recoveryflow_pollable->asked, array() );
+
+add_filter(
+	Hooks::FILTER_FEATURE_ENABLED,
+	static fn ( bool $on, string $feature ): bool => Feature_Gate::EXTRA_SOURCES === $feature ? true : $on,
+	10,
+	2
+);
+
+$recoveryflow_stats = recoveryflow_run_evaluate( $plugin );
+
+ok( 'a pollable source is asked what has appeared since it last looked', array( null ) === $recoveryflow_pollable->asked );
+check( 'and what it hands back is ingested', $recoveryflow_stats->processed, 1 );
+check( 'and where it stopped is remembered for the next run', $plugin->source_cursors()->get( 'fake_pollable' ), 'cur-1' );
+
+// The cursor is the only reason a hundred thousand unread rows drain instead
+// of being rescanned from the top on every tick.
+$recoveryflow_pollable->asked = array();
+$recoveryflow_pollable->pages = array( new Event_Batch( array(), 'cur-2', true ) );
+$recoveryflow_stats           = recoveryflow_run_evaluate( $plugin );
+
+check( 'the next run resumes from the stored cursor', $recoveryflow_pollable->asked, array( 'cur-1' ) );
+ok( 'and a source that says there is more sets the backlog flag', $recoveryflow_stats->backlog > 0 );
+
+// (source_id, dedupe_key) is UNIQUE, so a draft filed under somebody else's id
+// would upsert onto their row -- one integration silently closing another's
+// events.
+$recoveryflow_pollable->pages = array(
+	new Event_Batch( array( recoveryflow_poll_draft( 'woocommerce', 'someone-elses-cart' ) ), null, false ),
+);
+$recoveryflow_stats = recoveryflow_run_evaluate( $plugin );
+
+check( 'a draft filed under another source is dropped', $recoveryflow_stats->processed, 0 );
+check( 'and a finished source forgets its place', $plugin->source_cursors()->get( 'fake_pollable' ), null );
+
+// One broken integration must not stop the others, and must not lose its place.
+$plugin->source_cursors()->set( 'fake_pollable', 'cur-keep' );
+$recoveryflow_pollable->explode = true;
+$recoveryflow_second            = new Recoveryflow_Fake_Pollable( $plugin->ingest(), 'fake_pollable_2' );
+$recoveryflow_second->pages     = array( new Event_Batch( array( recoveryflow_poll_draft( 'fake_pollable_2', 'b:2' ) ), null, false ) );
+$plugin->sources()->add( $recoveryflow_second );
+
+$recoveryflow_stats = recoveryflow_run_evaluate( $plugin );
+
+check( 'a source that throws keeps its place rather than starting again', $plugin->source_cursors()->get( 'fake_pollable' ), 'cur-keep' );
+check( 'and the sources after it are still polled', $recoveryflow_stats->processed, 1 );
+
+// A poll may go over the network, and this stage shares one budget with the
+// four that follow it. A guard that is never exercised is a guard that is not
+// there: the budget is emptied by reflection because Time_Budget is final and
+// measures real elapsed time, and a test cannot wait for twenty seconds.
+$recoveryflow_pollable->explode = false;
+$recoveryflow_pollable->asked   = array();
+$recoveryflow_second->asked     = array();
+$recoveryflow_second->pages     = array( new Event_Batch( array( recoveryflow_poll_draft( 'fake_pollable_2', 'b:3' ) ), null, false ) );
+
+$recoveryflow_spent = new Time_Budget( 30.0 );
+$recoveryflow_started = new ReflectionProperty( Time_Budget::class, 'started_at' );
+$recoveryflow_started->setAccessible( true );
+$recoveryflow_started->setValue( $recoveryflow_spent, microtime( true ) - 100.0 );
+
+$recoveryflow_evaluate = new Evaluate(
+	$plugin->events(),
+	$plugin->journeys(),
+	$plugin->customers(),
+	$plugin->eligibility(),
+	$plugin->sources(),
+	$plugin->workflows(),
+	$plugin->ingest(),
+	$plugin->source_cursors(),
+	$plugin->clock(),
+	$plugin->logger()
+);
+$recoveryflow_stats = $recoveryflow_evaluate->run( $recoveryflow_spent );
+
+check( 'a run with no time left asks nobody', $recoveryflow_pollable->asked, array() );
+check( 'not even the source after it', $recoveryflow_second->asked, array() );
+ok( 'and it says there is more to do, so the next tick comes back for them', $recoveryflow_stats->backlog > 0 );
 
 
 echo "\n";

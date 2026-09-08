@@ -28,6 +28,7 @@ use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Identity_Resolver;
 use WAcr\RecoveryFlow\Database\Lock_Repository;
 use WAcr\RecoveryFlow\Database\Receipt_Repository;
+use WAcr\RecoveryFlow\Integration\Source_Cursors;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Restorer;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Tracker;
@@ -190,6 +191,7 @@ final class Plugin {
 
 			// Integrations.
 			'sources'             => static fn (): Source_Registry => new Source_Registry(),
+			'source_cursors'      => static fn (): Source_Cursors => new Source_Cursors(),
 			'wc_session'          => static fn (): Wc_Session => new Wc_Session(),
 
 			// The workflow engine and its registries.
@@ -373,7 +375,7 @@ final class Plugin {
 
 		$runner = new Stage_Runner( $scheduler->scheduler(), $this->lock(), $this->clock(), $this->logger() );
 
-		$runner->add( new Evaluate( $this->events(), $this->journeys(), $this->customers(), $this->eligibility(), $this->sources(), $this->workflows(), $this->clock(), $this->logger() ) );
+		$runner->add( new Evaluate( $this->events(), $this->journeys(), $this->customers(), $this->eligibility(), $this->sources(), $this->workflows(), $this->ingest(), $this->source_cursors(), $this->clock(), $this->logger() ) );
 		$runner->add( new Dispatch( $this->journeys(), $this->engine(), $this->rate_budget(), $this->logger() ) );
 		$runner->add( new Poll( $this->journeys(), $this->attempts(), $this->customers(), $this->consent(), $this->wacr(), $this->clock(), $this->logger() ) );
 		$runner->add( new Expire( $this->journeys(), $this->events(), $this->attempts() ) );
@@ -652,6 +654,15 @@ final class Plugin {
 	 */
 	public function sources(): Source_Registry {
 		return $this->typed( 'sources', Source_Registry::class );
+	}
+
+	/**
+	 * Where each pollable source stopped reading.
+	 *
+	 * @return Source_Cursors
+	 */
+	public function source_cursors(): Source_Cursors {
+		return $this->typed( 'source_cursors', Source_Cursors::class );
 	}
 
 	/**

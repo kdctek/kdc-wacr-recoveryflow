@@ -175,6 +175,7 @@ final class Options {
 			'recoveryflow_scheduler_driver',
 			'recoveryflow_lawful_basis_ack',
 			'recoveryflow_ui_state',
+			\WAcr\RecoveryFlow\Integration\Source_Cursors::OPTION,
 			\WAcr\RecoveryFlow\Admin\Setup::PENDING_OPTION,
 		);
 	}

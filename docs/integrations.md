@@ -109,4 +109,20 @@ Nothing below exists yet. Each will be built on the interface above with zero ch
 | **Easy Digital Downloads** | Abandoned checkouts (`checkout`) | Planned |
 | **Custom** | Anything with a hook or a table to poll | Available now through `recoveryflow_register_sources`; the documented example class ships with slice 3 |
 
-Systems that expose no hooks at all can implement `Pollable_Source_Interface`; the Evaluate stage calls `detect_recovery_events()` with a cursor so a large backlog drains across successive runs.
+## Sources with nothing to push from
+
+Most plugins fire hooks, and a source built on them costs nothing until something happens. Some do not -- an external booking system, a plugin that writes straight to its own tables -- and the only way to find an abandoned journey is to go and look for one. Those implement `Pollable_Source_Interface`, and the Evaluate stage asks them for a bounded page on every tick:
+
+```php
+public function detect_recovery_events( int $limit, ?string $cursor ): Event_Batch;
+```
+
+| Rule | Why |
+| --- | --- |
+| Return at most `$limit` drafts, and never scan unboundedly | The stage shares one time budget with the four that follow it. A poll that reads a whole table takes its time out of the evaluation that turns those very drafts into journeys |
+| The cursor is opaque to the core | A row id, a timestamp or an API page token -- only the source needs to understand which. It is stored in the `recoveryflow_source_cursors` option, with autoload off, and capped at 500 characters |
+| Return `null` as the cursor when there is no more to read | The stored position is dropped and the next poll starts from the beginning |
+| Set `has_more` when a full page was returned | The stage records a backlog and the tick comes back for the rest, which is how a hundred thousand unread rows drain across successive runs |
+| Every draft must carry your own `source_id` | `(source_id, dedupe_key)` is UNIQUE, so a draft filed under another source's id would upsert onto its row. Drafts that do are dropped |
+
+The cursor is advanced only after the batch has been ingested. A source that throws is dropped for that run and keeps its stored position, so one broken integration neither stops the others nor loses its place.
