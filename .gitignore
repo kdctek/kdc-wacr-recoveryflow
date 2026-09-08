@@ -17,3 +17,8 @@ coverage/
 # running it, not to the repository. Several worktrees of this plugin run at
 # once and each needs its own port.
 .wp-env.override.json
+
+# The accessibility run's seeded ids. Written by `npm run a11y:seed` and
+# specific to one database: a journey uid and two live recovery tokens, which
+# are credentials and belong to whoever seeded that site.
+/tests/a11y/urls.generated.json

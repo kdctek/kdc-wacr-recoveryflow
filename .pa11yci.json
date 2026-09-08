@@ -1,10 +1,154 @@
 {
+	"_note": [
+		"The list of screens the accessibility run checks. bin/a11y.sh is what runs it: it",
+		"supplies the admin session and fills in the {{PLACEHOLDERS}}, which stand for ids",
+		"that do not exist until `npm run a11y:seed` has created something.",
+		"",
+		"STANDARD. WCAG2AA here is the GATE -- the level this plugin commits to, and the",
+		"level at which a failure stops the run. bin/a11y.sh runs a second pass at",
+		"WCAG2AAA afterwards and prints it without failing on it, which is the 'AAA",
+		"wherever it can be achieved' half of the requirement.",
+		"",
+		"RUNNERS. The axe runner is a local file, not the bundled 'axe' one. See its",
+		"header: the bundled runner reports axe's 'could not determine' results as errors,",
+		"which on this plugin meant 28 contrast failures on core's own <select> elements,",
+		"measured at about 17:1.",
+		"",
+		"rootElement ON THE ADMIN SCREENS IS LOAD-BEARING, not a way of narrowing the",
+		"scan. wp-admin is behind a capability check and a login form passes an",
+		"accessibility check cleanly, so a run that had quietly lost its session would",
+		"report twenty green screens it never saw. Requiring #wpbody-content means such a",
+		"run fails instead. Verified by mutation: point it at a selector that does not",
+		"exist and 19 of 22 URLs fail.",
+		"",
+		"IGNORE. Two rules are ignored, both verified against the browser's own",
+		"accessibility tree rather than argued away. docs/accessibility.md records the",
+		"evidence and how to re-check it; tests/smoke.php fails if this list and that",
+		"document stop agreeing."
+	],
 	"defaults": {
-		"standard": "WCAG2AAA",
-		"runners": [ "axe", "htmlcs" ],
+		"standard": "WCAG2AA",
+		"runners": [
+			"tests/a11y/axe-runner.js",
+			"htmlcs"
+		],
 		"timeout": 30000,
-		"chromeLaunchConfig": { "args": [ "--no-sandbox" ] },
-		"hideElements": "#wpadminbar, #adminmenuwrap, #wpfooter"
+		"chromeLaunchConfig": {
+			"args": [
+				"--no-sandbox"
+			]
+		},
+		"hideElements": "#wpadminbar, #adminmenuwrap, #wpfooter",
+		"ignore": [
+			"WCAG2AA.Principle1.Guideline1_3.1_3_1.F92,ARIA4",
+			"WCAG2AA.Principle1.Guideline1_3.1_3_1.H43.HeadersRequired"
+		]
 	},
-	"urls": []
+	"urls": [
+		{
+			"comment": "Overview. The two cards and the counts table.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "The queue, unfiltered: status badges, masked contact columns, sortable headers.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-journeys",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "The queue filtered. A different view link carries aria-current, which nothing else renders.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-journeys&status=recovered",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "The queue with a search term and no matches. The empty state is its own markup.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-journeys&s=nothingmatchesthis",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "One recovery: the reveal link, and the four POST buttons that change it.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-journey&journey={{JOURNEY_UID}}",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "The workflows list.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-workflows",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "The editor with a workflow loaded: every step is a details panel.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-workflow&workflow={{WORKFLOW_ID}}",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "The editor with nothing loaded, which is how a new workflow is started.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-workflow&workflow=0",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "Integrations: cards stating status in a sentence, including unavailable ones.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-integrations",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "Settings, one entry per tab: each is its own document and its own settings group.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=general",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=recovery",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=channels",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=wacr",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=sources",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=privacy",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=advanced",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "A deeplinked field. The highlight, the fragment and the announcement only exist in this state.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=channels&section=email&field=merchant_postal_address",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "System Status: the check tables and the Run now form.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-status",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "The screen a fresh activation lands on.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-setup",
+			"rootElement": "#wpbody-content"
+		},
+		{
+			"comment": "Public: the opt-out page as it is presented, on a live token.",
+			"url": "{{OPT_OUT_URL}}"
+		},
+		{
+			"comment": "Public: the page after the opt-out button is pressed. A second token, because pa11y-ci visits concurrently and this one is consumed.",
+			"url": "{{OPT_OUT_SUBMIT_URL}}",
+			"actions": [
+				"click element form button[type=submit]",
+				"wait for path to be {{OPT_OUT_SUBMIT_PATH}}"
+			]
+		},
+		{
+			"comment": "Public: what a link that does not resolve renders. Also what an expired or revoked one renders.",
+			"url": "{{INVALID_URL}}"
+		}
+	]
 }

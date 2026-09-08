@@ -6,7 +6,10 @@
 	"scripts": {
 		"env:start": "wp-env start",
 		"env:stop": "wp-env stop",
-		"a11y": "bin/a11y.sh"
+		"a11y:seed": "wp-env run cli wp --require=/var/www/html/wp-content/plugins/$(basename \"$PWD\")/tests/a11y/seed.php recoveryflow-a11y seed --yes",
+		"a11y": "bin/a11y.sh",
+		"a11y:keyboard": "bin/keyboard.sh",
+		"a11y:clear": "wp-env run cli wp --require=/var/www/html/wp-content/plugins/$(basename \"$PWD\")/tests/a11y/seed.php recoveryflow-a11y clear --yes"
 	},
 	"devDependencies": {
 		"@wordpress/env": "^10.0.0",

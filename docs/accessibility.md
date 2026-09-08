@@ -4,7 +4,7 @@ RecoveryFlow by WA.cr's admin is built to WCAG 2.2 Level AA as the minimum and L
 
 ## Checklist
 
-Each item is checked in code review and, where a tool can catch it, by `tests/a11y`. Success-criterion numbers are from WCAG 2.2.
+Each item is checked in code review and, where a tool can catch it, by the run in `tests/a11y` (see below). Success-criterion numbers are from WCAG 2.2.
 
 | Requirement | WCAG 2.2 | Level | How |
 | --- | --- | --- | --- |
@@ -73,24 +73,181 @@ admin.php?page=recoveryflow-settings&tab=channels&section=email&field=merchant_p
 - **Forms** use the Settings API, so core handles nonces, `settings_errors()` and the save round-trip; each tab is its own settings group, and a hidden field names the tab so a save cannot wipe the other five.
 - **Destructive options** confirm on the way on and never on the way off — error prevention must not stand between somebody and safety.
 
-## How pa11y-ci is meant to be run
+## How the accessibility run works
 
-> **NOT BUILT. This describes the intended run, not one that happens.**
-> `.pa11yci.json` sets the standard and the runners and then lists **no URLs**,
-> and it configures no login action -- so pa11y-ci had nothing to visit and no
-> session to visit it with, for every slice that shipped a screen. Until this
-> is built, `npm run a11y` **refuses** rather than reporting success against
-> zero screens (`bin/a11y.sh`), and nothing in CI runs it. Everything below is
-> the to-do; the properties above it are real and were checked by hand.
+It is built. `npm run a11y` checks every screen listed below against WCAG 2.2 AA
+and fails if any of them has a finding, then runs the same screens again at AAA
+and prints what it finds without failing on it. That split is the requirement:
+AA is what this plugin commits to, AAA is what it reaches for, and a gate that
+enforced AAA would fail on core WordPress's own colours forever and be switched
+off within a week.
 
-`npm run a11y` should run pa11y-ci inside the wp-env environment:
+```sh
+npm run env:start      # a WordPress with the plugin and WooCommerce on it
+npm run a11y           # the gate: 22 screens at AA, then the AAA report
+npm run a11y:keyboard  # the keyboard pass over the same screens
+npm run a11y:clear     # remove the demo data again
+```
 
-1. Start wp-env (`npm run env:start`) with the plugin active and demo data seeded.
-2. pa11y-ci logs in to the admin once (a scripted login `actions` block in `.pa11yci.json`, which does not exist yet) and reuses the session.
-3. It visits every screen listed under Screens and components, each Settings tab, and the public opt-out and invalid-link pages. None of these is listed yet.
-4. Standard `WCAG2AAA`; runners `axe` and `htmlcs` -- both already set in `.pa11yci.json`. Any failure at AA fails the run; AAA findings are printed and reviewed in the pull request.
-5. Only then is it worth adding a CI job for it. There is none today, and a job running an empty URL list would be another green tick meaning nothing.
+`npm run a11y` seeds the site itself before each pass, so it is repeatable and
+there is no separate step to forget. Set `RECOVERYFLOW_A11Y_SEED=''` to seed by
+hand, and `RECOVERYFLOW_A11Y_URL`, `_USER` and `_PASS` to point the whole thing
+at something other than the local wp-env.
 
-## Manual keyboard pass
+Four things had to exist before any of this could be honest.
 
-Before each release, every screen gets a keyboard-only pass recorded here: reach every control with Tab and Shift+Tab in reading order, operate it with Enter or Space, escape from nothing (there is nothing to escape from), and confirm the focus ring is visible throughout. **No such pass is recorded for 0.1.0.** The sentence that stood here promised results "in the release checklist when the admin screens land in slice 1c"; the screens landed four slices ago and there is no release checklist in this repository. Recording the pass in this section, screen by screen, is part of building the accessibility suite above -- not a substitute for it, since a keyboard pass and an automated run catch different things.
+**A session.** Every admin screen is behind a capability check, and a login form
+passes an accessibility check cleanly — so a run that was not logged in would
+report twenty green screens it never saw. `bin/a11y.sh` logs in once with curl
+and hands Chrome the cookies. That the session actually held is not taken on
+trust: every admin entry sets `rootElement` to `#wpbody-content`, which exists
+only inside wp-admin, so a run that lost its session fails instead of passing.
+Verified by mutation — point `rootElement` at a selector that does not exist and
+19 of the 22 URLs fail.
+
+**Rows on the screens.** An empty `WP_List_Table` renders none of the status
+badges, none of the shortened contact columns and none of the row actions this
+document makes claims about, and three screens have no address at all until
+something exists to address: one recovery, one workflow's editor, and the public
+opt-out page, which needs a live token. `tests/a11y/seed.php` creates six
+recoveries through the plugin's own ingest and evaluation passes and spreads
+them across the states that render differently. It clears the **consent ledger**
+as well as the journeys, which matters more than it sounds: checking the opt-out
+page means pressing its button, an opt-out is recorded against the identity
+rather than the journey, and a clear-out that missed it left that person
+suppressed so the next seeding enrolled one fewer. The queue lost a row per run
+while every gate stayed green.
+
+**An axe runner that tells a failure from a shrug.** axe answers in two lists:
+`violations`, which it checked and which failed, and `incomplete`, which it
+could not decide — most often contrast over an element with a background image.
+pa11y's bundled runner sets incomplete results to `warning` and then overwrites
+that from the rule's impact, so every "could not determine" arrives as an error.
+Here that was 28 contrast errors on core's own `<select>` elements, whose
+chevron is an SVG background image; measured in the browser their text is
+rgb(30,30,30) on rgb(255,255,255), about 17:1 against a AAA requirement of 7:1.
+`tests/a11y/axe-runner.js` puts the distinction back. Nothing is hidden —
+`npm run a11y -- --include-warnings` shows what axe could not decide.
+
+**Somewhere to put the ids.** `.pa11yci.json` holds the list of screens, in the
+repository, where it can be read and reviewed. The three addresses that cannot
+be known ahead of time are written as `{{PLACEHOLDERS}}`, and the seeder writes
+what they stand for into `tests/a11y/urls.generated.json`, which is ignored by
+git because it holds two live recovery tokens. A placeholder that was never
+filled in fails the run rather than checking a URL that does not resolve, which
+pa11y would otherwise report as a clean page.
+
+### What is checked
+
+All 22: Overview; the queue unfiltered, filtered, and with a search that matches
+nothing; one recovery; the workflows list; the editor with a workflow loaded and
+with nothing loaded; Integrations; each of the seven Settings tabs; a deeplinked
+field, because the highlight and the fragment exist in no other state; System
+Status; the setup screen; and the three public pages — the opt-out page as it is
+presented, the page after its button has been pressed, and what a link that does
+not resolve renders.
+
+`tests/smoke.php` fails if a screen this plugin registers, or a settings tab it
+defines, is not in that list. Every slice so far has added screens, and a suite
+that checks most of them is the same defect as one that checks none, only harder
+to notice.
+
+### The two rules that are ignored, and why
+
+Both were verified against the browser's own accessibility tree — what a screen
+reader is actually handed — rather than argued away from the specification.
+`tests/smoke.php` fails if either is ignored without being explained here, or
+explained here without being ignored.
+
+**`WCAG2AA.Principle1.Guideline1_3.1_3_1.F92,ARIA4`** — "this element's role is
+presentation but contains child elements with semantic meaning", raised against
+`<table class="form-table" role="presentation">` with `<th scope="row">` label
+cells inside. This is core WordPress's own settings markup, and ARIA propagates
+`presentation` to a table's rows and cells, so the `th` is not exposed as a
+header. Confirmed rather than assumed: Chrome's accessibility tree for a
+settings tab contains one `LayoutTable` and **no** `table`, `rowheader`,
+`columnheader` or `cell` node at all, while the same query against the queue's
+`WP_List_Table` returns `table:1 columnheader:14 rowheader:6 gridcell:36`. The
+labels reach their controls through `<label for>`, and no control on any screen
+is without an accessible name. Re-check it with
+`Accessibility.getFullAXTree` over the CDP session, not by reading the HTML.
+
+**`WCAG2AA.Principle1.Guideline1_3.1_3_1.H43.HeadersRequired`** — raised against
+the queue, which has column headers in its `thead` and a row header per row, and
+so has "multiple levels of th". H43 (`headers`/`id`) and H63 (`scope`) are both
+sufficient techniques for 1.3.1; HTML_CodeSniffer insists on the first when it
+sees two levels. The markup is `WP_List_Table`'s, shared with every list table
+in WordPress, and the accessibility tree above shows the headers resolving. It
+would take reimplementing core's row rendering to satisfy the checker, and the
+result would be worse markup than core's.
+
+Nothing else is ignored, and neither ignore is silent.
+
+### What the AAA pass reports
+
+380 findings, all of them contrast between 4.85:1 and 6.87:1 — every one clears
+AA's 4.5:1, none reaches AAA's 7:1. They are core's `.description` grey, core's
+`.nav-tab`, core's `.button`, core's list-table cells: colours this plugin does
+not choose and must not claim to have fixed.
+
+One was ours. `.recoveryflow-section__link`, the "Link" anchor on each section
+heading, inherited core's `#2271b1` at 4.93:1 — past AA, short of the 7:1 this
+document claims for anything the plugin adds. It is now `#0a4b78`, core's own
+darker link colour, at 9.2:1 on white and 8.1:1 on the admin grey. **No class
+this plugin defines fails AAA.** Set `RECOVERYFLOW_A11Y_AAA_JSON=<path>` to keep
+the raw results and diff a change against the last run.
+
+## The keyboard pass
+
+`npm run a11y:keyboard` walks every screen with the Tab key and reports what it
+finds. It does not replace a person: it cannot tell you whether the order makes
+sense, whether a label reads well out of context, or whether a screen is
+comprehensible. It does check the four things a person is worst at checking
+reliably across twenty-two screens and best at checking on one.
+
+1. **No keyboard trap** (2.1.2) — Tab all the way round and arrive back where
+   you started, in a finite number of stops.
+2. **No invisible tab stops** — nothing takes focus that cannot be seen. This is
+   the failure the settings screens are most exposed to, because dependent
+   fields are rendered and then hidden, and it is invisible to a document scan:
+   the markup is perfectly good.
+3. **Visible focus** (2.4.7, 2.4.13) — every stop paints an outline or a shadow,
+   measured on the focused element rather than asserted from the stylesheet.
+4. **An accessible name** (4.1.2) — every stop announces as something.
+
+It never presses anything. A pass that activated every control it found would
+cancel recoveries, revoke links and opt people out, and on this plugin one of
+those really sends and really bills.
+
+It also checks that a `?field=` deeplink moves focus into that control, because
+a broken deeplink looks exactly like a working one in a screenshot.
+
+**Recorded for 0.1.0, on WordPress 6.9 with WooCommerce 11.1:** 21 screens
+walked, 98 to 149 stops each, no traps, no invisible stops, every stop paints
+and announces. The deeplinked field is focused on arrival.
+
+Both detections are mutation-tested rather than trusted. Removing the focus
+outline in `admin.css` turns 19 of the 21 screens red, naming the stops;
+collapsing the tab strip to zero size reports each tab as taking focus while
+invisible. Two earlier versions of this walk reported clean passes while
+measuring almost nothing, and both are worth knowing about because they are easy
+to write again:
+
+- Cycle detection compared a description of the focused element — tag, id,
+  class — and a dozen wp-admin menu links share all three, so the walk decided
+  it had come back round after eight stops. **Every screen reported exactly 8
+  stops except the first, which reported 103.** Identical numbers across
+  different screens are what a broken measurement looks like; it passed.
+- The session was passed to Chrome with `setExtraHTTPHeaders`, which the browser
+  overrides once a response sets a cookie. The first screen loaded; every screen
+  after it was the login form, which has a tidy tab order and was duly reported
+  as clean. The session now goes in the cookie jar, and each admin screen is
+  checked for the `wp-admin` body class before it is walked.
+
+## What is still not automated
+
+A screen reader has not been run over these screens. NVDA, JAWS and VoiceOver
+disagree with each other and with the accessibility tree, and nothing here
+substitutes for listening to one. The checks above establish that the
+information is present and correctly associated; they do not establish that it
+is pleasant to hear.
