@@ -38,6 +38,11 @@ jobs:
         run: composer lint
       - name: PHPStan
         run: composer analyse
+      # The DDL is asserted as text elsewhere; this asserts the code agrees
+      # with it. A dropped or renamed column otherwise stays green through
+      # every gate and fails as a runtime SQL error on the first checkout.
+      - name: Schema and repositories agree
+        run: composer schema:audit
 
   i18n:
     name: Translation readiness
