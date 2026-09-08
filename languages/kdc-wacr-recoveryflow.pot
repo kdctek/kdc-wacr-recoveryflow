@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T14:38:54+00:00\n"
+"POT-Creation-Date: 2026-09-08T14:50:44+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -2813,6 +2813,11 @@ msgstr ""
 msgid "This has to be settled before email reminders can be switched on."
 msgstr ""
 
+#: src/Recovery/Email_Sender.php:87
+#: src/Recovery/Email_Sender.php:107
+msgid "The site could not send the email."
+msgstr ""
+
 #: src/Recovery/Journey_State.php:207
 msgctxt "recovery journey state"
 msgid "New"
@@ -3116,6 +3121,10 @@ msgstr ""
 msgid "RecoveryFlow cannot send this template, because it needs values it has no way to supply: %s. A recovery message is text and a link back to the basket, so a template with an image header, a button payload or a carousel cannot be used. Choose another, or approve one with text and a URL button."
 msgstr ""
 
+#: src/Workflow/Actions/Send_Email.php:177
+msgid "Send an email from this site"
+msgstr ""
+
 #: src/Workflow/Actions/Send_Template.php:204
 msgid "Send an approved WhatsApp template from WordPress"
 msgstr ""
@@ -3138,6 +3147,22 @@ msgstr ""
 
 #: src/Workflow/Conditions/Journey_Not_Engaged.php:40
 msgid "The customer has not replied or followed the link"
+msgstr ""
+
+#: src/Workflow/Email_Composer.php:102
+msgid "This customer has no email address to write to."
+msgstr ""
+
+#: src/Workflow/Email_Composer.php:117
+msgid "This step has no subject line, so there is nothing to send."
+msgstr ""
+
+#: src/Workflow/Email_Composer.php:129
+msgid "This step has no message body, so there is nothing to send."
+msgstr ""
+
+#: src/Workflow/Email_Composer.php:152
+msgid "A recovery email must carry a postal address and an unsubscribe link, and one of them is missing."
 msgstr ""
 
 #: src/Workflow/Message_Composer.php:79
@@ -3169,115 +3194,115 @@ msgid "The template variables for %1$s skip a position: %2$d is missing. WhatsAp
 msgstr ""
 
 #. translators: %s: comma-separated list of key names.
-#: src/Workflow/Workflow_Definition.php:113
+#: src/Workflow/Workflow_Definition.php:120
 #, php-format
 msgid "This workflow has settings RecoveryFlow does not recognise: %s. Remove them and save again."
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:122
+#: src/Workflow/Workflow_Definition.php:129
 msgid "Give the workflow a name of up to 191 characters."
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:126
+#: src/Workflow/Workflow_Definition.php:133
 msgid "The workflow version must be a whole number of 1 or more."
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:266
+#: src/Workflow/Workflow_Definition.php:273
 msgid "The workflow needs a trigger saying what starts it."
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:272
+#: src/Workflow/Workflow_Definition.php:279
 msgid "The trigger may only contain \"event\" and \"source\"."
 msgstr ""
 
 #. translators: %s: the only supported trigger event name.
-#: src/Workflow/Workflow_Definition.php:281
+#: src/Workflow/Workflow_Definition.php:288
 #, php-format
 msgid "The only trigger RecoveryFlow understands today is \"%s\"."
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:290
+#: src/Workflow/Workflow_Definition.php:297
 msgid "The trigger source must be a source identifier, or * for every source."
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:304
+#: src/Workflow/Workflow_Definition.php:311
 msgid "The workflow needs at least one step, given as a list."
 msgstr ""
 
 #. translators: %d: the maximum number of steps a workflow may have.
-#: src/Workflow/Workflow_Definition.php:311
+#: src/Workflow/Workflow_Definition.php:318
 #, php-format
 msgid "A workflow may have at most %d steps."
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:319
+#: src/Workflow/Workflow_Definition.php:326
 msgid "each step must be an object"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:357
+#: src/Workflow/Workflow_Definition.php:364
 msgid "the type must be condition, wait or action"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:373
+#: src/Workflow/Workflow_Definition.php:380
 msgid "a condition may only have \"if\" and \"else\""
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:379
+#: src/Workflow/Workflow_Definition.php:386
 msgid "\"if\" must name a registered condition, such as journey.not_completed"
 msgstr ""
 
 #. translators: %s: comma-separated list of journey states.
-#: src/Workflow/Workflow_Definition.php:394
+#: src/Workflow/Workflow_Definition.php:401
 #, php-format
 msgid "\"else\" must be stop: followed by one of %s"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:415
+#: src/Workflow/Workflow_Definition.php:422
 msgid "a wait may only have \"for\""
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:422
+#: src/Workflow/Workflow_Definition.php:429
 msgid "\"for\" must be an ISO 8601 duration such as PT30M or P1D"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:431
+#: src/Workflow/Workflow_Definition.php:438
 msgid "a wait must be at least one minute"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:435
+#: src/Workflow/Workflow_Definition.php:442
 msgid "a wait may be at most 30 days"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:501
+#: src/Workflow/Workflow_Definition.php:519
 msgid "an action may only have \"do\", \"with\" and \"channel\""
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:505
+#: src/Workflow/Workflow_Definition.php:523
 msgid "\"channel\" must be either whatsapp or email"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:511
+#: src/Workflow/Workflow_Definition.php:529
 msgid "\"do\" must name a registered action, such as wacr.send_template"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:519
+#: src/Workflow/Workflow_Definition.php:537
 msgid "\"with\" must be an object of settings"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:539
+#: src/Workflow/Workflow_Definition.php:557
 msgid "\"with\" may be nested one level at most"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:544
+#: src/Workflow/Workflow_Definition.php:562
 msgid "every setting name in \"with\" must be lowercase letters, digits and underscores"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:558
+#: src/Workflow/Workflow_Definition.php:576
 msgid "settings in \"with\" must be text, numbers or true and false"
 msgstr ""
 
 #. translators: 1: step number as shown to the user, 2: what is wrong with it.
-#: src/Workflow/Workflow_Definition.php:612
+#: src/Workflow/Workflow_Definition.php:630
 #, php-format
 msgid "Step %1$d: %2$s."
 msgstr ""

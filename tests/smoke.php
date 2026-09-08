@@ -43,6 +43,10 @@ use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
 use WAcr\RecoveryFlow\Recovery\Attempt;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Eligibility;
+use WAcr\RecoveryFlow\Workflow\Actions\Send_Email;
+use WAcr\RecoveryFlow\Workflow\Email_Composer;
+use WAcr\RecoveryFlow\Recovery\Email_Sender;
+use WAcr\RecoveryFlow\Recovery\Email_Message;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Customer\Customer;
@@ -5469,6 +5473,326 @@ check( 'and the journey is closed rather than retried forever', $recoveryflow_wr
 
 $GLOBALS['wpdb']->rows = $recoveryflow_rows_before;
 $GLOBALS['wpdb']->vars = $recoveryflow_vars_before;
+
+
+// ---------------------------------------------------------------------------
+// Sending a recovery email.
+//
+// Until now nothing could: the channel existed in consent, eligibility, the
+// ledger and the editor, and there was no sender behind any of it. What is
+// asserted here is mostly what the message CARRIES and what it REFUSES, since
+// those are the two things a merchant cannot check for themselves before the
+// first one goes out -- and one of them is a legal obligation.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_mail_settings = array_merge(
+	Options::defaults(),
+	$recoveryflow_compliant,
+	array( 'channel_email_enabled' => true )
+);
+
+$recoveryflow_email_customer = Customer::from_row(
+	array(
+		'id'         => 9001,
+		'first_name' => 'Ada',
+	)
+);
+$recoveryflow_email_customer->with_identities(
+	array(
+		array(
+			'kind'       => Identity::EMAIL,
+			'value_raw'  => 'ada@example.test',
+			'value_hash' => 'email-hash-9001',
+		),
+	)
+);
+
+$recoveryflow_email_vars = new Variable_Context(
+	array(
+		'customer.first_name'      => 'Ada',
+		'recovery.total_formatted' => '42.00 GBP',
+		'recovery.recovery_url'    => 'https://shop.example/recovery/' . str_repeat( 'a', 43 ) . '/restore',
+		'recovery.opt_out_url'     => 'https://shop.example/recovery/' . str_repeat( 'a', 43 ) . '/opt-out',
+		'site.name'                => 'Northbound Supply',
+	)
+);
+
+$recoveryflow_email_composer = new Email_Composer();
+
+$recoveryflow_step_with = array(
+	'subject' => 'Your basket is waiting, {{ customer.first_name }}',
+	'body'    => "Hello {{ customer.first_name }},\n\nYou left {{ recovery.total_formatted }} behind at {{ site.name }}.\n\nPick up where you left off: {{ recovery.recovery_url }}",
+);
+
+$recoveryflow_composed = $recoveryflow_email_composer->compose(
+	Recovery_Journey::from_row( array( 'id' => 9100 ) ),
+	$recoveryflow_email_customer,
+	$recoveryflow_step_with,
+	$recoveryflow_email_vars,
+	$recoveryflow_mail_settings
+);
+
+ok( 'a step with a subject and a body composes a message', $recoveryflow_composed instanceof Email_Message );
+
+if ( $recoveryflow_composed instanceof Email_Message ) {
+	check( 'addressed to the address the customer gave', $recoveryflow_composed->to, 'ada@example.test' );
+	check( 'the subject is filled in from the step', $recoveryflow_composed->subject, 'Your basket is waiting, Ada' );
+	ok( 'the body carries the recovery link', false !== strpos( $recoveryflow_composed->body, '/restore' ) );
+	ok( 'and the merchant\'s own words', false !== strpos( $recoveryflow_composed->body, 'You left 42.00 GBP behind at Northbound Supply.' ) );
+
+	/*
+	 * The two things the law asks for, in the body of every message. They are
+	 * appended here rather than left to the wording, because a template a
+	 * merchant edits is a template the unsubscribe can be deleted from -- and
+	 * shortening the message is the first thing anybody does to one.
+	 */
+	ok(
+		'every message carries the postal address, whatever the step said',
+		false !== strpos( $recoveryflow_composed->body, Email_Compliance::address( $recoveryflow_mail_settings ) )
+			&& '' !== Email_Compliance::address( $recoveryflow_mail_settings )
+	);
+	ok( 'and an unsubscribe link', false !== strpos( $recoveryflow_composed->body, '/opt-out' ) );
+	ok( 'and they are the last thing in it, after a signature separator', false !== strpos( $recoveryflow_composed->body, "\n-- \n" ) );
+	check( 'and it goes out as plain text, so no stylesheet can hide either of them', $recoveryflow_composed->headers(), array( 'Content-Type: text/plain; charset=UTF-8' ) );
+
+	// No From: the site's own mail configuration decides, so recovery mail
+	// leaves by the same route as the shop's order emails.
+	ok( 'the plugin sets no From address of its own', false === strpos( implode( "\n", $recoveryflow_composed->headers() ), 'From:' ) );
+}
+
+// A newline in a subject is a header injection, and the subject came out of an
+// administrator-authored document.
+$recoveryflow_injected = $recoveryflow_email_composer->compose(
+	Recovery_Journey::from_row( array( 'id' => 9100 ) ),
+	$recoveryflow_email_customer,
+	array(
+		'subject' => "Hello\nBcc: somebody@example.test",
+		'body'    => 'Body.',
+	),
+	$recoveryflow_email_vars,
+	$recoveryflow_mail_settings
+);
+
+ok( 'a subject carrying a newline is composed, not refused', $recoveryflow_injected instanceof Email_Message );
+ok(
+	'but the newline is gone, so a header cannot be smuggled into it',
+	$recoveryflow_injected instanceof Email_Message && false === strpos( $recoveryflow_injected->subject, "\n" )
+);
+
+// The refusals. Each is something only the merchant can fix, so the step fails
+// rather than retrying the same refusal three times.
+foreach (
+	array(
+		'no_subject' => array(
+			'subject' => '   ',
+			'body'    => 'Body.',
+		),
+		'no_body'    => array(
+			'subject' => 'Subject',
+			'body'    => '',
+		),
+	) as $recoveryflow_expected => $recoveryflow_bad
+) {
+	$recoveryflow_refusal = $recoveryflow_email_composer->compose(
+		Recovery_Journey::from_row( array( 'id' => 9100 ) ),
+		$recoveryflow_email_customer,
+		$recoveryflow_bad,
+		$recoveryflow_email_vars,
+		$recoveryflow_mail_settings
+	);
+
+	ok( "a step with {$recoveryflow_expected} is refused", $recoveryflow_refusal instanceof WP_Error );
+	check(
+		"and the refusal is named {$recoveryflow_expected} rather than a generic failure",
+		$recoveryflow_refusal instanceof WP_Error ? $recoveryflow_refusal->get_error_code() : '',
+		$recoveryflow_expected
+	);
+}
+
+// Somebody with no address at all. Eligibility should have stopped this long
+// before here; it is re-asked because this is the last place that can.
+$recoveryflow_no_address = $recoveryflow_email_composer->compose(
+	Recovery_Journey::from_row( array( 'id' => 9100 ) ),
+	Customer::from_row( array( 'id' => 9002 ) ),
+	$recoveryflow_step_with,
+	$recoveryflow_email_vars,
+	$recoveryflow_mail_settings
+);
+
+ok( 'a customer with no email address is refused rather than written to', $recoveryflow_no_address instanceof WP_Error );
+check( 'and says so', $recoveryflow_no_address instanceof WP_Error ? $recoveryflow_no_address->get_error_code() : '', 'no_email' );
+
+/*
+ * THE ONE THAT MATTERS MOST. A site with no postal address settled cannot
+ * produce a lawful footer, and a message without one must not leave -- however
+ * it got this far. Rule_Set refuses the channel for the same reasons, so
+ * reaching here is a fault rather than a configuration state, and it is checked
+ * anyway because the cost of the two mistakes is not remotely equal.
+ */
+$recoveryflow_unlawful = $recoveryflow_email_composer->compose(
+	Recovery_Journey::from_row( array( 'id' => 9100 ) ),
+	$recoveryflow_email_customer,
+	$recoveryflow_step_with,
+	$recoveryflow_email_vars,
+	array( 'channel_email_enabled' => true )
+);
+
+ok( 'a message that could carry no lawful footer is not composed at all', $recoveryflow_unlawful instanceof WP_Error );
+check( 'and names the footer as the reason', $recoveryflow_unlawful instanceof WP_Error ? $recoveryflow_unlawful->get_error_code() : '', 'no_footer' );
+
+// An unsubscribe link that is missing is the same refusal, from the other side.
+$recoveryflow_no_link = $recoveryflow_email_composer->compose(
+	Recovery_Journey::from_row( array( 'id' => 9100 ) ),
+	$recoveryflow_email_customer,
+	$recoveryflow_step_with,
+	new Variable_Context( array( 'customer.first_name' => 'Ada' ) ),
+	$recoveryflow_mail_settings
+);
+
+ok( 'and so is a message with no unsubscribe link to offer', $recoveryflow_no_link instanceof WP_Error );
+
+// ---------------------------------------------------------------------------
+// Handing it to WordPress, and learning why when that fails.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_mail_sent']   = array();
+$GLOBALS['recoveryflow_mail_result'] = true;
+
+$recoveryflow_mailer = new Email_Sender( $plugin->logger() );
+$recoveryflow_message = new Email_Message( 'ada@example.test', 'Subject', "Body\n\n-- \nAddress" );
+
+ok( 'an accepted message reports success', true === $recoveryflow_mailer->send( $recoveryflow_message, 9100 ) );
+check( 'and really went through wp_mail rather than being reported sent', count( $GLOBALS['recoveryflow_mail_sent'] ), 1 );
+check( 'with the composed body, byte for byte', $GLOBALS['recoveryflow_mail_sent'][0]['message'], "Body\n\n-- \nAddress" );
+
+/*
+ * wp_mail() answers false and says nothing. The reason arrives separately, on
+ * wp_mail_failed, and capturing it is the difference between a merchant whose
+ * SMTP credentials expired fixing it this morning and noticing in a fortnight.
+ */
+$GLOBALS['recoveryflow_mail_result'] = 'fail:smtp_auth_failed';
+
+$recoveryflow_failed = $recoveryflow_mailer->send( $recoveryflow_message, 9100 );
+
+ok( 'a refused message reports failure', $recoveryflow_failed instanceof WP_Error );
+check(
+	'and carries the reason WordPress gave rather than a generic one',
+	$recoveryflow_failed instanceof WP_Error ? $recoveryflow_failed->get_error_code() : '',
+	'smtp_auth_failed'
+);
+
+// A refusal with no reason at all is still a refusal, and still says so.
+$GLOBALS['recoveryflow_mail_result'] = false;
+
+$recoveryflow_silent = $recoveryflow_mailer->send( $recoveryflow_message, 9100 );
+
+ok( 'a message refused with no explanation still fails', $recoveryflow_silent instanceof WP_Error );
+check(
+	'under a reason of its own rather than the last one that happened',
+	$recoveryflow_silent instanceof WP_Error ? $recoveryflow_silent->get_error_code() : '',
+	'mail_refused'
+);
+
+// A transport that raises rather than returning: some SMTP plugins do.
+$GLOBALS['recoveryflow_mail_result'] = 'throw';
+
+$recoveryflow_thrown = $recoveryflow_mailer->send( $recoveryflow_message, 9100 );
+
+ok( 'a transport that throws does not take the whole pass down with it', $recoveryflow_thrown instanceof WP_Error );
+check( 'and is reported as an exception rather than a refusal', $recoveryflow_thrown instanceof WP_Error ? $recoveryflow_thrown->get_error_code() : '', 'mail_exception' );
+
+/*
+ * The listener is attached for exactly the duration of one send. Left attached
+ * it would collect the failures of every other email the site sends -- order
+ * confirmations, password resets -- and log somebody else's recipient into this
+ * plugin's tables.
+ */
+$GLOBALS['recoveryflow_mail_result'] = true;
+
+do_action( 'wp_mail_failed', new WP_Error( 'somebody_elses_problem', 'Not ours' ) );
+
+ok(
+	'a failure from somebody else\'s email is not picked up afterwards',
+	true === $recoveryflow_mailer->send( $recoveryflow_message, 9100 )
+);
+
+/*
+ * And the property that assertion CANNOT see, which is why this one is here.
+ * Because the sender clears its captured failure at the start of every send, a
+ * listener left attached is invisible from the outside -- the mutation that
+ * removed both remove_action() calls passed the whole suite. What it really
+ * breaks is accumulation: one closure per send, every one of them firing for
+ * every other email the site sends for the rest of the request. So the count is
+ * what gets asserted.
+ */
+$recoveryflow_listeners_before = count( $GLOBALS['__actions']['wp_mail_failed'] ?? array() );
+
+$recoveryflow_mailer->send( $recoveryflow_message, 9100 );
+$recoveryflow_mailer->send( $recoveryflow_message, 9100 );
+
+check(
+	'and no listener is left behind by a send, however many are sent',
+	count( $GLOBALS['__actions']['wp_mail_failed'] ?? array() ),
+	$recoveryflow_listeners_before
+);
+
+$GLOBALS['recoveryflow_mail_result'] = true;
+
+// ---------------------------------------------------------------------------
+// The action, and the plan it does NOT need.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_email_action = $plugin->steps()->action( 'wacr.send_email' );
+
+ok( 'the email action is registered', $recoveryflow_email_action instanceof Send_Email );
+check( 'and says it sends over email', $recoveryflow_email_action instanceof Send_Email ? $recoveryflow_email_action->get_channel() : '', Channel::EMAIL );
+
+/*
+ * Email costs the merchant nothing, leaves through their own mail
+ * configuration and never touches WA.cr's API, so a workflow built from email
+ * steps runs on a workspace with no API key at all. Before this the rule was
+ * written as "anything that is not a hand-off needs the developer API", which
+ * would have blocked every email-only workflow from being saved on the Lite
+ * path the moment email could be sent.
+ */
+$recoveryflow_email_only = array(
+	'steps' => array(
+		array(
+			'type'    => Workflow_Definition::TYPE_ACTION,
+			'do'      => 'wacr.send_email',
+			'channel' => Workflow_Definition::CHANNEL_EMAIL,
+			'with'    => array(
+				'subject' => 'Hello',
+				'body'    => 'Body.',
+			),
+		),
+	),
+);
+
+ok( 'a workflow that only sends email does not need the developer API', ! Workflow_Definition::needs_developer_api( $recoveryflow_email_only ) );
+ok(
+	'while one that sends a WA.cr template still does',
+	Workflow_Definition::needs_developer_api(
+		array(
+			'steps' => array(
+				array(
+					'type' => Workflow_Definition::TYPE_ACTION,
+					'do'   => 'wacr.send_template',
+				),
+			),
+		)
+	)
+);
+
+// The gate's rate budget is WA.cr's allowance, and email does not spend it.
+// Holding a free message back because a paid channel hit its ceiling would stop
+// the reminders at exactly the moment a shop is busiest.
+$recoveryflow_gate_src = (string) file_get_contents( dirname( __DIR__ ) . '/src/Workflow/Send_Gate.php' );
+
+ok(
+	'the send gate only applies the WA.cr rate budget to the channel that spends it',
+	false !== strpos( $recoveryflow_gate_src, 'Channel::WHATSAPP === $channel' )
+);
 
 
 echo "\n";

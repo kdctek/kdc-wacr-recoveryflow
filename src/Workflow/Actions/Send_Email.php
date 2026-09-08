@@ -1,6 +1,6 @@
 <?php
 /**
- * The action that sends a WhatsApp recovery message.
+ * The action that sends a recovery email.
  *
  * @package WAcr\RecoveryFlow
  */
@@ -8,14 +8,14 @@
 namespace WAcr\RecoveryFlow\Workflow\Actions;
 
 use WAcr\RecoveryFlow\Core\Clock;
-use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Core\Rewrites;
 use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
 use WAcr\RecoveryFlow\Recovery\Attempt;
-use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
+use WAcr\RecoveryFlow\Recovery\Channel;
+use WAcr\RecoveryFlow\Recovery\Email_Sender;
 use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Recovery\Recovery_Event;
@@ -23,11 +23,7 @@ use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Security\Token_Service;
 use WAcr\RecoveryFlow\Support\Logger;
-use WAcr\RecoveryFlow\WAcr\Client;
-use WAcr\RecoveryFlow\WAcr\Error;
-use WAcr\RecoveryFlow\WAcr\Rate_Budget;
-use WAcr\RecoveryFlow\WAcr\Result;
-use WAcr\RecoveryFlow\Workflow\Message_Composer;
+use WAcr\RecoveryFlow\Workflow\Email_Composer;
 use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Workflow\Step_Outcome;
 use WAcr\RecoveryFlow\Workflow\Variable_Context;
@@ -35,40 +31,39 @@ use WAcr\RecoveryFlow\Workflow\Variable_Context;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * One message, sent at most once, whatever else goes wrong.
+ * One recovery email, sent at most once.
  *
- * The order of the first four things this class does is the whole design, and
- * it is not negotiable.
- *
- * The gate is asked first, because a message held back for quiet hours or a
- * paused rate budget should not consume an attempt number or a token.
- *
- * Then the attempt row is reserved, under a UNIQUE idempotency key, BEFORE the
- * HTTP call. The WA.cr messaging API has no idempotency key of its own, so this
+ * The order is the same as the WhatsApp action's and for the same reason: the
+ * gate first, so a message held back for quiet hours consumes neither an
+ * attempt number nor a token; then the attempt row reserved under its unique
+ * idempotency key BEFORE anything is handed to a mail transport, because that
  * row is the only thing standing between a retry and a customer receiving the
- * same reminder twice with the merchant billed twice for it. A null return from
- * reserve() means another run already holds that key, and the only safe reading
- * of that is "a send is already in flight": this run returns SKIPPED and does
- * not send, however certain it is that nothing has gone out.
+ * same reminder twice.
  *
- * Existing attempts for the same step are inspected before a new one is
- * reserved. One that already sent means the message went out and the journey
- * simply was not advanced; one still in 'sending' or 'unknown' means a request
- * was started and its outcome was never learned, which is resolved by reading
- * the conversation back, never by sending again.
+ * Three things differ from the WhatsApp action, and each is a deliberate
+ * simplification rather than an omission.
  *
- * Failures are then sorted by what they say about delivery rather than by HTTP
- * status. A request that failed before it left is retried with backoff. A
- * request that timed out after the body was written is marked unknown and left
- * for the Poll stage, because a blind retry there is exactly the double send
- * this class exists to prevent.
+ * There is no unknown outcome. An HTTP request to WA.cr can time out after the
+ * body is written, genuinely leaving nobody able to say whether the message
+ * went; wp_mail() either handed the message to a transport or it did not. So
+ * there is no poll-back, no `needs_resolution` branch and no RECHECK -- and
+ * inventing one would park recoveries waiting for a resolution that can never
+ * arrive.
+ *
+ * There is no plan gate. Email costs the merchant nothing, goes through their
+ * own mail configuration and never touches WA.cr's API, so it works on every
+ * workspace including one with no API key at all. That is what stops the Lite
+ * path being trialware: a shop that cannot send WhatsApp from WordPress can
+ * still recover a basket.
+ *
+ * There is no rate budget. It is WA.cr's allowance and email does not spend it.
  */
-final class Send_Template implements Action_Interface {
+final class Send_Email implements Action_Interface {
 
 	/**
 	 * The name a workflow refers to this by.
 	 */
-	public const ID = 'wacr.send_template';
+	public const ID = 'wacr.send_email';
 
 	/**
 	 * How many times one step may try before the journey is given up on.
@@ -82,28 +77,23 @@ final class Send_Template implements Action_Interface {
 	private const BACKOFF_MAX  = 21600;
 
 	/**
-	 * When to first read the conversation back after a send.
-	 */
-	private const POLL_AFTER = 300;
-
-	/**
-	 * When an unknown outcome should be looked into, and when the workflow may
-	 * safely look at this step again once it has been.
-	 */
-	private const RESOLVE_AFTER = 120;
-	private const RECHECK_AFTER = 1200;
-
-	/**
-	 * How long to wait when the site cannot send directly at all.
+	 * How long to wait when the site cannot send email at all.
 	 */
 	private const UNAVAILABLE_AFTER = 3600;
 
 	/**
-	 * WA.cr client.
+	 * Mail transport.
 	 *
-	 * @var Client
+	 * @var Email_Sender
 	 */
-	private Client $client;
+	private Email_Sender $mailer;
+
+	/**
+	 * Message builder.
+	 *
+	 * @var Email_Composer
+	 */
+	private Email_Composer $composer;
 
 	/**
 	 * Attempt ledger.
@@ -120,32 +110,11 @@ final class Send_Template implements Action_Interface {
 	private Journey_Repository $journeys;
 
 	/**
-	 * The send gate.
+	 * The quiet-hours, touch-limit and opt-out gate.
 	 *
 	 * @var Send_Gate
 	 */
 	private Send_Gate $gate;
-
-	/**
-	 * Builds the request from the step's variable mapping.
-	 *
-	 * @var Message_Composer
-	 */
-	private Message_Composer $composer;
-
-	/**
-	 * Request budget.
-	 *
-	 * @var Rate_Budget
-	 */
-	private Rate_Budget $budget;
-
-	/**
-	 * Logger.
-	 *
-	 * @var Logger
-	 */
-	private Logger $logger;
 
 	/**
 	 * Clock.
@@ -155,35 +124,39 @@ final class Send_Template implements Action_Interface {
 	private Clock $clock;
 
 	/**
+	 * Log sink.
+	 *
+	 * @var Logger
+	 */
+	private Logger $logger;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Client             $client   WA.cr client.
+	 * @param Email_Sender       $mailer   Mail transport.
+	 * @param Email_Composer     $composer Message builder.
 	 * @param Attempt_Repository $attempts Attempt ledger.
 	 * @param Journey_Repository $journeys Journey storage.
 	 * @param Send_Gate          $gate     The send gate.
-	 * @param Message_Composer   $composer Message builder.
-	 * @param Rate_Budget        $budget   Request budget.
-	 * @param Logger             $logger   Logger.
 	 * @param Clock              $clock    Clock.
+	 * @param Logger             $logger   Log sink.
 	 */
 	public function __construct(
-		Client $client,
+		Email_Sender $mailer,
+		Email_Composer $composer,
 		Attempt_Repository $attempts,
 		Journey_Repository $journeys,
 		Send_Gate $gate,
-		Message_Composer $composer,
-		Rate_Budget $budget,
-		Logger $logger,
-		Clock $clock
+		Clock $clock,
+		Logger $logger
 	) {
-		$this->client   = $client;
+		$this->mailer   = $mailer;
+		$this->composer = $composer;
 		$this->attempts = $attempts;
 		$this->journeys = $journeys;
 		$this->gate     = $gate;
-		$this->composer = $composer;
-		$this->budget   = $budget;
-		$this->logger   = $logger;
 		$this->clock    = $clock;
+		$this->logger   = $logger;
 	}
 
 	/**
@@ -201,7 +174,7 @@ final class Send_Template implements Action_Interface {
 	 * @return string
 	 */
 	public function get_label(): string {
-		return __( 'Send an approved WhatsApp template from WordPress', 'kdc-wacr-recoveryflow' );
+		return __( 'Send an email from this site', 'kdc-wacr-recoveryflow' );
 	}
 
 	/**
@@ -210,16 +183,21 @@ final class Send_Template implements Action_Interface {
 	 * @return string
 	 */
 	public function get_channel(): string {
-		return Channel::WHATSAPP;
+		return Channel::EMAIL;
 	}
 
 	/**
-	 * Whether this site can send directly.
+	 * Whether this site may send recovery email right now.
+	 *
+	 * Both gates, asked as one: the merchant's switch, and the compliance
+	 * settings the law requires before commercial mail may go out at all.
+	 * Rule_Set::channel_enabled() is the single home for that rule, so the
+	 * editor, the status screen and this action cannot disagree about it.
 	 *
 	 * @return bool
 	 */
 	public function is_available(): bool {
-		return Feature_Gate::is_enabled( Feature_Gate::DIRECT_SEND );
+		return Rule_Set::for_source( null )->channel_enabled( Channel::EMAIL );
 	}
 
 	/**
@@ -241,13 +219,24 @@ final class Send_Template implements Action_Interface {
 			return Step_Outcome::of( Step_Outcome::FAILED, 'bad_context' );
 		}
 
-		if ( ! $this->is_available() ) {
-			// Deferred rather than failed: connecting a key later should let
-			// the journeys that queued up in the meantime run, not find them
-			// all dead.
-			$this->logger->warning( 'workflow', 'Direct sending is not available on this workspace', array(), $journey->id );
+		/*
+		 * Asked of the rules this run is working to, not of the stored settings.
+		 * Rule_Set is a snapshot taken when the batch started, deliberately, so
+		 * that a merchant saving a setting halfway through a pass cannot change
+		 * the rules for half of it -- and is_available() reads the live ones.
+		 */
+		if ( ! $rules->channel_enabled( Channel::EMAIL ) ) {
+			// Deferred rather than failed: settling the postal address later
+			// should let the journeys that queued up in the meantime run, not
+			// find them all dead.
+			$this->logger->warning(
+				'workflow',
+				'Email reminders are not available on this site',
+				array( 'blockers' => implode( ',', $rules->email_compliance_blockers() ) ),
+				$journey->id
+			);
 
-			return $this->defer( $journey, $claim, $this->clock->offset( self::UNAVAILABLE_AFTER ), 'direct_send_unavailable' );
+			return $this->defer( $journey, $claim, $this->clock->offset( self::UNAVAILABLE_AFTER ), 'email_unavailable' );
 		}
 
 		$verdict = $this->gate->check( $journey, $customer instanceof Customer ? $customer : null, $rules, $this->get_channel() );
@@ -264,11 +253,14 @@ final class Send_Template implements Action_Interface {
 			return $this->halt( $journey, $claim, Send_Gate::REASON_RECIPIENT );
 		}
 
-		$history  = $this->attempts->for_journey( $journey->id, 100 );
-		$resolved = $this->resume_from_history( $journey, $context, $history, $step );
+		$history = $this->attempts->for_journey( $journey->id, 100 );
 
-		if ( $resolved instanceof Step_Outcome ) {
-			return $resolved;
+		foreach ( $this->for_step( $history, $step ) as $earlier ) {
+			if ( $earlier->was_sent() ) {
+				// The message went out; only the journey was not advanced,
+				// which is what a run dying between the two looks like.
+				return $this->record_sent( $journey, $context, $history, 'already_sent' );
+			}
 		}
 
 		$attempt_no = count( $this->for_step( $history, $step ) ) + 1;
@@ -277,9 +269,9 @@ final class Send_Template implements Action_Interface {
 			return $this->fail( $journey, 'attempts_exhausted' );
 		}
 
-		// The token is minted before the row is reserved so its hash goes in
-		// with the reservation: the attempt row and the link in the message are
-		// one thing, and a link that has reached a customer must keep working.
+		// Minted before the row is reserved so its hash goes in with the
+		// reservation: the attempt row and the link in the message are one
+		// thing, and a link that has reached a customer must keep working.
 		$token = Token_Service::mint();
 
 		$attempt = $this->attempts->reserve(
@@ -290,8 +282,6 @@ final class Send_Template implements Action_Interface {
 				'idempotency_key'  => Attempt::key( $journey->journey_uid, $step, $attempt_no ),
 				'action_type'      => self::ID,
 				'channel'          => $this->get_channel(),
-				'template_name'    => substr( trim( (string) ( $parameters['template'] ?? '' ) ), 0, 191 ),
-				'language_code'    => substr( trim( (string) ( $parameters['language'] ?? 'en' ) ), 0, 12 ),
 				'token_hash'       => Token_Service::hash( $token ),
 				'token_expires_at' => $this->clock->offset( $rules->link_ttl_seconds() ),
 				'status'           => Attempt::SENDING,
@@ -303,7 +293,7 @@ final class Send_Template implements Action_Interface {
 			return Step_Outcome::of( Step_Outcome::SKIPPED, 'reserved_elsewhere' );
 		}
 
-		return $this->deliver( $journey, $parameters, $context, $attempt, $customer, $event, $token, $history );
+		return $this->deliver( $journey, $parameters, $context, $attempt, $customer, $event, $token, $history, $rules );
 	}
 
 	/**
@@ -317,6 +307,7 @@ final class Send_Template implements Action_Interface {
 	 * @param Recovery_Event      $event      What was abandoned.
 	 * @param string              $token      The plaintext recovery token.
 	 * @param array<int,Attempt>  $history    Every earlier attempt on this journey.
+	 * @param Rule_Set            $rules      The thresholds in force.
 	 * @return Step_Outcome
 	 */
 	private function deliver(
@@ -327,7 +318,8 @@ final class Send_Template implements Action_Interface {
 		Customer $customer,
 		Recovery_Event $event,
 		string $token,
-		array $history
+		array $history,
+		Rule_Set $rules
 	): Step_Outcome {
 		$source = $context['source'] ?? null;
 
@@ -339,17 +331,22 @@ final class Send_Template implements Action_Interface {
 			$this->logger
 		);
 
-		$request = $this->composer->compose( $journey, $customer, $parameters, $variables );
+		$message = $this->composer->compose( $journey, $customer, $parameters, $variables, $rules->all() );
 
-		if ( is_wp_error( $request ) ) {
-			$this->attempts->mark_failed( $attempt->id, 'invalid_template', $request->get_error_message() );
+		if ( is_wp_error( $message ) ) {
+			// Every refusal the composer can make -- no subject, no body, no
+			// lawful footer, no address to write to -- is something only the
+			// merchant can fix, so retrying would fail identically three times
+			// and then give up anyway.
+			$this->attempts->mark_failed( $attempt->id, $message->get_error_code(), $message->get_error_message() );
 
-			return $this->fail( $journey, 'invalid_template' );
+			return $this->fail( $journey, (string) $message->get_error_code() );
 		}
 
 		/**
-		 * Fires immediately before the request to WA.cr, after the attempt row
-		 * is reserved. Observation only: the message cannot be changed here.
+		 * Fires immediately before the email is handed to WordPress, after the
+		 * attempt row is reserved. Observation only: the message cannot be
+		 * changed here.
 		 *
 		 * @param Recovery_Journey     $journey   The journey.
 		 * @param Attempt              $attempt   The reserved attempt.
@@ -357,68 +354,72 @@ final class Send_Template implements Action_Interface {
 		 */
 		do_action( Hooks::BEFORE_MESSAGE, $journey, $attempt, $variables->all() );
 
-		$result = $this->client->send_template( $request );
+		$sent = $this->mailer->send( $message, $journey->id );
 
 		/**
-		 * Fires immediately after the request to WA.cr, whatever the outcome.
+		 * Fires immediately after the send, whatever the outcome.
 		 *
 		 * @param Recovery_Journey $journey The journey.
 		 * @param Attempt          $attempt The attempt.
-		 * @param Result           $result  What WA.cr answered.
+		 * @param true|\WP_Error   $sent    Whether WordPress accepted it.
 		 */
-		do_action( Hooks::AFTER_MESSAGE, $journey, $attempt, $result );
+		do_action( Hooks::AFTER_MESSAGE, $journey, $attempt, $sent );
 
-		if ( $result->ok ) {
-			$this->attempts->mark_sent(
-				$attempt->id,
-				array(
-					'wacr_message_id'     => self::first_string( $result, array( 'messageId', 'id' ) ),
-					'provider_message_id' => self::first_string( $result, array( 'providerMessageId', 'waMessageId', 'externalId' ) ),
-				)
-			);
+		if ( true === $sent ) {
+			$this->attempts->mark_sent( $attempt->id, array() );
 
 			return $this->record_sent( $journey, $context, $history, 'sent' );
 		}
 
-		return $this->handle_failure( $journey, $context, $attempt, $result->error );
+		return $this->handle_failure( $journey, $context, $attempt, $sent );
 	}
 
 	/**
-	 * Decide what an earlier attempt on this step means for this run.
+	 * Decide what a refused send means for the journey.
+	 *
+	 * @param Recovery_Journey    $journey The journey.
+	 * @param array<string,mixed> $context Run context.
+	 * @param Attempt             $attempt The attempt that failed.
+	 * @param \WP_Error           $error   Why it failed.
+	 * @return Step_Outcome
+	 */
+	private function handle_failure( Recovery_Journey $journey, array $context, Attempt $attempt, \WP_Error $error ): Step_Outcome {
+		$claim = (string) ( $context['claim_token'] ?? '' );
+		$code  = substr( (string) $error->get_error_code(), 0, 32 );
+
+		$this->attempts->mark_failed( $attempt->id, $code, $error->get_error_message() );
+
+		$stamp = array(
+			'last_error_code' => $code,
+			'last_error_at'   => $this->clock->now(),
+		);
+
+		/*
+		 * A refused send is retried, because the usual reason is the site's own
+		 * mail transport being briefly unavailable -- expired SMTP credentials,
+		 * a provider rejecting a burst -- and none of those are about this
+		 * customer. What is NOT retried is a step that has used its attempts,
+		 * which fails for good rather than being queued to fail again.
+		 */
+		if ( $attempt->attempt_no >= self::MAX_ATTEMPTS ) {
+			$this->journeys->transition( $journey->id, $journey->status, Journey_State::FAILED, $stamp, $code );
+
+			return Step_Outcome::of( Step_Outcome::FAILED, $code );
+		}
+
+		$stamp['next_action_at'] = $this->clock->offset( self::backoff( $attempt->attempt_no ) );
+
+		return $this->touch( $journey, $claim, $stamp )
+			? Step_Outcome::of( Step_Outcome::WAITING, 'retry_backoff' )
+			: Step_Outcome::of( Step_Outcome::LOST_RACE );
+	}
+
+	/**
+	 * Move the journey on after a message really went out.
 	 *
 	 * @param Recovery_Journey    $journey The journey.
 	 * @param array<string,mixed> $context Run context.
 	 * @param array<int,Attempt>  $history Every attempt on this journey.
-	 * @param int                 $step    The step index.
-	 * @return Step_Outcome|null Null when a fresh attempt may be reserved.
-	 */
-	private function resume_from_history( Recovery_Journey $journey, array $context, array $history, int $step ): ?Step_Outcome {
-		$claim = (string) ( $context['claim_token'] ?? '' );
-
-		foreach ( $this->for_step( $history, $step ) as $earlier ) {
-			if ( $earlier->was_sent() ) {
-				// The message went out; only the journey was not advanced,
-				// which is what a run dying between the two looks like.
-				return $this->record_sent( $journey, $context, $history, 'already_sent' );
-			}
-
-			if ( $earlier->needs_resolution() ) {
-				// A request was started and its outcome never learned. The Poll
-				// stage settles that by reading the conversation. Sending again
-				// here is precisely the double send this class prevents.
-				return $this->defer( $journey, $claim, $this->clock->offset( self::RECHECK_AFTER ), 'awaiting_resolution' );
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * Move the journey on after a message reached WA.cr.
-	 *
-	 * @param Recovery_Journey    $journey The journey.
-	 * @param array<string,mixed> $context Run context.
-	 * @param array<int,Attempt>  $history Attempts as they were before this send.
 	 * @param string              $reason  Machine-readable reason.
 	 * @return Step_Outcome
 	 */
@@ -439,7 +440,6 @@ final class Send_Template implements Action_Interface {
 		$patch = array(
 			'current_step'   => $step + 1,
 			'next_action_at' => $context['next_action_at'] ?? null,
-			'poll_at'        => $this->clock->offset( self::POLL_AFTER ),
 			'attempts_count' => $sent,
 		);
 
@@ -455,82 +455,6 @@ final class Send_Template implements Action_Interface {
 		$journey->current_step = $step + 1;
 
 		return Step_Outcome::of( Step_Outcome::SENT, $reason );
-	}
-
-	/**
-	 * Sort a failure by what it says about delivery.
-	 *
-	 * @param Recovery_Journey    $journey The journey.
-	 * @param array<string,mixed> $context Run context.
-	 * @param Attempt             $attempt The attempt that failed.
-	 * @param Error|null          $error   What went wrong.
-	 * @return Step_Outcome
-	 */
-	private function handle_failure( Recovery_Journey $journey, array $context, Attempt $attempt, ?Error $error ): Step_Outcome {
-		$claim = (string) ( $context['claim_token'] ?? '' );
-
-		if ( ! $error instanceof Error ) {
-			$this->attempts->mark_failed( $attempt->id, 'unknown_error' );
-
-			return $this->fail( $journey, 'unknown_error' );
-		}
-
-		$stamp = array(
-			'last_error_code' => substr( $error->code, 0, 32 ),
-			'last_error_at'   => $this->clock->now(),
-		);
-
-		if ( Error::RATE_LIMIT === $error->category ) {
-			$wait = max( 60, (int) ( $error->retry_after ?? 60 ) );
-
-			$this->attempts->mark_failed( $attempt->id, $error->code, $error->message );
-			$this->budget->pause( $wait );
-
-			$stamp['next_action_at'] = $this->clock->offset( $wait );
-
-			// The batch ends either way: every remaining journey would meet the
-			// same limit, and finding that out one 429 at a time helps nobody.
-			return $this->touch( $journey, $claim, $stamp )
-				? Step_Outcome::of( Step_Outcome::SKIPPED, 'rate_limited' )->and_stop_batch()
-				: Step_Outcome::of( Step_Outcome::LOST_RACE )->and_stop_batch();
-		}
-
-		if ( $error->is_fatal_for_sending() ) {
-			$this->attempts->mark_failed( $attempt->id, $error->code, $error->message );
-			$this->journeys->transition( $journey->id, $journey->status, Journey_State::FAILED, $stamp, $error->code );
-
-			// A revoked key or a plan change is about the connection, not this
-			// journey; continuing would turn every scheduled journey into the
-			// same failure.
-			return Step_Outcome::of( Step_Outcome::FAILED, $error->code )->and_stop_batch();
-		}
-
-		if ( Error::UNKNOWN === $error->send_state ) {
-			$this->attempts->mark_unknown( $attempt->id, $error->code, self::RESOLVE_AFTER );
-
-			$stamp['next_action_at'] = $this->clock->offset( self::RECHECK_AFTER );
-			$stamp['poll_at']        = $this->clock->offset( self::RESOLVE_AFTER );
-
-			return $this->touch( $journey, $claim, $stamp )
-				? Step_Outcome::of( Step_Outcome::WAITING, 'send_unknown' )
-				: Step_Outcome::of( Step_Outcome::LOST_RACE );
-		}
-
-		// Everything below here is a request that definitely did not send, so
-		// the attempt is closed and its unused link withdrawn.
-		$this->attempts->mark_failed( $attempt->id, $error->code, $error->message );
-
-		if ( ! $error->retryable || $attempt->attempt_no >= self::MAX_ATTEMPTS ) {
-			$this->journeys->transition( $journey->id, $journey->status, Journey_State::FAILED, $stamp, $error->code );
-
-			return Step_Outcome::of( Step_Outcome::FAILED, $error->code );
-		}
-
-		$stamp['next_action_at'] = $this->clock->offset( self::backoff( $attempt->attempt_no ) );
-
-		return $this->touch( $journey, $claim, $stamp )
-			? Step_Outcome::of( Step_Outcome::WAITING, 'retry_backoff' )
-			: Step_Outcome::of( Step_Outcome::LOST_RACE );
 	}
 
 	/**
@@ -627,11 +551,6 @@ final class Send_Template implements Action_Interface {
 	/**
 	 * Stop working this journey without ending it.
 	 *
-	 * Used when no further message may ever be sent -- the touch limit, or a
-	 * recipient who can no longer be messaged -- but the journey itself is not a
-	 * failure. It keeps its state and its live recovery link, and the expiry
-	 * stage closes it in its own time.
-	 *
 	 * @param Recovery_Journey $journey The journey.
 	 * @param string           $claim   The lease this run holds.
 	 * @param string           $reason  Machine-readable reason.
@@ -677,33 +596,5 @@ final class Send_Template implements Action_Interface {
 	 */
 	private static function backoff( int $attempt_no ): int {
 		return (int) min( self::BACKOFF_MAX, self::BACKOFF_BASE * ( 2 ** max( 0, $attempt_no - 1 ) ) );
-	}
-
-	/**
-	 * The first of several possible fields that holds a non-empty string.
-	 *
-	 * WA.cr has spelled the message identifier more than one way across its own
-	 * surfaces, and an attempt row with no identifier cannot be reconciled.
-	 *
-	 * @param Result   $result The response.
-	 * @param string[] $fields Field names to try, in order.
-	 * @return string|null
-	 */
-	private static function first_string( Result $result, array $fields ): ?string {
-		foreach ( $fields as $field ) {
-			$value = $result->get( $field );
-
-			if ( is_string( $value ) && '' !== $value ) {
-				return substr( $value, 0, 128 );
-			}
-		}
-
-		$message = $result->get( 'message' );
-
-		if ( is_array( $message ) && isset( $message['id'] ) && is_string( $message['id'] ) && '' !== $message['id'] ) {
-			return substr( $message['id'], 0, 128 );
-		}
-
-		return null;
 	}
 }

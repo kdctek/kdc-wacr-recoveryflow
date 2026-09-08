@@ -10,6 +10,7 @@ namespace WAcr\RecoveryFlow\Workflow;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Customer\Customer;
+use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Support\Logger;
@@ -121,9 +122,10 @@ final class Send_Gate {
 	 * @param Recovery_Journey $journey  The journey.
 	 * @param Customer|null    $customer Who would be messaged.
 	 * @param Rule_Set         $rules    The thresholds in force.
+	 * @param string           $channel  The channel this send would use.
 	 * @return array{decision:string,until:string,reason:string,stop:bool}
 	 */
-	public function check( Recovery_Journey $journey, ?Customer $customer, Rule_Set $rules ): array {
+	public function check( Recovery_Journey $journey, ?Customer $customer, Rule_Set $rules, string $channel = Channel::WHATSAPP ): array {
 		if ( ! $journey->may_send() ) {
 			return self::skip( self::REASON_STATE, true );
 		}
@@ -134,16 +136,25 @@ final class Send_Gate {
 			return self::skip( self::REASON_MAX_TOUCHES, true );
 		}
 
-		$paused = $this->budget->paused_until();
+		/*
+		 * The rate budget is WA.cr's, so it only holds back the channel that
+		 * spends it. Deferring an email because the WhatsApp allowance is
+		 * exhausted would stop a free, unbilled message on account of a ceiling
+		 * it never approaches -- and it would do it at exactly the moment a
+		 * shop is busiest, which is when the reminders matter most.
+		 */
+		if ( Channel::WHATSAPP === $channel ) {
+			$paused = $this->budget->paused_until();
 
-		if ( $paused > 0 ) {
-			return $this->defer( $paused, self::REASON_PAUSED );
-		}
+			if ( $paused > 0 ) {
+				return $this->defer( $paused, self::REASON_PAUSED );
+			}
 
-		// Checked, never taken: Client::send_template() debits the budget
-		// itself, and taking it here as well would halve the real allowance.
-		if ( $this->budget->remaining() < 1 ) {
-			return $this->defer( $this->next_minute(), self::REASON_BUDGET );
+			// Checked, never taken: Client::send_template() debits the budget
+			// itself, and taking it here as well would halve the real allowance.
+			if ( $this->budget->remaining() < 1 ) {
+				return $this->defer( $this->next_minute(), self::REASON_BUDGET );
+			}
 		}
 
 		$now     = $this->clock->timestamp();

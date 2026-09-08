@@ -85,12 +85,15 @@ use WAcr\RecoveryFlow\WAcr\Template_Catalog;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 use WAcr\RecoveryFlow\WAcr\Transport;
 use WAcr\RecoveryFlow\Workflow\Actions\Send_Template;
+use WAcr\RecoveryFlow\Workflow\Actions\Send_Email;
 use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
 use WAcr\RecoveryFlow\Workflow\Conditions\Customer_Eligible;
 use WAcr\RecoveryFlow\Workflow\Conditions\Event_Amount_Gte;
 use WAcr\RecoveryFlow\Workflow\Conditions\Journey_Not_Completed;
 use WAcr\RecoveryFlow\Workflow\Conditions\Journey_Not_Engaged;
 use WAcr\RecoveryFlow\Workflow\Engine;
+use WAcr\RecoveryFlow\Recovery\Email_Sender;
+use WAcr\RecoveryFlow\Workflow\Email_Composer;
 use WAcr\RecoveryFlow\Workflow\Message_Composer;
 use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Workflow\Step_Registry;
@@ -211,6 +214,8 @@ final class Plugin {
 			// The workflow engine and its registries.
 			'send_gate'           => static fn ( Plugin $c ): Send_Gate => new Send_Gate( $c->rate_budget(), $c->wacr(), $c->logger(), $c->clock() ),
 			'composer'            => static fn ( Plugin $c ): Message_Composer => new Message_Composer( $c->logger() ),
+			'email_composer'      => static fn ( Plugin $c ): Email_Composer => new Email_Composer( $c->logger() ),
+			'email_sender'        => static fn ( Plugin $c ): Email_Sender => new Email_Sender( $c->logger() ),
 			'steps'               => static fn ( Plugin $c ): Step_Registry => $c->build_step_registry(),
 			'engine'              => static fn ( Plugin $c ): Engine => new Engine(
 				$c->workflows(),
@@ -367,6 +372,18 @@ final class Plugin {
 				$this->rate_budget(),
 				$this->logger(),
 				$this->clock()
+			)
+		);
+
+		$registry->add_action(
+			new Send_Email(
+				$this->email_sender(),
+				$this->email_composer(),
+				$this->attempts(),
+				$this->journeys(),
+				$this->send_gate(),
+				$this->clock(),
+				$this->logger()
 			)
 		);
 
@@ -736,6 +753,24 @@ final class Plugin {
 	 */
 	public function composer(): Message_Composer {
 		return $this->typed( 'composer', Message_Composer::class );
+	}
+
+	/**
+	 * The email composer service.
+	 *
+	 * @return Email_Composer
+	 */
+	public function email_composer(): Email_Composer {
+		return $this->typed( 'email_composer', Email_Composer::class );
+	}
+
+	/**
+	 * The email sender service.
+	 *
+	 * @return Email_Sender
+	 */
+	public function email_sender(): Email_Sender {
+		return $this->typed( 'email_sender', Email_Sender::class );
 	}
 
 	/**
