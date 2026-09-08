@@ -8,6 +8,8 @@
 namespace WAcr\RecoveryFlow\Core;
 
 use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
+use WAcr\RecoveryFlow\Admin\Connection_Test;
+use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Admin\Menu as Admin_Menu;
 use WAcr\RecoveryFlow\Admin\Pages\Integrations as Integrations_Page;
 use WAcr\RecoveryFlow\Admin\Pages\Journey_Detail;
@@ -257,14 +259,17 @@ final class Plugin {
 			),
 			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
 			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health() ),
+			'admin_setup'         => static fn ( Plugin $c ): Setup => new Setup( $c->wacr(), $c->credentials() ),
 			'admin_menu'          => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
 				$c->admin_overview(),
 				$c->admin_journeys(),
 				$c->admin_journey(),
 				$c->admin_integrations(),
-				$c->admin_status()
+				$c->admin_status(),
+				$c->admin_setup()
 			),
 			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
+			'admin_connection'    => static fn ( Plugin $c ): Connection_Test => new Connection_Test( $c->wacr(), $c->credentials() ),
 
 			// The public endpoint.
 			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
@@ -823,6 +828,24 @@ final class Plugin {
 	}
 
 	/**
+	 * The connection test control.
+	 *
+	 * @return Connection_Test
+	 */
+	public function admin_connection(): Connection_Test {
+		return $this->typed( 'admin_connection', Connection_Test::class );
+	}
+
+	/**
+	 * The first-run setup screen.
+	 *
+	 * @return Setup
+	 */
+	public function admin_setup(): Setup {
+		return $this->typed( 'admin_setup', Setup::class );
+	}
+
+	/**
 	 * The admin assets service.
 	 *
 	 * @return Admin_Assets
@@ -886,6 +909,8 @@ final class Plugin {
 		if ( is_admin() ) {
 			$this->admin_menu()->hooks();
 			$this->admin_assets()->hooks();
+			$this->admin_connection()->hooks();
+			$this->admin_setup()->hooks();
 		}
 
 		// The REST routes.

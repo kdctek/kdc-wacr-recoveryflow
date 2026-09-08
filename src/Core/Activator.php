@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Core;
 
+use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Database\Schema;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Security\Hash_Key;
@@ -50,6 +51,14 @@ final class Activator {
 		// cannot do this, which is why Rewrites::hooks() defers to init.
 		Rewrites::register();
 		flush_rewrite_rules();
+
+		/*
+		 * Ask for the setup screen on the next admin request. Connecting a
+		 * WA.cr workspace is the one thing the plugin cannot do for itself, and
+		 * a merchant who never finds that screen has a plugin that records
+		 * baskets and never mentions that it could be sending.
+		 */
+		Setup::mark_pending();
 
 		/**
 		 * Fires once the plugin has finished installing itself.

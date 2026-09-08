@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Admin\Settings;
 
+use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Recovery\Channel;
@@ -178,6 +179,7 @@ final class Page {
 		printf( '<h1>%s</h1>', esc_html__( 'RecoveryFlow settings', 'kdc-wacr-recoveryflow' ) );
 
 		settings_errors();
+		Connection_Test::notice();
 
 		self::tab_bar( $tabs, $current );
 
@@ -480,6 +482,8 @@ final class Page {
 		if ( ! Feature_Gate::has_developer_api() ) {
 			printf( '<p class="description">%s</p>', esc_html( Feature_Gate::unavailable_reason() ) );
 		}
+
+		Connection_Test::button();
 	}
 
 	/**

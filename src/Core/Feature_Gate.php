@@ -8,6 +8,7 @@
 namespace WAcr\RecoveryFlow\Core;
 
 use WAcr\RecoveryFlow\Support\Options;
+use WAcr\RecoveryFlow\WAcr\Credentials;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -125,10 +126,37 @@ final class Feature_Gate {
 				return __( 'The saved WA.cr API key can no longer be read, which happens when a site\'s security keys are rotated. Enter the key again.', 'kdc-wacr-recoveryflow' );
 
 			case '':
-				return __( 'No WA.cr API key is connected yet.', 'kdc-wacr-recoveryflow' );
+				return self::unchecked_reason();
 
 			default:
 				return __( 'WA.cr could not confirm this connection. Check the connection on the Settings screen.', 'kdc-wacr-recoveryflow' );
 		}
+	}
+
+	/**
+	 * Why the API is unavailable when nothing has ever been checked.
+	 *
+	 * An empty snapshot is not the same fact as an absent key, and reading it
+	 * as one is how the settings screen came to say "A key is saved" and "No
+	 * WA.cr API key is connected yet" one line apart. The snapshot is written
+	 * only by a connection check, so a key that has been saved and never
+	 * checked produces exactly the same empty option as no key at all. The
+	 * difference is visible only by asking whether a key is stored, which is
+	 * what this does.
+	 *
+	 * @return string
+	 */
+	private static function unchecked_reason(): string {
+		$credentials = new Credentials();
+
+		if ( $credentials->is_key_unreadable() ) {
+			return __( 'The saved WA.cr API key can no longer be read, which happens when a site\'s security keys are rotated. Enter the key again.', 'kdc-wacr-recoveryflow' );
+		}
+
+		if ( ! $credentials->has_api_key() ) {
+			return __( 'No WA.cr API key is connected yet.', 'kdc-wacr-recoveryflow' );
+		}
+
+		return __( 'The saved WA.cr API key has not been checked yet. Use "Test connection" to check it against WA.cr.', 'kdc-wacr-recoveryflow' );
 	}
 }

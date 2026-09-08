@@ -55,6 +55,11 @@ final class Screen {
 	public const STATUS = 'recoveryflow-status';
 
 	/**
+	 * The first-run setup screen.
+	 */
+	public const SETUP = 'recoveryflow-setup';
+
+	/**
 	 * Which capability each screen needs.
 	 *
 	 * @return array<string,string> Page slug => capability.
@@ -67,6 +72,7 @@ final class Screen {
 			self::INTEGRATIONS => Capabilities::MANAGE_SETTINGS,
 			self::SETTINGS     => Capabilities::MANAGE_SETTINGS,
 			self::STATUS       => Capabilities::VIEW_STATUS,
+			self::SETUP        => Capabilities::MANAGE_SETTINGS,
 		);
 	}
 

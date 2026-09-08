@@ -73,6 +73,13 @@ final class Menu {
 	private System_Status $status;
 
 	/**
+	 * The first-run setup screen.
+	 *
+	 * @var Setup
+	 */
+	private Setup $setup;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Overview       $overview     Overview screen.
@@ -80,19 +87,22 @@ final class Menu {
 	 * @param Journey_Detail $journey      Journey detail screen.
 	 * @param Integrations   $integrations Integrations screen.
 	 * @param System_Status  $status       Status screen.
+	 * @param Setup          $setup        First-run setup screen.
 	 */
 	public function __construct(
 		Overview $overview,
 		Journeys $journeys,
 		Journey_Detail $journey,
 		Integrations $integrations,
-		System_Status $status
+		System_Status $status,
+		Setup $setup
 	) {
 		$this->overview     = $overview;
 		$this->journeys     = $journeys;
 		$this->journey      = $journey;
 		$this->integrations = $integrations;
 		$this->status       = $status;
+		$this->setup        = $setup;
 	}
 
 	/**
@@ -152,6 +162,24 @@ final class Menu {
 				Screen::capability( Screen::JOURNEY ),
 				Screen::JOURNEY,
 				array( $this->journey, 'render' )
+			)
+		);
+
+		/*
+		 * The setup screen, likewise with no menu entry: it is reached by being
+		 * sent there on activation, and from the status screen when the
+		 * connection is what is wrong. Leaving a permanent "Setup" item in the
+		 * menu of a plugin that has been running for a year says the setup
+		 * never finished.
+		 */
+		$this->remember(
+			add_submenu_page(
+				'',
+				__( 'Set RecoveryFlow up', 'kdc-wacr-recoveryflow' ),
+				__( 'Set RecoveryFlow up', 'kdc-wacr-recoveryflow' ),
+				Screen::capability( Screen::SETUP ),
+				Screen::SETUP,
+				array( $this->setup, 'render' )
 			)
 		);
 	}

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T04:24:19+00:00\n"
+"POT-Creation-Date: 2026-09-08T05:00:30+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -51,53 +51,99 @@ msgstr ""
 msgid "The link could not be copied. Copy it from the address bar instead."
 msgstr ""
 
-#: src/Admin/Menu.php:118
-#: src/Admin/Menu.php:119
-#: src/Admin/Menu.php:167
+#: src/Admin/Connection_Test.php:101
+msgid "You are not allowed to test the WA.cr connection on this site."
+msgstr ""
+
+#: src/Admin/Connection_Test.php:125
+msgid "There is no API key saved to test. Enter one and save, then test it."
+msgstr ""
+
+#: src/Admin/Connection_Test.php:139
+msgid "WA.cr could not be reached. Check the site can make outbound requests, then test again."
+msgstr ""
+
+#: src/Admin/Connection_Test.php:149
+#: src/REST/Status_Controller.php:150
+msgid "Connected to WA.cr."
+msgstr ""
+
+#. translators: %s: the name of the connected WA.cr workspace.
+#: src/Admin/Connection_Test.php:152
+#: src/REST/Status_Controller.php:153
+#, php-format
+msgid "Connected to %s."
+msgstr ""
+
+#: src/Admin/Connection_Test.php:181
+msgid "Test connection"
+msgstr ""
+
+#: src/Admin/Connection_Test.php:182
+msgid "Asks WA.cr which workspace this key belongs to and what it may do."
+msgstr ""
+
+#: src/Admin/Connection_Test.php:211
+msgid "Connection test passed."
+msgstr ""
+
+#: src/Admin/Connection_Test.php:212
+msgid "Connection test failed."
+msgstr ""
+
+#: src/Admin/Menu.php:128
+#: src/Admin/Menu.php:129
+#: src/Admin/Menu.php:195
 #: src/Admin/Pages/Overview.php:70
 msgid "RecoveryFlow"
 msgstr ""
 
-#: src/Admin/Menu.php:150
-#: src/Admin/Menu.php:151
+#: src/Admin/Menu.php:160
+#: src/Admin/Menu.php:161
 #: src/Admin/Settings/Schema.php:75
 #: src/Admin/Settings/Schema.php:105
 msgid "Recovery"
 msgstr ""
 
-#: src/Admin/Menu.php:168
+#: src/Admin/Menu.php:178
+#: src/Admin/Menu.php:179
+#: src/Admin/Setup.php:298
+msgid "Set RecoveryFlow up"
+msgstr ""
+
+#: src/Admin/Menu.php:196
 msgid "Overview"
 msgstr ""
 
-#: src/Admin/Menu.php:172
-#: src/Admin/Menu.php:173
+#: src/Admin/Menu.php:200
+#: src/Admin/Menu.php:201
 #: src/Admin/Pages/Journeys.php:81
 #: src/Admin/Pages/Overview.php:170
 msgid "Recoveries"
 msgstr ""
 
-#: src/Admin/Menu.php:177
-#: src/Admin/Menu.php:178
+#: src/Admin/Menu.php:205
+#: src/Admin/Menu.php:206
 #: src/Admin/Pages/Integrations.php:55
 msgid "Integrations"
 msgstr ""
 
-#: src/Admin/Menu.php:182
-#: src/Admin/Settings/Page.php:178
+#: src/Admin/Menu.php:210
+#: src/Admin/Settings/Page.php:179
 msgid "RecoveryFlow settings"
 msgstr ""
 
-#: src/Admin/Menu.php:183
+#: src/Admin/Menu.php:211
 #: src/Admin/Pages/Overview.php:195
 msgid "Settings"
 msgstr ""
 
-#: src/Admin/Menu.php:187
+#: src/Admin/Menu.php:215
 #: src/Admin/Pages/System_Status.php:56
 msgid "RecoveryFlow status"
 msgstr ""
 
-#: src/Admin/Menu.php:188
+#: src/Admin/Menu.php:216
 #: src/Admin/Pages/Journeys_Table.php:88
 #: src/Admin/Pages/Journey_Detail.php:161
 msgid "Status"
@@ -379,7 +425,7 @@ msgstr ""
 
 #: src/Admin/Pages/Overview.php:126
 #: src/Admin/Pages/System_Status.php:90
-#: src/Admin/Settings/Page.php:420
+#: src/Admin/Settings/Page.php:422
 msgid "Go to this setting"
 msgstr ""
 
@@ -506,93 +552,93 @@ msgstr ""
 msgid "Not available on this plan."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:168
+#: src/Admin/Settings/Page.php:169
 msgid "You do not have permission to change RecoveryFlow settings."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:230
+#: src/Admin/Settings/Page.php:232
 msgid "RecoveryFlow settings sections"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:267
+#: src/Admin/Settings/Page.php:269
 msgid "Link"
 msgstr ""
 
 #. translators: %s: the name of a settings section.
-#: src/Admin/Settings/Page.php:269
+#: src/Admin/Settings/Page.php:271
 #, php-format
 msgid "to the section \"%s\""
 msgstr ""
 
-#: src/Admin/Settings/Page.php:323
+#: src/Admin/Settings/Page.php:325
 msgid "Advanced settings"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:386
+#: src/Admin/Settings/Page.php:388
 msgid "Settled."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:387
+#: src/Admin/Settings/Page.php:389
 msgid "Email reminders are permissible from this site. Whether they are actually sent is the switch below."
 msgstr ""
 
 #. translators: %d: how many things are still to be settled.
-#: src/Admin/Settings/Page.php:398
+#: src/Admin/Settings/Page.php:400
 #, php-format
 msgid "Still to do before email reminders can be sent: %d thing."
 msgid_plural "Still to do before email reminders can be sent: %d things."
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/Admin/Settings/Page.php:441
+#: src/Admin/Settings/Page.php:443
 msgid "The saved key cannot be read."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:442
+#: src/Admin/Settings/Page.php:444
 msgid "This happens when a site's security keys are rotated. Enter the key again to fix it."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:451
+#: src/Admin/Settings/Page.php:453
 msgid "No key saved yet."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:452
+#: src/Admin/Settings/Page.php:454
 msgid "RecoveryFlow records abandoned baskets without one, but cannot send anything."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:463
+#: src/Admin/Settings/Page.php:465
 msgid "A key is saved."
 msgstr ""
 
 #. translators: %s: the last few characters of the saved API key.
-#: src/Admin/Settings/Page.php:468
+#: src/Admin/Settings/Page.php:470
 #, php-format
 msgid "Ending %s. It has not been checked against WA.cr yet."
 msgstr ""
 
 #. translators: 1: WA.cr workspace name. 2: the last few characters of the saved API key.
-#: src/Admin/Settings/Page.php:473
+#: src/Admin/Settings/Page.php:475
 #, php-format
 msgid "Connected to %1$s, ending %2$s."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:495
+#: src/Admin/Settings/Page.php:499
 msgid "System status -- whether the background jobs are running and the connection works"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:499
+#: src/Admin/Settings/Page.php:503
 msgid "Journeys -- every basket being chased, and what happened to it"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:503
+#: src/Admin/Settings/Page.php:507
 msgid "Integrations -- which parts of this site RecoveryFlow watches"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:519
+#: src/Admin/Settings/Page.php:523
 msgid "Email reminders are on."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:520
+#: src/Admin/Settings/Page.php:524
 msgid "Email reminders are off. The Channels tab says what would need settling first."
 msgstr ""
 
@@ -914,6 +960,7 @@ msgid "API key"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:383
+#: src/Admin/Setup.php:424
 msgid "WA.cr API key"
 msgstr ""
 
@@ -1157,24 +1204,123 @@ msgstr ""
 msgid "Older entries are removed by the daily clear-out."
 msgstr ""
 
-#: src/Core/Feature_Gate.php:118
+#: src/Admin/Setup.php:184
+msgid "You are not allowed to connect a WA.cr workspace on this site."
+msgstr ""
+
+#: src/Admin/Setup.php:212
+msgid "Enter the API key from your WA.cr workspace, then choose Connect."
+msgstr ""
+
+#: src/Admin/Setup.php:219
+msgid "That does not look like a WA.cr API key. Copy it again from WA.cr, under Developers."
+msgstr ""
+
+#: src/Admin/Setup.php:249
+msgid "Connected. RecoveryFlow can send reminders from this site."
+msgstr ""
+
+#. translators: %s: the name of the connected WA.cr workspace.
+#: src/Admin/Setup.php:252
+#, php-format
+msgid "Connected to %s. RecoveryFlow can send reminders from this site."
+msgstr ""
+
+#: src/Admin/Setup.php:267
+msgid "Your key works. This workspace's plan does not include sending from WordPress, so RecoveryFlow will hand each abandoned basket to a WA.cr Auto Flow instead -- which works on every plan and needs no API key."
+msgstr ""
+
+#: src/Admin/Setup.php:274
+msgid "WA.cr could not be reached, so the key could not be checked. It has been saved; check the site can make outbound requests and try again."
+msgstr ""
+
+#: src/Admin/Setup.php:286
+msgid "You are not allowed to set RecoveryFlow up on this site."
+msgstr ""
+
+#: src/Admin/Setup.php:302
+msgid "RecoveryFlow is already watching for abandoned baskets. Connecting a WA.cr workspace is what lets it send the reminders."
+msgstr ""
+
+#: src/Admin/Setup.php:333
+msgid "Connected."
+msgstr ""
+
+#: src/Admin/Setup.php:334
+msgid "Key accepted."
+msgstr ""
+
+#: src/Admin/Setup.php:335
+msgid "Not connected."
+msgstr ""
+
+#: src/Admin/Setup.php:336
+msgid "Nothing to connect."
+msgstr ""
+
+#: src/Admin/Setup.php:364
+msgid "Choose how reminders are sent"
+msgstr ""
+
+#: src/Admin/Setup.php:380
+msgid "In WA.cr, create an Auto Flow that starts from a webhook and sends your reminder."
+msgstr ""
+
+#: src/Admin/Setup.php:381
+msgid "Copy its hook address into RecoveryFlow, and set reminders to be sent by handing the journey over."
+msgstr ""
+
+#: src/Admin/Setup.php:383
+msgid "Set up the hand-off"
+msgstr ""
+
+#: src/Admin/Setup.php:399
+msgid "Connect WA.cr"
+msgstr ""
+
+#: src/Admin/Setup.php:404
+msgid "This site is connected to WA.cr. You can change the key at any time on the settings screen."
+msgstr ""
+
+#: src/Admin/Setup.php:425
+msgid "In WA.cr, open Developers and copy an API key. RecoveryFlow stores it encrypted and never shows it again."
+msgstr ""
+
+#: src/Admin/Setup.php:426
+msgid "Connect"
+msgstr ""
+
+#: src/Admin/Setup.php:428
+msgid "Skip for now"
+msgstr ""
+
+#: src/Admin/Setup.php:435
+msgid "Skipping changes nothing that is already running: abandoned baskets go on being recorded, and nothing is sent until a workspace is connected."
+msgstr ""
+
+#: src/Core/Feature_Gate.php:119
 msgid "Authoring recovery workflows in WordPress is included with the WA.cr Scale plan and above. Your workspace can still hand recovery journeys to a WA.cr Auto Flow."
 msgstr ""
 
-#: src/Core/Feature_Gate.php:122
+#: src/Core/Feature_Gate.php:123
 msgid "The saved WA.cr API key was refused. Create a new one in the WA.cr console and save it again."
 msgstr ""
 
-#: src/Core/Feature_Gate.php:125
+#: src/Core/Feature_Gate.php:126
+#: src/Core/Feature_Gate.php:153
 msgid "The saved WA.cr API key can no longer be read, which happens when a site's security keys are rotated. Enter the key again."
 msgstr ""
 
-#: src/Core/Feature_Gate.php:128
+#: src/Core/Feature_Gate.php:132
+msgid "WA.cr could not confirm this connection. Check the connection on the Settings screen."
+msgstr ""
+
+#: src/Core/Feature_Gate.php:157
 msgid "No WA.cr API key is connected yet."
 msgstr ""
 
-#: src/Core/Feature_Gate.php:131
-msgid "WA.cr could not confirm this connection. Check the connection on the Settings screen."
+#: src/Core/Feature_Gate.php:160
+msgid "The saved WA.cr API key has not been checked yet. Use \"Test connection\" to check it against WA.cr."
 msgstr ""
 
 #: src/Core/Health.php:131
@@ -1691,16 +1837,6 @@ msgstr ""
 
 #: src/REST/Status_Controller.php:138
 msgid "WA.cr could not be reached."
-msgstr ""
-
-#: src/REST/Status_Controller.php:150
-msgid "Connected to WA.cr."
-msgstr ""
-
-#. translators: %s: the name of the connected WA.cr workspace.
-#: src/REST/Status_Controller.php:153
-#, php-format
-msgid "Connected to %s."
 msgstr ""
 
 #: src/WAcr/Client.php:247
