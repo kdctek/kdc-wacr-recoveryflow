@@ -24,6 +24,8 @@ use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Core\Plugin;
 use WAcr\RecoveryFlow\Core\Requirements;
 use WAcr\RecoveryFlow\Core\Rewrites;
+use WAcr\RecoveryFlow\Customer\Identity;
+use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Customer\Phone_Normalizer;
 use WAcr\RecoveryFlow\Privacy\Redactor;
@@ -713,6 +715,60 @@ ok( 'the scan actually looked at the source', count( kdc_wacr_recoveryflow_shipp
 
 
 
+
+// ---------------------------------------------------------------------------
+// Identity: strong versus weak kinds, and the lock key's hard size limit.
+// ---------------------------------------------------------------------------
+
+ok( 'a phone number identifies one person', Identity::is_strong( Identity::E164 ) );
+ok( 'an external id identifies one person', Identity::is_strong( Identity::EXTERNAL_ID ) );
+ok( 'a WordPress account identifies one person', Identity::is_strong( Identity::WP_USER ) );
+
+// The one that matters: households and role addresses share an inbox, so an
+// email must never let two strangers' carts be merged.
+ok( 'an email address does NOT identify one person', ! Identity::is_strong( Identity::EMAIL ) );
+
+ok( 'every strong kind is a known kind', array() === array_diff( Identity::strong_kinds(), Identity::kinds() ) );
+ok( 'an unknown kind is rejected', ! Identity::is_kind( 'igsid' ) );
+
+// Email is lowercased because the hash is the lookup key and a hash of
+// "Asha@Example.com" would never match one of the same address in lower case.
+ok( 'an email is lowercased before hashing', 'asha@example.com' === Identity::normalize_value( Identity::EMAIL, '  Asha@Example.COM ' ) );
+
+// A phone number is not: case does not apply, and touching it here would
+// duplicate work Phone_Normalizer already owns.
+ok( 'a phone number keeps its case and plus', '+919876543210' === Identity::normalize_value( Identity::E164, ' +919876543210 ' ) );
+ok( 'an empty value normalises to nothing', '' === Identity::normalize_value( Identity::EMAIL, '   ' ) );
+
+// recoveryflow_locks.lock_key is varchar(64) AND the PRIMARY KEY, and a sha256
+// hash already fills all 64. Any prefix on the whole hash would overflow and be
+// truncated silently on a non-strict connection, so two identities sharing a
+// prefix would quietly share a lock. This assertion is the guard on that.
+$identity_lock_key = Identity_Repository::lock_key( str_repeat( 'a', 64 ) );
+
+ok( 'the identity lock key fits lock_key varchar(64)', strlen( $identity_lock_key ) <= 64 );
+ok( 'the identity lock key is bucketed, not per-identity', 'id:aaaaaaaa' === $identity_lock_key );
+
+// Bounded buckets are the point: a lock row per person would grow the lock
+// table with the customer base and nothing would ever delete it.
+ok(
+	'two identities in one bucket share a lock',
+	Identity_Repository::lock_key( str_repeat( 'b', 8 ) . str_repeat( '1', 56 ) )
+		=== Identity_Repository::lock_key( str_repeat( 'b', 8 ) . str_repeat( '2', 56 ) )
+);
+ok(
+	'identities in different buckets do not',
+	Identity_Repository::lock_key( str_repeat( 'c', 64 ) ) !== Identity_Repository::lock_key( str_repeat( 'd', 64 ) )
+);
+
+ok( 'an unusable value has no hash', '' === Identity_Repository::hash_for( Identity::EMAIL, '  ' ) );
+ok( 'the same address hashes the same either way', Identity_Repository::hash_for( Identity::EMAIL, 'Asha@Example.com' ) === Identity_Repository::hash_for( Identity::EMAIL, 'asha@example.com' ) );
+
+// The kind is part of the hashed material, so the same string used as two
+// different kinds does not collide into one identity.
+ok( 'kind is part of the hash', Identity_Repository::hash_for( Identity::EMAIL, 'a@b.co' ) !== Identity_Repository::hash_for( Identity::EXTERNAL_ID, 'a@b.co' ) );
+
+echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";
 echo "{$passed} passed, {$failed} failed\n";
