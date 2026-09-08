@@ -101,8 +101,8 @@ final class Identity_Resolver {
 		}
 
 		$result = Phone_Normalizer::normalize( $hints->phone_raw, $hints->country );
-		$e164   = (string) ( $result['e164'] ?? '' );
-		$valid  = Phone_Normalizer::VALID === ( $result['status'] ?? '' ) && '' !== $e164;
+		$e164   = (string) $result['e164'];
+		$valid  = Phone_Normalizer::VALID === $result['status'] && '' !== $e164;
 
 		return array(
 			'e164'   => $valid ? $e164 : '',

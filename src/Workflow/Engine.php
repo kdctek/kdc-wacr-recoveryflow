@@ -52,10 +52,13 @@ final class Engine {
 	/**
 	 * How many steps one pass may execute before giving up.
 	 *
-	 * Conditions are cheap and several in a row are normal; a definition that
-	 * needs more than this is malformed rather than ambitious.
+	 * A pass advances by exactly one step per iteration and stops at the first
+	 * wait or action, so a well-formed workflow can never reach this. It is a
+	 * safety net against a definition that somehow contained a cycle, set one
+	 * above the largest workflow the validator will accept so that it can never
+	 * become a functional limit.
 	 */
-	private const MAX_STEPS_PER_RUN = 25;
+	private const MAX_STEPS_PER_RUN = Workflow_Definition::MAX_STEPS + 1;
 
 	/**
 	 * How long to wait when the customer is temporarily ineligible.
@@ -212,6 +215,15 @@ final class Engine {
 			return Step_Outcome::of( Step_Outcome::SKIPPED, 'not_active' );
 		}
 
+		if ( '' === $claim_token ) {
+			// Every write below is a compare-and-set that includes the lease,
+			// so without one nothing could be written and the run would report
+			// a lost race it never entered. Caught here, where it is legible.
+			$this->logger->error( 'workflow', 'Workflow run started without a claim token', array(), $journey->id );
+
+			return Step_Outcome::of( Step_Outcome::FAILED, 'no_claim' );
+		}
+
 		$workflow = $this->workflows->version( $journey->workflow_id, $journey->workflow_version );
 
 		if ( null === $workflow ) {
@@ -343,8 +355,9 @@ final class Engine {
 		$state  = Workflow_Definition::stop_state( $branch );
 
 		if ( '' === $state ) {
-			// No else branch: a failed condition simply skips nothing and the
-			// workflow carries on. That is the documented behaviour.
+			// A condition with no else branch is a note, not a gate: the
+			// workflow carries on either way. That is what omitting else means
+			// in the definition format.
 			return $this->advance( $journey, $claim ) ? null : Step_Outcome::of( Step_Outcome::LOST_RACE );
 		}
 

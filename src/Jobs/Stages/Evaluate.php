@@ -23,6 +23,7 @@ use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Recovery\Recovery_Event;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Support\Logger;
+use WAcr\RecoveryFlow\Workflow\Workflow;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
 defined( 'ABSPATH' ) || exit;
@@ -57,6 +58,22 @@ final class Evaluate implements Stage_Interface {
 	 * How many events are considered per query.
 	 */
 	private const CONSIDER_BATCH = 200;
+
+	/**
+	 * Seconds to reserve before fetching another page of events.
+	 */
+	private const PAGE_COST = 1.0;
+
+	/**
+	 * Seconds to reserve before deciding about one more event.
+	 *
+	 * Deliberately smaller than the page cost. The outer loop asks whether there
+	 * is room to go back to the database for another two hundred rows; the inner
+	 * one asks whether there is room to finish the row in hand. Treating those as
+	 * the same number means a batch either stops with most of a page unread or
+	 * runs past its budget on the last one.
+	 */
+	private const EVENT_COST = 0.25;
 
 	/**
 	 * Event storage.
@@ -223,7 +240,7 @@ final class Evaluate implements Stage_Interface {
 		$seen     = array();
 		$cache    = array();
 
-		while ( $budget->has_time( 1.0 ) ) {
+		while ( $budget->has_time( self::PAGE_COST ) ) {
 			$due = $this->events->due_for_evaluation( $inactive, $limit );
 
 			if ( array() === $due ) {
@@ -244,7 +261,7 @@ final class Evaluate implements Stage_Interface {
 				$seen[ $event->id ] = true;
 				++$fresh;
 
-				if ( ! $budget->has_time( 1.0 ) ) {
+				if ( ! $budget->has_time( self::EVENT_COST ) ) {
 					$stats->backlog = max( $stats->backlog, 1 );
 
 					return;
@@ -376,35 +393,20 @@ final class Evaluate implements Stage_Interface {
 	 * @return array{id:int,version:int}|null Null when this site has no default workflow.
 	 */
 	private function workflow_for( string $source_id ): ?array {
-		if ( null === $this->workflows ) {
-			return null;
-		}
+		$workflow = null === $this->workflows ? null : $this->workflows->default_for_source( $source_id );
 
-		$workflow = $this->workflows->default_for_source( $source_id );
-
-		$id      = 0;
-		$version = 1;
-
-		// Read defensively. This stage is the only caller that has to survive a
-		// site with no workflows at all, and enrolling a journey against
-		// workflow 0 would create a row the engine can never run.
-		if ( is_object( $workflow ) ) {
-			$id      = isset( $workflow->id ) ? (int) $workflow->id : 0;
-			$version = isset( $workflow->version ) ? (int) $workflow->version : 1;
-		} elseif ( is_array( $workflow ) ) {
-			$id      = isset( $workflow['id'] ) ? (int) $workflow['id'] : 0;
-			$version = isset( $workflow['version'] ) ? (int) $workflow['version'] : 1;
-		}
-
-		if ( $id <= 0 ) {
+		// A site with no published workflow is a normal state, not a fault:
+		// enrolling a journey against workflow 0 would create rows the engine
+		// could never run, so nothing is enrolled until there is one.
+		if ( ! $workflow instanceof Workflow || $workflow->id <= 0 ) {
 			$this->logger->debug( 'jobs', 'No default workflow is published for this source.', array( 'source' => $source_id ) );
 
 			return null;
 		}
 
 		return array(
-			'id'      => $id,
-			'version' => max( 1, $version ),
+			'id'      => $workflow->id,
+			'version' => max( 1, $workflow->version ),
 		);
 	}
 }

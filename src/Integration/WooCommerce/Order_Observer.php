@@ -431,11 +431,11 @@ final class Order_Observer {
 			Source::ID
 		);
 
-		if ( ! is_array( $result ) || ! isset( $result['journey'] ) || ! $result['journey'] instanceof Recovery_Journey ) {
+		if ( ! is_array( $result ) || ! $result['journey'] instanceof Recovery_Journey ) {
 			return null;
 		}
 
-		$attribution = isset( $result['attribution'] ) ? (string) $result['attribution'] : '';
+		$attribution = (string) $result['attribution'];
 
 		return $result['journey'];
 	}

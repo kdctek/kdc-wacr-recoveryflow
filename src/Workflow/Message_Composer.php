@@ -178,22 +178,28 @@ final class Message_Composer {
 
 		$components = array();
 
-		foreach ( array(
-			'header' => $header,
-			'body'   => $body,
-		) as $type => $values ) {
-			if ( array() === $values ) {
-				continue;
-			}
+		$ordered = $this->in_order( $header, 'header' );
 
-			$ordered = $this->in_order( $values, $type );
+		if ( is_wp_error( $ordered ) ) {
+			return $ordered;
+		}
 
-			if ( is_wp_error( $ordered ) ) {
-				return $ordered;
-			}
-
+		if ( array() !== $ordered ) {
 			$components[] = array(
-				'type'       => $type,
+				'type'       => 'header',
+				'parameters' => $ordered,
+			);
+		}
+
+		$ordered = $this->in_order( $body, 'body' );
+
+		if ( is_wp_error( $ordered ) ) {
+			return $ordered;
+		}
+
+		if ( array() !== $ordered ) {
+			$components[] = array(
+				'type'       => 'body',
 				'parameters' => $ordered,
 			);
 		}

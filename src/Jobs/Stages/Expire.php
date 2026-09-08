@@ -7,7 +7,6 @@
 
 namespace WAcr\RecoveryFlow\Jobs\Stages;
 
-use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Database\Table_Names;
 use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
 use WAcr\RecoveryFlow\Jobs\Stage_Interface;
@@ -71,12 +70,6 @@ final class Expire implements Stage_Interface {
 	 */
 	private Attempt_Repository $attempts;
 
-	/**
-	 * Clock.
-	 *
-	 * @var Clock
-	 */
-	private Clock $clock;
 
 	/**
 	 * Constructor.
@@ -84,13 +77,11 @@ final class Expire implements Stage_Interface {
 	 * @param Journey_Repository $journeys Journey storage.
 	 * @param Event_Repository   $events   Event storage.
 	 * @param Attempt_Repository $attempts Attempt ledger.
-	 * @param Clock              $clock    Clock.
 	 */
-	public function __construct( Journey_Repository $journeys, Event_Repository $events, Attempt_Repository $attempts, Clock $clock ) {
+	public function __construct( Journey_Repository $journeys, Event_Repository $events, Attempt_Repository $attempts ) {
 		$this->journeys = $journeys;
 		$this->events   = $events;
 		$this->attempts = $attempts;
-		$this->clock    = $clock;
 	}
 
 	/**

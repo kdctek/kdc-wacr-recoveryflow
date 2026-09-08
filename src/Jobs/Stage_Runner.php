@@ -132,7 +132,16 @@ final class Stage_Runner {
 			add_action( Scheduler_Interface::RUN_PREFIX . $key, $callback );
 		}
 
-		add_action( Wp_Cron_Driver::TICK, array( $this, 'run_tick' ) );
+		// run_tick() hands its stats back so that "Run now" and WP-CLI can show
+		// what happened, but an action callback must return nothing -- WordPress
+		// discards it, and returning a value from a hook is how a filter and an
+		// action get confused for one another later.
+		add_action(
+			Wp_Cron_Driver::TICK,
+			function ( $stage = '' ): void {
+				$this->run_tick( $stage );
+			}
+		);
 	}
 
 	/**

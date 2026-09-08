@@ -91,9 +91,11 @@ final class Workflow_Definition {
 	 * ISO 8601 durations, restricted to the parts that mean the same thing
 	 * everywhere. Months and years are refused: "P1M" and "PT1M" differ by a
 	 * factor of forty-three thousand and a merchant will eventually type the
-	 * wrong one.
+	 * wrong one. Six digits are accepted per part so that an absurd but
+	 * well-formed duration is refused with "at most 30 days" rather than with
+	 * "that is not a duration", which would send the merchant hunting a typo.
 	 */
-	private const DURATION_PATTERN = '/^P(?!$)(?:(\d{1,4})W)?(?:(\d{1,4})D)?(?:T(?!$)(?:(\d{1,4})H)?(?:(\d{1,4})M)?(?:(\d{1,4})S)?)?$/';
+	private const DURATION_PATTERN = '/^P(?!$)(?:(\d{1,6})W)?(?:(\d{1,6})D)?(?:T(?!$)(?:(\d{1,6})H)?(?:(\d{1,6})M)?(?:(\d{1,6})S)?)?$/';
 
 	/**
 	 * Check a definition, top to bottom.

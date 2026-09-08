@@ -153,11 +153,14 @@ final class Dispatch implements Stage_Interface {
 					break;
 				}
 
-				if ( 0 !== $this->rate->paused_until() ) {
+				// Re-asked every iteration because a 429 part-way through the
+				// batch pauses the budget, and the remaining journeys would
+				// otherwise each burn a request to be told the same thing.
+				if ( $this->rate->remaining() < 1 ) {
 					$stopped = true;
 
 					if ( '' === $stats->last_error ) {
-						$stats->last_error = 'rate_paused';
+						$stats->last_error = 'rate_exhausted';
 					}
 
 					break;
