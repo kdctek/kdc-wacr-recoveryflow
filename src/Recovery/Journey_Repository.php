@@ -459,6 +459,95 @@ final class Journey_Repository extends Repository {
 	}
 
 	/**
+	 * A filtered, ordered page of journeys, with the total behind it.
+	 *
+	 * Backs both the admin list and the REST collection, which is deliberate:
+	 * two queries answering the same question would eventually disagree about
+	 * what "the third page of failed journeys" contains, and only one of them
+	 * would be the one anybody had looked at.
+	 *
+	 * Every part of the ORDER BY and the WHERE is allow-listed rather than
+	 * escaped. Escaping an identifier is not a thing SQL offers -- $wpdb->prepare
+	 * binds values, not column names -- so a sort column that came from a query
+	 * string could only ever be interpolated, and interpolating user input into
+	 * SQL is the vulnerability itself rather than a risk of one. A name that is
+	 * not on the list is replaced by the default; it is never quoted and hoped
+	 * for.
+	 *
+	 * @param array<string,mixed> $args status, source, search, orderby, order, page, per_page.
+	 * @return array{rows:array<int,Recovery_Journey>,total:int}
+	 */
+	public function query( array $args = array() ): array {
+		$sortable = array(
+			'created_at'     => 'j.created_at',
+			'updated_at'     => 'j.updated_at',
+			'next_action_at' => 'j.next_action_at',
+			'status'         => 'j.status',
+			'id'             => 'j.id',
+		);
+
+		$orderby  = $sortable[ (string) ( $args['orderby'] ?? '' ) ] ?? 'j.id';
+		$order    = 'ASC' === strtoupper( (string) ( $args['order'] ?? '' ) ) ? 'ASC' : 'DESC';
+		$per_page = min( 200, max( 1, (int) ( $args['per_page'] ?? 20 ) ) );
+		$page     = max( 1, (int) ( $args['page'] ?? 1 ) );
+		$offset   = ( $page - 1 ) * $per_page;
+
+		$table  = $this->table();
+		$where  = array( '1=1' );
+		$values = array();
+
+		$status = (string) ( $args['status'] ?? '' );
+
+		if ( '' !== $status && in_array( $status, Journey_State::all(), true ) ) {
+			$where[]  = 'j.status = %s';
+			$values[] = $status;
+		}
+
+		$source = (string) ( $args['source'] ?? '' );
+
+		if ( '' !== $source ) {
+			$where[]  = 'j.source_id = %s';
+			$values[] = $source;
+		}
+
+		/*
+		 * Search matches the journey's own public reference, never a customer's
+		 * details. Searching a phone number would mean either a scan of a
+		 * plaintext column or hashing the search term -- and hashing it would
+		 * turn the search box into an oracle that confirms whether a given
+		 * number is a customer of this shop, to anyone who can reach the screen.
+		 */
+		$search = trim( (string) ( $args['search'] ?? '' ) );
+
+		if ( '' !== $search ) {
+			$where[]  = 'j.journey_uid LIKE %s';
+			$values[] = '%' . $this->db()->esc_like( $search ) . '%';
+		}
+
+		$clause = implode( ' AND ', $where );
+
+		$rows = $this->many(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table name from a class constant; the order and where fragments are allow-listed above; every value is bound.
+			$this->db()->prepare(
+				"SELECT j.* FROM `{$table}` AS j WHERE {$clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d",
+				array_merge( $values, array( $per_page, $offset ) )
+			)
+		);
+
+		$total = $this->scalar(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- as above.
+			array() === $values
+				? "SELECT COUNT(*) FROM `{$table}` AS j WHERE {$clause}"
+				: $this->db()->prepare( "SELECT COUNT(*) FROM `{$table}` AS j WHERE {$clause}", $values )
+		);
+
+		return array(
+			'rows'  => array_map( array( Recovery_Journey::class, 'from_row' ), $rows ),
+			'total' => (int) $total,
+		);
+	}
+
+	/**
 	 * Count journeys by state, for the overview.
 	 *
 	 * @return array<string,int> State name to count.

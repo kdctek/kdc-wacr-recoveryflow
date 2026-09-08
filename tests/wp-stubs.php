@@ -257,8 +257,91 @@ function wp_remote_retrieve_header( $response, $header ) {
 function get_bloginfo( $what = '' ) {
 	return 'version' === $what ? '6.9' : 'Example Store';
 }
+/*
+ * Capability checks, controllable by a test.
+ *
+ * Null means "an administrator", which is what every existing assertion
+ * assumed. Setting the global to a list is how the REST matrix below can ask
+ * what a subscriber, a shop manager and a logged-out visitor each get.
+ */
 function current_user_can( $cap ) {
+	if ( ! isset( $GLOBALS['recoveryflow_caps'] ) || null === $GLOBALS['recoveryflow_caps'] ) {
+		return true;
+	}
+
+	return in_array( $cap, (array) $GLOBALS['recoveryflow_caps'], true );
+}
+function is_user_logged_in() {
+	return ! isset( $GLOBALS['recoveryflow_logged_out'] ) || ! $GLOBALS['recoveryflow_logged_out'];
+}
+function get_current_user_id() {
+	return is_user_logged_in() ? 1 : 0;
+}
+function get_user_meta( $user_id, $key, $single = false ) {
+	return $GLOBALS['recoveryflow_user_meta'][ $user_id ][ $key ] ?? ( $single ? '' : array() );
+}
+function update_user_meta( $user_id, $key, $value ) {
+	$GLOBALS['recoveryflow_user_meta'][ $user_id ][ $key ] = $value;
 	return true;
+}
+function human_time_diff( $from, $to = 0 ) {
+	return max( 0, (int) $to - (int) $from ) . ' seconds';
+}
+function rest_url( $path = '' ) {
+	return 'https://shop.example/wp-json/' . ltrim( $path, '/' );
+}
+
+/*
+ * REST registration, recorded rather than performed.
+ *
+ * The security matrix in the smoke run works by reading what the plugin
+ * actually registered -- paths, methods, permission callbacks and argument
+ * schemas -- and then calling those callbacks. Scanning the source for the
+ * word "permission_callback" would pass just as happily on a route that
+ * returned true.
+ */
+function register_rest_route( $namespace, $route, $args = array(), $override = false ) {
+	$GLOBALS['recoveryflow_routes'][] = array(
+		'namespace' => $namespace,
+		'route'     => $route,
+		'endpoints' => isset( $args[0] ) ? $args : array( $args ),
+	);
+	return true;
+}
+
+/**
+ * Enough of WP_REST_Request to drive a controller.
+ */
+class WP_REST_Request {
+	private $params;
+
+	public function __construct( array $params = array() ) {
+		$this->params = $params;
+	}
+	public function get_param( $key ) {
+		return $this->params[ $key ] ?? null;
+	}
+	public function set_param( $key, $value ) {
+		$this->params[ $key ] = $value;
+	}
+}
+
+/**
+ * Enough of WP_REST_Response to inspect one.
+ */
+class WP_REST_Response {
+	public $data;
+	public $headers = array();
+
+	public function __construct( $data = null, $status = 200 ) {
+		$this->data = $data;
+	}
+	public function header( $name, $value ) {
+		$this->headers[ $name ] = $value;
+	}
+	public function get_data() {
+		return $this->data;
+	}
 }
 function is_multisite() {
 	return false;
@@ -354,9 +437,18 @@ class WP_Error {
 	private $code;
 	private $message;
 
-	public function __construct( $code = '', $message = '' ) {
+	private $data;
+
+	public function __construct( $code = '', $message = '', $data = array() ) {
 		$this->code    = $code;
 		$this->message = $message;
+		$this->data    = $data;
+	}
+	public function get_error_data() {
+		return $this->data;
+	}
+	public function get_status() {
+		return isset( $this->data['status'] ) ? (int) $this->data['status'] : 0;
 	}
 	public function get_error_code() {
 		return $this->code;
@@ -457,6 +549,9 @@ class Fake_Wpdb extends wpdb {
 		}
 		$query = str_replace( array( '%s', '%d', '%f' ), '%s', $query );
 		return vsprintf( $query, array_map( static fn( $a ) => is_numeric( $a ) ? $a : "'" . $a . "'", $args ) );
+	}
+	public function esc_like( $text ) {
+		return addcslashes( (string) $text, '_%\\' );
 	}
 	public function query( $sql ) {
 		$this->queries[] = $sql;

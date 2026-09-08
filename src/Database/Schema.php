@@ -60,6 +60,39 @@ final class Schema {
 	}
 
 	/**
+	 * Whether every table this plugin needs is present.
+	 *
+	 * Asked by the status screen, because "some of the tables are missing" is a
+	 * real state a site reaches -- a half-finished install, a restored backup
+	 * taken mid-upgrade, a host that silently refused a CREATE -- and it
+	 * presents as recovery quietly doing nothing rather than as an error.
+	 *
+	 * SHOW TABLES rather than the stored version number: the version says what
+	 * the last migration believed, and this question is about what is actually
+	 * there.
+	 *
+	 * @return bool
+	 */
+	public static function is_installed(): bool {
+		global $wpdb;
+
+		foreach ( Table_Names::all() as $table ) {
+			$name = Table_Names::get( $table );
+
+			$found = $wpdb->get_var(
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the table name is bound as a value to SHOW TABLES LIKE, which takes a pattern rather than an identifier.
+				$wpdb->prepare( 'SHOW TABLES LIKE %s', $name )
+			);
+
+			if ( $name !== $found ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
 	 * Drop every table. Only ever called from uninstall.
 	 *
 	 * @return void

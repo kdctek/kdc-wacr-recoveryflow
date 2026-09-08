@@ -38,6 +38,9 @@ use WAcr\RecoveryFlow\Jobs\Wp_Cron_Driver;
 use WAcr\RecoveryFlow\Privacy\Anonymizer;
 use WAcr\RecoveryFlow\Privacy\Eraser;
 use WAcr\RecoveryFlow\Privacy\Exporter;
+use WAcr\RecoveryFlow\REST\Journeys_Controller;
+use WAcr\RecoveryFlow\REST\Settings_Controller;
+use WAcr\RecoveryFlow\REST\Status_Controller;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Conversion_Tracker;
 use WAcr\RecoveryFlow\Recovery\Eligibility_Evaluator;
@@ -196,6 +199,19 @@ final class Plugin {
 			'lock'                => static fn ( Plugin $c ): Lock => new Lock( $c->locks(), $c->logger() ),
 			'scheduler'           => static fn (): Scheduler_Factory => new Scheduler_Factory( new Action_Scheduler_Driver(), new Wp_Cron_Driver() ),
 			'runner'              => static fn ( Plugin $c ): Stage_Runner => $c->build_stage_runner(),
+
+			// REST. Registered on rest_api_init, which fires on its own request
+			// rather than in wp-admin, so these are built on every request the
+			// same way the public endpoint is.
+			'rest_journeys'       => static fn ( Plugin $c ): Journeys_Controller => new Journeys_Controller(
+				$c->journeys(),
+				$c->events(),
+				$c->customers(),
+				$c->attempts(),
+				$c->receipts()
+			),
+			'rest_status'         => static fn ( Plugin $c ): Status_Controller => new Status_Controller( $c->credentials(), $c->wacr(), $c->scheduler() ),
+			'rest_settings'       => static fn (): Settings_Controller => new Settings_Controller(),
 
 			// Privacy. The anonymiser is shared: WordPress's eraser and the
 			// daily retention clear-out must not drift into two ideas of what
@@ -664,6 +680,33 @@ final class Plugin {
 	}
 
 	/**
+	 * The journeys REST controller.
+	 *
+	 * @return Journeys_Controller
+	 */
+	public function rest_journeys(): Journeys_Controller {
+		return $this->typed( 'rest_journeys', Journeys_Controller::class );
+	}
+
+	/**
+	 * The status REST controller.
+	 *
+	 * @return Status_Controller
+	 */
+	public function rest_status(): Status_Controller {
+		return $this->typed( 'rest_status', Status_Controller::class );
+	}
+
+	/**
+	 * The settings REST controller.
+	 *
+	 * @return Settings_Controller
+	 */
+	public function rest_settings(): Settings_Controller {
+		return $this->typed( 'rest_settings', Settings_Controller::class );
+	}
+
+	/**
 	 * The anonymizer service.
 	 *
 	 * @return Anonymizer
@@ -764,6 +807,11 @@ final class Plugin {
 			$this->admin_menu()->hooks();
 			$this->admin_assets()->hooks();
 		}
+
+		// The REST routes.
+		$this->rest_journeys()->hooks();
+		$this->rest_status()->hooks();
+		$this->rest_settings()->hooks();
 
 		// The privacy tools. Registered on every request, not only in wp-admin:
 		// a privacy request is fulfilled by a background job, and an exporter

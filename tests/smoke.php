@@ -47,6 +47,9 @@ use WAcr\RecoveryFlow\Integration\WooCommerce\Session;
 use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\Database\Schema;
 use WAcr\RecoveryFlow\Database\Table_Names;
+use WAcr\RecoveryFlow\REST\Abstract_Controller;
+use WAcr\RecoveryFlow\REST\Routes;
+use WAcr\RecoveryFlow\REST\Settings_Controller;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Security\Crypto;
 use WAcr\RecoveryFlow\Security\Hash_Key;
@@ -63,6 +66,7 @@ use WAcr\RecoveryFlow\WAcr\Transport;
 ( new Autoloader( dirname( __DIR__ ) . '/src/' ) )->register();
 
 require_once __DIR__ . '/probes.php';
+require_once __DIR__ . '/rest-probes.php';
 require_once __DIR__ . '/i18n-audit.php';
 
 
@@ -1551,6 +1555,213 @@ $recoveryflow_due = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/sr
 ok( 'and only reaches customers with no journey still running', false !== strpos( $recoveryflow_due, 'NOT IN' ) );
 ok( 'walking by primary key, so a clear-out cannot skip rows', false !== strpos( $recoveryflow_due, 'c.id > %d' ) );
 ok( 'and never re-anonymising somebody already done', false !== strpos( $recoveryflow_due, 'anonymized_at IS NULL' ) );
+
+
+
+// ------------------------------------------------------- REST: the surface.
+
+/*
+ * The routes are read back from what the plugin actually registered, not from
+ * the source. A test that grepped for "permission_callback" would pass just as
+ * happily on a route whose callback returned true.
+ */
+$GLOBALS['recoveryflow_routes'] = array();
+
+$plugin->rest_journeys()->register_routes();
+$plugin->rest_status()->register_routes();
+$plugin->rest_settings()->register_routes();
+
+$recoveryflow_routes = $GLOBALS['recoveryflow_routes'];
+
+ok( 'the plugin registers REST routes', count( $recoveryflow_routes ) >= 4 );
+
+foreach ( $recoveryflow_routes as $recoveryflow_route ) {
+	$recoveryflow_path = $recoveryflow_route['namespace'] . $recoveryflow_route['route'];
+
+	// Decision 5: KDC plugins share one namespace and separate by path.
+	check( "{$recoveryflow_path} is in the shared KDC namespace", $recoveryflow_route['namespace'], Routes::REST_NAMESPACE );
+	ok( "{$recoveryflow_path} sits under this plugin's prefix", 0 === strpos( $recoveryflow_route['route'], '/' . Routes::PREFIX . '/' ) );
+
+	foreach ( $recoveryflow_route['endpoints'] as $recoveryflow_endpoint ) {
+		$recoveryflow_method = (string) ( $recoveryflow_endpoint['methods'] ?? '' );
+		$recoveryflow_label  = "{$recoveryflow_method} {$recoveryflow_path}";
+
+		// A route with no permission callback is public. WordPress warns about
+		// it and then serves it anyway.
+		ok( "{$recoveryflow_label} has a permission callback", is_callable( $recoveryflow_endpoint['permission_callback'] ?? null ) );
+		ok( "{$recoveryflow_label} has a handler", is_callable( $recoveryflow_endpoint['callback'] ?? null ) );
+
+		foreach ( $recoveryflow_endpoint['args'] ?? array() as $recoveryflow_arg => $recoveryflow_spec ) {
+			ok(
+				"{$recoveryflow_label} validates or sanitises {$recoveryflow_arg}",
+				isset( $recoveryflow_spec['sanitize_callback'] ) || isset( $recoveryflow_spec['enum'] ) || isset( $recoveryflow_spec['type'] )
+			);
+		}
+	}
+}
+
+/*
+ * The matrix. Every route is asked the same three questions: may a logged-out
+ * visitor call it, may a subscriber, may somebody holding the right capability.
+ * The first two must be refused by every single route -- these carry customer
+ * contact details and the ability to cancel somebody's recovery.
+ */
+$recoveryflow_denied_anon = 0;
+$recoveryflow_denied_sub  = 0;
+$recoveryflow_allowed     = 0;
+
+foreach ( $recoveryflow_routes as $recoveryflow_route ) {
+	foreach ( $recoveryflow_route['endpoints'] as $recoveryflow_endpoint ) {
+		$recoveryflow_guard = $recoveryflow_endpoint['permission_callback'];
+		$recoveryflow_label = (string) ( $recoveryflow_endpoint['methods'] ?? '' ) . ' ' . $recoveryflow_route['route'];
+
+		// Logged out.
+		$GLOBALS['recoveryflow_caps']       = array();
+		$GLOBALS['recoveryflow_logged_out'] = true;
+		$recoveryflow_verdict               = $recoveryflow_guard();
+
+		ok( "{$recoveryflow_label} refuses a logged-out visitor", $recoveryflow_verdict instanceof WP_Error );
+		check( "{$recoveryflow_label} tells them to log in rather than that they are forbidden", $recoveryflow_verdict instanceof WP_Error ? $recoveryflow_verdict->get_status() : 0, 401 );
+		++$recoveryflow_denied_anon;
+
+		// A customer with an account on the shop. Logged in is not staff.
+		$GLOBALS['recoveryflow_caps']       = array( 'read' );
+		$GLOBALS['recoveryflow_logged_out'] = false;
+		$recoveryflow_verdict               = $recoveryflow_guard();
+
+		ok( "{$recoveryflow_label} refuses a subscriber", $recoveryflow_verdict instanceof WP_Error );
+		check( "{$recoveryflow_label} refuses them with 403, not 401", $recoveryflow_verdict instanceof WP_Error ? $recoveryflow_verdict->get_status() : 0, 403 );
+		ok( "{$recoveryflow_label} names the permission that was missing", $recoveryflow_verdict instanceof WP_Error && false !== strpos( $recoveryflow_verdict->get_error_message(), 'recoveryflow_' ) );
+		++$recoveryflow_denied_sub;
+
+		// Somebody holding every RecoveryFlow capability.
+		$GLOBALS['recoveryflow_caps'] = Capabilities::all();
+
+		check( "{$recoveryflow_label} admits a user with the capability", $recoveryflow_guard(), true );
+		++$recoveryflow_allowed;
+	}
+}
+
+ok( 'every route was tried logged out', $recoveryflow_denied_anon >= 6 );
+ok( 'every route was tried as a subscriber', $recoveryflow_denied_sub === $recoveryflow_denied_anon );
+ok( 'and every route was tried with the capability', $recoveryflow_allowed === $recoveryflow_denied_anon );
+
+$GLOBALS['recoveryflow_caps']       = null;
+$GLOBALS['recoveryflow_logged_out'] = false;
+
+/*
+ * The credential must not leave the site by any route, in any form -- not
+ * masked, not as a length. An endpoint that reports facts about a secret helps
+ * somebody guess it.
+ */
+( new WAcr\RecoveryFlow\WAcr\Credentials() )->set_api_key( 'wacr_live_do_not_leak_me' );
+
+// Read on a site that has settled nothing, which is where every site starts.
+update_option( Options::SETTINGS, Options::defaults() );
+
+$recoveryflow_settings_body = $plugin->rest_settings()->index()->get_data();
+
+ok( 'the settings endpoint answers', is_array( $recoveryflow_settings_body['settings'] ) );
+ok( 'and never returns the API key', false === strpos( wp_json_encode( $recoveryflow_settings_body ), 'do_not_leak_me' ) );
+ok( 'nor a field for it at all', ! array_key_exists( Settings_Schema::FIELD_API_KEY, $recoveryflow_settings_body['settings'] ) );
+ok( 'but does say what is blocking email', count( $recoveryflow_settings_body['email_blockers'] ) > 0 );
+check( 'and that email is not permitted yet', $recoveryflow_settings_body['email_permitted'], false );
+
+// A blocker travels as a machine code AND a sentence. The code is what is
+// compared and logged and must never be translated; the sentence is what a
+// person reads.
+$recoveryflow_first_blocker = $recoveryflow_settings_body['email_blockers'][0];
+
+ok( 'a blocker carries its untranslated code', in_array( $recoveryflow_first_blocker['code'], array( Email_Compliance::NO_POSTAL_ADDRESS, Email_Compliance::NO_POSTAL_COUNTRY, Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT ), true ) );
+ok( 'and a sentence a person can act on', strlen( (string) $recoveryflow_first_blocker['message'] ) > 20 );
+
+// Settle all three and the same endpoint says email is permitted -- and still
+// does not say it is switched on, because it is not.
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::defaults(),
+		array(
+			'merchant_postal_address' => "Example Shop Ltd\n12 Example Road",
+			'merchant_postal_country' => 'GB',
+			'recovery_link_ttl_days'  => 30,
+		)
+	)
+);
+
+$recoveryflow_settled_body = $plugin->rest_settings()->index()->get_data();
+
+check( 'once settled, the endpoint reports email as permitted', $recoveryflow_settled_body['email_permitted'], true );
+check( 'with nothing left blocking it', $recoveryflow_settled_body['email_blockers'], array() );
+check( 'and the switch itself still off, because permitted is not enabled', $recoveryflow_settled_body['settings']['channel_email_enabled'], false );
+
+
+/*
+ * The masking rule, which guards every route that can return a phone number.
+ * Both halves are required, and the reason the capability alone is not enough
+ * is the shop counter: a journeys list left open all day should not be
+ * readable by whoever walks past, even though the person working it is
+ * entitled to read any single row.
+ */
+$recoveryflow_reveal = new Reveal_Probe( $plugin->receipts() );
+
+$GLOBALS['recoveryflow_caps'] = Capabilities::all();
+check( 'holding the permission does not unmask a listing nobody asked to unmask', $recoveryflow_reveal->probe( new WP_REST_Request( array() ) ), false );
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::VIEW_JOURNEYS );
+check( 'asking without the permission reveals nothing', $recoveryflow_reveal->probe( new WP_REST_Request( array( Abstract_Controller::REVEAL_ARG => true ) ) ), false );
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::VIEW_JOURNEYS, Capabilities::REVEAL_PII );
+check( 'asking with the permission reveals', $recoveryflow_reveal->probe( new WP_REST_Request( array( Abstract_Controller::REVEAL_ARG => true ) ) ), true );
+
+$GLOBALS['recoveryflow_caps'] = null;
+
+/*
+ * And the shaping itself. Masking is what the journeys list shows by default,
+ * so the rule is asserted on the method that does it rather than only on the
+ * endpoints that call it -- the fake database returns no rows, and an
+ * assertion that passed because there was nothing to mask would be worthless.
+ */
+$recoveryflow_summary = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/REST/Journeys_Controller.php', 'customer_summary' );
+
+ok( 'the customer shape can be read', strlen( $recoveryflow_summary ) > 100 );
+ok( 'a phone number is masked unless revealing was earned', false !== strpos( $recoveryflow_summary, 'Mask::phone' ) );
+ok( 'and an email address too', false !== strpos( $recoveryflow_summary, 'Mask::email' ) );
+ok( 'and a name', false !== strpos( $recoveryflow_summary, 'Mask::name' ) );
+ok( 'masking is what happens when revealing was not asked for', false !== strpos( $recoveryflow_summary, '$reveal ?' ) );
+
+// An erased customer has nothing to mask or reveal, and the shape says so
+// rather than returning blanks that read as missing data.
+ok( 'an erased customer is described as erased', false !== strpos( $recoveryflow_summary, 'is_anonymized' ) );
+
+// A missing journey and an erased one must look identical from outside, or the
+// endpoint confirms that a given reference used to be real.
+$recoveryflow_notfound = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/REST/Journeys_Controller.php', 'not_found' );
+
+ok( 'a missing journey gets one uniform answer', false !== strpos( $recoveryflow_notfound, '404' ) );
+check( 'and only one, so it cannot distinguish never-existed from erased', substr_count( $recoveryflow_notfound, 'WP_Error' ), 1 );
+
+// Screen preferences are per person, so the shape of a screen follows somebody
+// between machines rather than living in one browser.
+$plugin->rest_settings()->save_ui_state(
+	new WP_REST_Request(
+		array(
+			'panel' => 'credential',
+			'open'  => true,
+		)
+	)
+);
+check( 'an opened panel is remembered for that person', get_user_meta( 1, Settings_Controller::UI_META, true ), array( 'credential' => true ) );
+
+$plugin->rest_settings()->save_ui_state(
+	new WP_REST_Request(
+		array(
+			'panel' => 'credential',
+			'open'  => false,
+		)
+	)
+);
+check( 'and forgotten when they close it', get_user_meta( 1, Settings_Controller::UI_META, true ), array() );
 
 
 echo "\n";

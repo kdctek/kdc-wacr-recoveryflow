@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T04:01:48+00:00\n"
+"POT-Creation-Date: 2026-09-08T04:12:22+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -427,6 +427,7 @@ msgid "The channel RecoveryFlow is built around. Sending needs a connected WA.cr
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:316
+#: src/REST/Status_Controller.php:287
 msgid "WhatsApp reminders"
 msgstr ""
 
@@ -471,6 +472,8 @@ msgid "Asked separately because an address is laid out according to its own coun
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:351
+#: src/REST/Status_Controller.php:302
+#: src/REST/Status_Controller.php:318
 msgid "Email reminders"
 msgstr ""
 
@@ -1165,6 +1168,144 @@ msgid "%1$s and %2$d more"
 msgid_plural "%1$s and %2$d more"
 msgstr[0] ""
 msgstr[1] ""
+
+#. translators: %s: the name of a permission, e.g. recoveryflow_view_journeys.
+#: src/REST/Abstract_Controller.php:85
+#, php-format
+msgid "This needs the \"%s\" permission."
+msgstr ""
+
+#: src/REST/Journeys_Controller.php:265
+msgid "This recovery has already finished, so there is nothing to cancel."
+msgstr ""
+
+#: src/REST/Journeys_Controller.php:285
+msgid "This recovery changed while you were looking at it. Reload and try again."
+msgstr ""
+
+#: src/REST/Journeys_Controller.php:347
+msgid "Removed at the customer's request"
+msgstr ""
+
+#: src/REST/Journeys_Controller.php:376
+msgid "No recovery was found with that reference."
+msgstr ""
+
+#: src/REST/Status_Controller.php:139
+msgid "There is no API key saved to test."
+msgstr ""
+
+#: src/REST/Status_Controller.php:151
+msgid "WA.cr could not be reached."
+msgstr ""
+
+#: src/REST/Status_Controller.php:163
+msgid "Connected to WA.cr."
+msgstr ""
+
+#. translators: %s: the name of the connected WA.cr workspace.
+#: src/REST/Status_Controller.php:166
+#, php-format
+msgid "Connected to %s."
+msgstr ""
+
+#: src/REST/Status_Controller.php:186
+msgid "Recovery is switched on"
+msgstr ""
+
+#: src/REST/Status_Controller.php:189
+msgid "Abandoned baskets are being recorded and worked."
+msgstr ""
+
+#: src/REST/Status_Controller.php:190
+msgid "Nothing is being recorded or sent. Switch recovery on to start."
+msgstr ""
+
+#: src/REST/Status_Controller.php:195
+msgid "Database tables"
+msgstr ""
+
+#: src/REST/Status_Controller.php:198
+msgid "All of the plugin's tables are present."
+msgstr ""
+
+#: src/REST/Status_Controller.php:199
+msgid "Some tables are missing. Deactivating and reactivating the plugin creates them."
+msgstr ""
+
+#: src/REST/Status_Controller.php:206
+msgid "Staff permissions"
+msgstr ""
+
+#: src/REST/Status_Controller.php:209
+msgid "Shop managers can work the recovery queue."
+msgstr ""
+
+#: src/REST/Status_Controller.php:210
+msgid "Some roles are missing RecoveryFlow permissions, which is why staff may not be able to see the journeys. Deactivating and reactivating the plugin re-applies them."
+msgstr ""
+
+#: src/REST/Status_Controller.php:229
+#: src/REST/Status_Controller.php:241
+#: src/REST/Status_Controller.php:252
+msgid "WA.cr connection"
+msgstr ""
+
+#: src/REST/Status_Controller.php:231
+msgid "The saved API key can no longer be read, which happens when a site's security keys are rotated. Enter the key again."
+msgstr ""
+
+#: src/REST/Status_Controller.php:243
+msgid "No API key is saved. Baskets are still recorded, but nothing can be sent."
+msgstr ""
+
+#: src/REST/Status_Controller.php:254
+msgid "An API key is saved. Use \"Test connection\" to check it against WA.cr."
+msgstr ""
+
+#: src/REST/Status_Controller.php:259
+msgid "WA.cr developer API"
+msgstr ""
+
+#: src/REST/Status_Controller.php:262
+msgid "This workspace can author workflows in WordPress and send directly."
+msgstr ""
+
+#: src/REST/Status_Controller.php:290
+msgid "Workflow steps set to WhatsApp will be sent."
+msgstr ""
+
+#: src/REST/Status_Controller.php:291
+msgid "WhatsApp is switched off, so steps set to it are skipped."
+msgstr ""
+
+#. translators: %s: what is stopping email from being sent.
+#: src/REST/Status_Controller.php:306
+#, php-format
+msgid "Email cannot be sent yet. %s"
+msgstr ""
+
+#: src/REST/Status_Controller.php:321
+msgid "Workflow steps set to email will be sent."
+msgstr ""
+
+#: src/REST/Status_Controller.php:322
+msgid "Everything the law asks for is settled, and email is still switched off. Turning it on is your decision."
+msgstr ""
+
+#: src/REST/Status_Controller.php:359
+msgid "Background processing"
+msgstr ""
+
+#. translators: 1: the name of the scheduler in use. 2: a human time difference, e.g. "3 mins".
+#: src/REST/Status_Controller.php:364
+#, php-format
+msgid "Running on %1$s. The next check is due in %2$s."
+msgstr ""
+
+#: src/REST/Status_Controller.php:368
+msgid "Nothing is scheduled, so no reminders will be sent. Deactivating and reactivating the plugin re-schedules the background jobs."
+msgstr ""
 
 #: src/WAcr/Client.php:247
 msgid "No WA.cr API key is saved, so RecoveryFlow cannot send. Add one on the settings screen."
