@@ -425,6 +425,23 @@ function load_plugin_textdomain( $domain, $deprecated, $path ) {
 function wp_create_nonce( $action = -1 ) {
 	return substr( md5( (string) $action ), 0, 10 );
 }
+function wp_nonce_field( $action = -1, $name = '_wpnonce', $referer = true, $display = true ) {
+	$field = '<input type="hidden" name="' . $name . '" value="' . wp_create_nonce( $action ) . '" />';
+
+	if ( $display ) {
+		echo $field; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- test stub.
+	}
+
+	return $field;
+}
+function check_admin_referer( $action = -1, $name = '_wpnonce' ) {
+	return 1;
+}
+function wp_safe_redirect( $location, $status = 302 ) {
+	$GLOBALS['__redirect'] = $location;
+
+	return true;
+}
 function is_admin() {
 	return true;
 }

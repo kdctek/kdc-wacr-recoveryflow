@@ -57,6 +57,7 @@ use WAcr\RecoveryFlow\Security\Hash_Key;
 use WAcr\RecoveryFlow\Security\Token_Service;
 use WAcr\RecoveryFlow\Support\Options;
 use WAcr\RecoveryFlow\Support\Uuid;
+use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\WAcr\Credentials;
 use WAcr\RecoveryFlow\WAcr\Error;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
@@ -331,8 +332,49 @@ $GLOBALS['__query_vars'] = array();
 // -------------------------------------------------------------- Feature gate.
 
 delete_option( Options::ME_SNAPSHOT );
+delete_option( Options::API_KEY );
 ok( 'no credential means no direct sending', ! Feature_Gate::is_enabled( Feature_Gate::DIRECT_SEND ) );
 check( 'and it says why', Feature_Gate::unavailable_reason(), 'No WA.cr API key is connected yet.' );
+
+/*
+ * The bug this pair exists to prevent: an empty snapshot was read as "no key",
+ * so a saved-but-unchecked key was described as absent. The settings screen
+ * printed "A key is saved." and "No WA.cr API key is connected yet." one line
+ * apart, and no button existed anywhere in wp-admin that could write the
+ * snapshot and resolve it.
+ */
+( new Credentials() )->set_api_key( 'wacr_test_smoke_unchecked' );
+ok(
+	'a saved but unchecked key is not described as absent',
+	false === strpos( Feature_Gate::unavailable_reason(), 'No WA.cr API key is connected' )
+);
+ok(
+	'it is described as unchecked, and names the control that checks it',
+	false !== strpos( Feature_Gate::unavailable_reason(), 'has not been checked yet' )
+		&& false !== strpos( Feature_Gate::unavailable_reason(), 'Test connection' )
+);
+
+// A snapshot describes ONE credential: storing a different key must retire it,
+// or the screen reports the old workspace's tenant and scopes against the new
+// key and the gate grants sends on scopes the stored key may not hold.
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send' ),
+	)
+);
+( new Credentials() )->set_api_key( 'wacr_test_smoke_unchecked' );
+ok( 're-saving the SAME key keeps what was learned about it', Feature_Gate::has_developer_api() );
+( new Credentials() )->set_api_key( 'wacr_test_smoke_different' );
+ok( 'but storing a DIFFERENT key retires the old snapshot', ! Feature_Gate::has_developer_api() );
+check(
+	'and the screen says the new key is unchecked, not that the plan is short',
+	Feature_Gate::unavailable_reason(),
+	'The saved WA.cr API key has not been checked yet. Use "Test connection" to check it against WA.cr.'
+);
+delete_option( Options::API_KEY );
+delete_option( Options::ME_SNAPSHOT );
 
 update_option(
 	Options::ME_SNAPSHOT,
@@ -1449,6 +1491,25 @@ $recoveryflow_html = recoveryflow_render_settings( 'wacr' );
 
 ok( 'rarely-touched settings are in a native expandable', false !== strpos( $recoveryflow_html, '<details' ) );
 ok( 'the credential box is never rendered holding the credential', false !== strpos( $recoveryflow_html, 'type="password" id="recoveryflow-field-wacr-api-key" name="recoveryflow_settings[wacr_api_key]" value=""' ) );
+
+/*
+ * Nothing else in wp-admin can write the connection snapshot, so without this
+ * control a saved key stays unchecked for ever and the screen goes on saying
+ * the connection is absent. The health check has told merchants to "use Test
+ * connection" since 1c, while no such button existed anywhere.
+ */
+ok(
+	'the screen carries the control the rest of the plugin tells people to press',
+	false !== strpos( $recoveryflow_html, 'name="action" value="' . Connection_Test::ACTION . '"' )
+);
+ok(
+	'it posts to admin-post.php, so it works with scripts off',
+	false !== strpos( $recoveryflow_html, 'action="https://shop.example/wp-admin/admin-post.php"' )
+);
+ok(
+	'and carries a nonce, because it spends an API call on somebody else\'s service',
+	false !== strpos( $recoveryflow_html, 'name="_wpnonce"' )
+);
 
 // A conditional field is rendered and then hidden by script, never omitted:
 // with scripts off the screen has to be complete rather than missing settings.

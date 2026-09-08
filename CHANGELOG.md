@@ -10,6 +10,11 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A saved WA.cr key can now actually be connected, and the settings screen stops contradicting itself.** Entering a key and saving it left the screen saying "A key is saved" directly above "No WA.cr API key is connected yet". Both sentences were true of their own stored value and neither was true of the site: whether a key *works* is only learned by asking WA.cr, and nothing in wp-admin could ask. The status screen had been telling merchants to "use Test connection" since the admin screens shipped, and no such button existed anywhere. There is now one, on the WA.cr tab beside the key: it is an ordinary form that works with scripts switched off, and it says which workspace the key belongs to and what it may do. A key that is saved but not yet checked is now described as unchecked rather than as absent.
+- **Replacing the API key no longer leaves the previous workspace's answer standing.** What RecoveryFlow had learned about a credential -- which workspace, which permissions, whether the plan includes the developer API -- was only discarded when a key was *removed*, not when a different one was saved over it. The screen could report being connected to one workspace while holding another's key, and the plugin could go on offering to send directly on permissions the stored key may not have had.
+
 ### Added
 
 - **Being forgotten also stops a recovery already in flight.** Erasure previously stripped a journey's contents and revoked its links but left a scheduled journey sitting in the queue until it expired. Nothing would have been sent -- an anonymised customer is refused by the eligibility rules -- but the recoveries screen went on showing work being done for somebody who had asked to be forgotten, and every background pass kept picking it up to decide again that it must not.

@@ -131,6 +131,23 @@ final class Credentials {
 			return;
 		}
 
+		/*
+		 * A snapshot describes one credential, so it stops being true the
+		 * moment a different key is stored. Clearing it only when the key was
+		 * REMOVED left the previous credential's tenant name, scopes and plan
+		 * standing against the new key: the settings screen would report
+		 * "Connected to <the old workspace>, ending <the new key>" -- one
+		 * sentence built from two credentials -- and Feature_Gate would go on
+		 * granting direct sends on scopes the stored key may not hold.
+		 *
+		 * Compared in the clear rather than by ciphertext: encryption is
+		 * nonce-based, so re-saving the same key produces a different string
+		 * at rest and every save would look like a change.
+		 */
+		if ( $this->api_key() !== $key ) {
+			delete_option( Options::ME_SNAPSHOT );
+		}
+
 		update_option( Options::API_KEY, Crypto::encrypt( $key ), false );
 	}
 
