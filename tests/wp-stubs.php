@@ -261,6 +261,15 @@ function wp_remote_retrieve_body( $response ) {
 function wp_remote_retrieve_header( $response, $header ) {
 	return $response['headers'][ $header ] ?? '';
 }
+function wp_specialchars_decode( $value, $quote_style = ENT_NOQUOTES ) {
+	return html_entity_decode( (string) $value, is_int( $quote_style ) ? $quote_style : ENT_QUOTES, 'UTF-8' );
+}
+function wp_timezone_string() {
+	return 'Europe/London';
+}
+function get_locale() {
+	return 'en_GB';
+}
 function get_bloginfo( $what = '' ) {
 	return 'version' === $what ? '6.9' : 'Example Store';
 }
@@ -517,6 +526,15 @@ function flush_rewrite_rules( $hard = true ) {}
 function wp_next_scheduled( $hook, $args = array() ) {
 	return false;
 }
+function wp_schedule_single_event( $timestamp, $hook, $args = array() ) {
+	$GLOBALS['__single_events'][] = array(
+		'timestamp' => $timestamp,
+		'hook'      => $hook,
+		'args'      => $args,
+	);
+
+	return true;
+}
 function wp_unschedule_event( $timestamp, $hook, $args = array() ) {}
 function wp_clear_scheduled_hook( $hook, $args = array() ) {}
 
@@ -720,5 +738,6 @@ class Fake_Wpdb extends wpdb {
 	}
 }
 
+$GLOBALS['__single_events']  = array();
 $GLOBALS['__fake_insert_id'] = 0;
 $GLOBALS['wpdb']            = new Fake_Wpdb();

@@ -305,6 +305,30 @@
 	font-weight: 400;
 }
 
+.recoveryflow-diagnostics textarea {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	margin-top: 0.5em;
+}
+
+.recoveryflow-recipe__steps {
+	margin: 0 0 1em 1.6em;
+	max-width: 44em;
+}
+
+.recoveryflow-recipe__steps li {
+	margin-bottom: 0.5em;
+}
+
+.recoveryflow-recipe__payload {
+	max-width: 46em;
+}
+
+.recoveryflow-recipe__payload th {
+	width: 16em;
+	font-weight: 400;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.recoveryflow-settings * {
 		transition: none !important;

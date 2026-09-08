@@ -9,6 +9,8 @@ namespace WAcr\RecoveryFlow\Core;
 
 use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
+use WAcr\RecoveryFlow\Admin\Diagnostics;
+use WAcr\RecoveryFlow\Admin\Hook_Test;
 use WAcr\RecoveryFlow\Admin\Workflow_Form;
 use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Admin\Menu as Admin_Menu;
@@ -63,6 +65,7 @@ use WAcr\RecoveryFlow\Security\Rate_Limiter;
 use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\WAcr\Client;
 use WAcr\RecoveryFlow\WAcr\Credentials;
+use WAcr\RecoveryFlow\WAcr\Opt_Out_Sync;
 use WAcr\RecoveryFlow\WAcr\Template_Catalog;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 use WAcr\RecoveryFlow\WAcr\Transport;
@@ -262,9 +265,11 @@ final class Plugin {
 				$c->receipts()
 			),
 			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
-			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health() ),
+			'admin_diagnostics'   => static fn ( Plugin $c ): Diagnostics => new Diagnostics( $c->credentials(), $c->health() ),
+			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health(), $c->admin_diagnostics() ),
 			'admin_workflows'     => static fn ( Plugin $c ): Workflows_Page => new Workflows_Page( $c->workflows() ),
 			'template_catalog'    => static fn ( Plugin $c ): Template_Catalog => new Template_Catalog( $c->wacr() ),
+			'opt_out_sync'        => static fn ( Plugin $c ): Opt_Out_Sync => new Opt_Out_Sync( $c->wacr(), $c->customers(), $c->logger() ),
 			'admin_workflow'      => static fn ( Plugin $c ): Workflow_Edit => new Workflow_Edit( $c->workflows(), $c->steps(), $c->template_catalog() ),
 			'admin_workflow_form' => static fn ( Plugin $c ): Workflow_Form => new Workflow_Form( $c->workflows() ),
 			'admin_setup'         => static fn ( Plugin $c ): Setup => new Setup( $c->wacr(), $c->credentials() ),
@@ -280,6 +285,7 @@ final class Plugin {
 			),
 			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
 			'admin_connection'    => static fn ( Plugin $c ): Connection_Test => new Connection_Test( $c->wacr(), $c->credentials() ),
+			'admin_hook_test'     => static fn ( Plugin $c ): Hook_Test => new Hook_Test( $c->wacr(), $c->credentials() ),
 
 			// The public endpoint.
 			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
@@ -829,12 +835,30 @@ final class Plugin {
 	}
 
 	/**
+	 * The support report.
+	 *
+	 * @return Diagnostics
+	 */
+	public function admin_diagnostics(): Diagnostics {
+		return $this->typed( 'admin_diagnostics', Diagnostics::class );
+	}
+
+	/**
 	 * The workflows screen.
 	 *
 	 * @return Workflows_Page
 	 */
 	public function admin_workflows(): Workflows_Page {
 		return $this->typed( 'admin_workflows', Workflows_Page::class );
+	}
+
+	/**
+	 * The opt-out sync.
+	 *
+	 * @return Opt_Out_Sync
+	 */
+	public function opt_out_sync(): Opt_Out_Sync {
+		return $this->typed( 'opt_out_sync', Opt_Out_Sync::class );
 	}
 
 	/**
@@ -880,6 +904,15 @@ final class Plugin {
 	 */
 	public function admin_connection(): Connection_Test {
 		return $this->typed( 'admin_connection', Connection_Test::class );
+	}
+
+	/**
+	 * The Auto Flow hook test.
+	 *
+	 * @return Hook_Test
+	 */
+	public function admin_hook_test(): Hook_Test {
+		return $this->typed( 'admin_hook_test', Hook_Test::class );
 	}
 
 	/**
@@ -957,6 +990,7 @@ final class Plugin {
 			$this->admin_assets()->hooks();
 			$this->admin_connection()->hooks();
 			$this->admin_workflow_form()->hooks();
+			$this->admin_hook_test()->hooks();
 			$this->admin_setup()->hooks();
 		}
 
@@ -972,6 +1006,7 @@ final class Plugin {
 		$this->privacy_eraser()->hooks();
 
 		// The public recovery endpoint, the stage hooks and the scheduler.
+		$this->opt_out_sync()->hooks();
 		$this->recovery_controller()->hooks();
 		$this->runner()->hooks();
 		$this->scheduler()->hooks();

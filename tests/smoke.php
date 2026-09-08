@@ -58,8 +58,12 @@ use WAcr\RecoveryFlow\Security\Token_Service;
 use WAcr\RecoveryFlow\Support\Options;
 use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
+use WAcr\RecoveryFlow\Admin\Diagnostics;
+use WAcr\RecoveryFlow\Admin\Hook_Test;
 use WAcr\RecoveryFlow\Admin\Setup;
+use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
 use WAcr\RecoveryFlow\WAcr\Credentials;
+use WAcr\RecoveryFlow\WAcr\Opt_Out_Sync;
 use WAcr\RecoveryFlow\WAcr\Template_Catalog;
 use WAcr\RecoveryFlow\WAcr\Error;
 use WAcr\RecoveryFlow\WAcr\Result;
@@ -2902,6 +2906,302 @@ delete_transient( 'recoveryflow_wacr_templates' );
 
 update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_keep );
 $GLOBALS['wpdb']->rows = array();
+
+/*
+ * The Auto Flow recipe, and the one thing that can quietly make it a lie.
+ *
+ * The hand-off path works on every WA.cr plan, so most merchants take it -- and
+ * everything that matters happens somewhere else, in a flow they build from
+ * this list. WA.cr seeds every top-level scalar of a hook body as a run
+ * variable named `hook_<key>`, so the documented keys ARE the variable names.
+ * Add a key to the push without documenting it and merchants never learn it
+ * exists; document one the push does not send and every flow that uses it
+ * prints a placeholder at a customer. Both are silent, so both are asserted
+ * against the real payload rather than against a copy.
+ */
+$recoveryflow_start_flow = new ReflectionMethod( Start_Flow::class, 'payload' );
+$recoveryflow_start_flow->setAccessible( true );
+
+$recoveryflow_documented = array_keys( Settings_Page::payload_keys() );
+
+ok( 'the recipe documents some keys at all', count( $recoveryflow_documented ) > 0 );
+
+$recoveryflow_source = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Workflow/Actions/Start_Flow.php', 'payload' );
+$recoveryflow_sent   = array();
+
+if ( 1 === preg_match( '/return array\((.*?)\n\t\t\);/s', $recoveryflow_source, $recoveryflow_body ) ) {
+	preg_match_all( "/'([a-z_]+)'\s*=>/", $recoveryflow_body[1], $recoveryflow_found );
+	$recoveryflow_sent = $recoveryflow_found[1];
+}
+
+ok( 'the real push payload can be read', count( $recoveryflow_sent ) > 0 );
+check( 'and every key it sends is documented in the recipe', array_values( array_diff( $recoveryflow_sent, $recoveryflow_documented ) ), array() );
+check( 'and the recipe documents nothing the push does not send', array_values( array_diff( $recoveryflow_documented, $recoveryflow_sent ) ), array() );
+
+// The test push has to be shaped like the real one, or it proves very little.
+$recoveryflow_test_keys = array_keys( Hook_Test::payload() );
+
+check(
+	'a test push carries every key a real one does',
+	array_values( array_diff( $recoveryflow_sent, $recoveryflow_test_keys ) ),
+	array()
+);
+
+/*
+ * And it has to be harmless. A webhook trigger fires on anything that reaches
+ * it -- there is no test mode to ask WA.cr for -- so a test push really does
+ * run the merchant's flow. It must not be able to message a real person.
+ */
+check( 'a test push carries no phone number, so a flow that sends has nobody to send to', Hook_Test::payload()['phone'], '' );
+ok( 'and names itself a test, so a flow can branch on it', Hook_Test::EVENT !== Start_Flow::EVENT );
+ok( 'and says so in the payload as well', true === Hook_Test::payload()['test'] );
+ok( 'and the button warns that the flow really runs', false !== strpos( recoveryflow_render_screen( array( Hook_Test::class, 'button' ) ), esc_html__( 'This really runs your Auto Flow, because a webhook trigger fires on anything that reaches it. The test carries no phone number, so a flow that goes on to send has nobody to send to.', 'kdc-wacr-recoveryflow' ) ) );
+
+// Without a hook address there is nothing to test, and saying so beats a
+// request that fails for a reason the merchant has to work out.
+ok( 'with no hook saved the test says what is missing rather than failing obscurely', false !== strpos( (string) $plugin->admin_hook_test()->push()['message'], 'no Auto Flow hook address saved' ) );
+
+/*
+ * Carrying an opt-out into the merchant's WA.cr workspace. Off by default
+ * because it writes to their workspace and changes who their OTHER campaigns
+ * reach -- that is a decision, not a default.
+ */
+$recoveryflow_snapshot_sync = get_option( Options::ME_SNAPSHOT, array() );
+$recoveryflow_settings_sync = get_option( Options::SETTINGS, array() );
+
+ok( 'carrying opt-outs to WA.cr is off until somebody turns it on', ! (bool) Options::get( Opt_Out_Sync::SETTING, false ) );
+
+// Both halves are required, and they fail differently: the setting is the
+// merchant's decision, the scope is whether their credential can act on it.
+// Reporting the sync as on while every attempt is refused would be worse than
+// reporting it off.
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send' ),
+	)
+);
+Options::set( Opt_Out_Sync::SETTING, true );
+
+ok( 'switched on but without contacts:write, the sync is not enabled', ! Opt_Out_Sync::is_enabled() );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send', Opt_Out_Sync::SCOPE ),
+	)
+);
+
+ok( 'with the setting and the scope, it is', Opt_Out_Sync::is_enabled() );
+
+Options::set( Opt_Out_Sync::SETTING, false );
+
+ok( 'and the scope alone is not enough either', ! Opt_Out_Sync::is_enabled() );
+
+// What gets queued. A cron argument lives in wp_options in the clear, so it
+// carries the internal row id and never the phone number -- the same rule the
+// rest of the plugin follows for logs.
+$GLOBALS['__single_events'] = array();
+
+Opt_Out_Sync::queue( 4242 );
+
+check( 'a disabled sync queues nothing at all', count( $GLOBALS['__single_events'] ), 0 );
+
+Options::set( Opt_Out_Sync::SETTING, true );
+Opt_Out_Sync::queue( 4242 );
+
+check( 'an enabled one queues exactly one job', count( $GLOBALS['__single_events'] ), 1 );
+check( 'against the sync action', $GLOBALS['__single_events'][0]['hook'], Opt_Out_Sync::ACTION );
+check( 'carrying the internal customer id', $GLOBALS['__single_events'][0]['args'], array( 4242 ) );
+
+foreach ( $GLOBALS['__single_events'][0]['args'] as $recoveryflow_arg ) {
+	ok( 'and nothing that looks like a phone number', 1 !== preg_match( '/\+?\d{7,}/', (string) $recoveryflow_arg ) );
+}
+
+$GLOBALS['__single_events'] = array();
+Opt_Out_Sync::queue( 0 );
+
+check( 'and a customer that does not exist queues nothing', count( $GLOBALS['__single_events'] ), 0 );
+
+// The job re-checks before acting. A merchant who switches this off, or whose
+// key loses the scope, between the opt-out and the job running should not have
+// the change made anyway.
+Options::set( Opt_Out_Sync::SETTING, false );
+$GLOBALS['wpdb']->queries = array();
+
+$plugin->opt_out_sync()->run( 4242 );
+
+check( 'a job that runs after the setting was switched off does nothing', count( $GLOBALS['wpdb']->queries ), 0 );
+
+/*
+ * And the order it happens in. "Stop messaging me" is recorded here first;
+ * whether it also reaches WA.cr is a setting and a network call, and neither
+ * may stand between a customer and being left alone.
+ */
+$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' );
+
+ok( 'the opt-out path queues the sync', false !== strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' ) );
+ok(
+	'and only after the local suppression is already recorded',
+	strpos( $recoveryflow_suppress, '$this->consent->suppress(' ) < strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' )
+);
+
+update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_sync );
+update_option( Options::SETTINGS, $recoveryflow_settings_sync );
+
+/*
+ * The diagnostic report. Its whole design constraint is what is NOT in it: it
+ * gets pasted into email, chat and public forums by people with no way to audit
+ * what they are sending. So the secrets are planted first and the report is
+ * searched for them -- asserting on what it contains would never catch a leak.
+ */
+$recoveryflow_diag_key      = 'wacr_live_abcdef0123456789abcdef0123456789';
+$recoveryflow_diag_hook     = 'https://api.wa.cr/hooks/vJx8Kq2mNp4RtY7wZa1BcD3eF6gH9iJk';
+$recoveryflow_diag_secret   = 'f47ac10b58cc4372a5670e02b2c3d479f47ac10b58cc4372a5670e02b2c3d479';
+$recoveryflow_diag_snapshot = get_option( Options::ME_SNAPSHOT, array() );
+
+$plugin->credentials()->set_api_key( $recoveryflow_diag_key );
+$plugin->credentials()->set_hook_secret( $recoveryflow_diag_secret );
+Options::set( 'wacr_hook_url', $recoveryflow_diag_hook );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'          => true,
+		'tenant_name' => 'A Test Shop',
+		'scopes'      => array( 'messages:send', 'templates:read' ),
+		'checked_at'  => '2026-09-08 10:00:00',
+	)
+);
+
+$recoveryflow_report = $plugin->admin_diagnostics()->report();
+
+ok( 'the report says something at all', strlen( $recoveryflow_report ) > 200 );
+
+// Each secret, by name, so a failure says which one leaked.
+$recoveryflow_secrets = array(
+	'the API key'          => $recoveryflow_diag_key,
+	'the hook address'     => $recoveryflow_diag_hook,
+	'the hook signing key' => $recoveryflow_diag_secret,
+);
+
+foreach ( $recoveryflow_secrets as $recoveryflow_what => $recoveryflow_secret ) {
+	ok( "the report does not contain {$recoveryflow_what}", false === strpos( $recoveryflow_report, $recoveryflow_secret ) );
+}
+
+// Not even a piece of one. A report that leaks the last eight characters of a
+// key has still leaked part of a key, and "it was masked" is how that gets
+// argued for.
+ok( 'nor the tail of the API key', false === strpos( $recoveryflow_report, substr( $recoveryflow_diag_key, -8 ) ) );
+ok( 'nor the token out of the hook address', false === strpos( $recoveryflow_report, 'vJx8Kq2mNp4RtY7wZa1BcD3eF6gH9iJk' ) );
+ok( 'and does not state how long the key is', 1 !== preg_match( '/\b39\b|\bkey length\b/i', $recoveryflow_report ) );
+
+// What it SHOULD say, so the whole thing is not vacuously safe by being empty.
+ok( 'it says whether a key is saved', false !== strpos( $recoveryflow_report, 'API key saved: yes' ) );
+ok( 'and whether the hook is set, without giving the address', false !== strpos( $recoveryflow_report, 'Hook address set: yes' ) );
+ok( 'and whether pushes are signed, without giving the secret', false !== strpos( $recoveryflow_report, 'Hook signed: yes' ) );
+ok( 'and names the workspace, which identifies no customer', false !== strpos( $recoveryflow_report, 'A Test Shop' ) );
+ok( 'and states the versions somebody would ask for', false !== strpos( $recoveryflow_report, 'PHP: ' ) && false !== strpos( $recoveryflow_report, 'WordPress: ' ) );
+ok( 'and reports each background pass', false !== strpos( $recoveryflow_report, 'processed' ) );
+ok( 'and says plainly what it left out', false !== strpos( $recoveryflow_report, 'No API key, hook address, customer details or log entries are included.' ) );
+
+/*
+ * The allow-list is the guarantee, so it has to actually be one: a setting
+ * added later must be absent until somebody decides it belongs. Reading it back
+ * off the class and checking every name is a real setting keeps the list from
+ * rotting into a list of names that no longer mean anything.
+ */
+$recoveryflow_safe = new ReflectionMethod( Diagnostics::class, 'safe_settings' );
+$recoveryflow_safe->setAccessible( true );
+
+$recoveryflow_allowed = (array) $recoveryflow_safe->invoke( null );
+
+ok( 'the allow-list names some settings', count( $recoveryflow_allowed ) > 0 );
+
+foreach ( $recoveryflow_allowed as $recoveryflow_name ) {
+	ok( "the report's allow-list entry {$recoveryflow_name} is a real setting", array_key_exists( $recoveryflow_name, Options::defaults() ) );
+}
+
+// And the two credentials must never be on it, however the list is edited.
+foreach ( array( 'wacr_hook_url', 'api_key' ) as $recoveryflow_never ) {
+	ok( "the allow-list never admits {$recoveryflow_never}", ! in_array( $recoveryflow_never, $recoveryflow_allowed, true ) );
+}
+
+/*
+ * The second line of defence, actually exercised. The allow-list keeps our own
+ * secrets out, so nothing normally reaches the Redactor and a test that only
+ * checks the allow-list would let the Redactor pass be deleted without noticing.
+ *
+ * These are the two ways somebody else's text gets into this report: a stage's
+ * last error, which can quote whatever a failed send was carrying, and the
+ * workspace name, which is typed by the merchant in WA.cr and arrives here
+ * verbatim. Both are given something that must not survive.
+ */
+$recoveryflow_stats_before = get_option( Options::STAGE_STATS, array() );
+
+update_option(
+	Options::STAGE_STATS,
+	array(
+		'dispatch' => array(
+			'stage'      => 'dispatch',
+			'processed'  => 3,
+			'failed'     => 1,
+			'backlog'    => 0,
+			'duration'   => 12,
+			'ran_at'     => '2026-09-08 09:00:00',
+			'last_error' => 'send to +447700900123 failed for asha@example.test',
+		),
+	),
+	false
+);
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'          => true,
+		'tenant_name' => 'Shop wacr_live_deadbeefdeadbeefdeadbeefdeadbeef',
+		'scopes'      => array( 'messages:send' ),
+		'checked_at'  => '2026-09-08 10:00:00',
+	)
+);
+
+$recoveryflow_report = $plugin->admin_diagnostics()->report();
+
+ok( 'a failed stage does not put its error text in the report', false === strpos( $recoveryflow_report, 'failed for' ) );
+ok( 'so a phone number quoted in an error cannot reach it', false === strpos( $recoveryflow_report, '+447700900123' ) );
+ok( 'nor an email address', false === strpos( $recoveryflow_report, 'asha@example.test' ) );
+ok( 'but it still says that the last run errored', false !== strpos( $recoveryflow_report, 'last run errored: yes' ) );
+
+/*
+ * The bug this test found. stage_report() read the RAW stored option -- an
+ * array of arrays -- while treating each entry as an object, so a stage that
+ * had never run was reported correctly from the fallback object and a stage
+ * that HAD run answered null to every property. The status screen therefore
+ * showed zeroes for exactly the stages that had done some work, which is the
+ * opposite of what a status screen is for, and said nothing while doing it.
+ */
+$recoveryflow_stages = $plugin->health()->stage_report();
+$recoveryflow_by_stage = array();
+
+foreach ( $recoveryflow_stages as $recoveryflow_stage ) {
+	$recoveryflow_by_stage[ (string) $recoveryflow_stage['stage'] ] = $recoveryflow_stage;
+}
+
+check( 'a stage that has run reports what it processed, not zero', $recoveryflow_by_stage['dispatch']['processed'], 3 );
+check( 'and what failed', $recoveryflow_by_stage['dispatch']['failed'], 1 );
+check( 'and when it ran', $recoveryflow_by_stage['dispatch']['ran_at'], '2026-09-08 09:00:00' );
+check( 'while a stage that never ran still reports zero', $recoveryflow_by_stage['expire']['processed'], 0 );
+
+// And a key-shaped value arriving from somebody else's system is masked by the
+// Redactor even though it came through a field this report includes on purpose.
+ok( 'a key-shaped workspace name is masked rather than printed', false === strpos( $recoveryflow_report, 'wacr_live_deadbeefdeadbeefdeadbeefdeadbeef' ) );
+
+update_option( Options::STAGE_STATS, $recoveryflow_stats_before );
+$plugin->credentials()->set_api_key( '' );
+Options::set( 'wacr_hook_url', '' );
+update_option( Options::ME_SNAPSHOT, $recoveryflow_diag_snapshot );
 
 /*
  * The one screen that can show a customer's real phone number. Contact details

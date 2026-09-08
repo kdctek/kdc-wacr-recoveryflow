@@ -19,6 +19,7 @@ use WAcr\RecoveryFlow\Security\Rate_Limiter;
 use WAcr\RecoveryFlow\Security\Token_Service;
 use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\Support\User_Agent;
+use WAcr\RecoveryFlow\WAcr\Opt_Out_Sync;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -450,6 +451,14 @@ final class Recovery_Controller {
 		foreach ( $identities as $kind => $hash ) {
 			$this->consent->suppress( (string) $kind, (string) $hash, $customer->id, 'link' );
 		}
+
+		/*
+		 * Queued after the suppression above is recorded, and never before it.
+		 * "Stop messaging me" is answered here first; whether it also reaches
+		 * WA.cr is a merchant setting and a network call, and neither may stand
+		 * between a customer and being left alone.
+		 */
+		Opt_Out_Sync::queue( $customer->id );
 
 		foreach ( $this->journeys->active_for_customer( $customer->id, 100 ) as $active ) {
 			if ( ! $this->journeys->transition( $active->id, $active->status, Journey_State::OPTED_OUT, array(), 'link' ) ) {

@@ -217,6 +217,37 @@
 	 * both are unavailable the panels simply start closed, which is a worse
 	 * screen and not a broken one.
 	 */
+	/**
+	 * Copy a whole block of text -- the diagnostic report -- in one press.
+	 *
+	 * An enhancement only. The report sits in a read-only textarea that can be
+	 * selected by hand in any browser with scripts switched off, which is the
+	 * floor this sits on top of; a button that silently does nothing would be
+	 * worse than no button, so a failure says so out loud.
+	 */
+	function bindCopyText() {
+		var buttons = document.querySelectorAll( '[data-copy-text]' );
+
+		Array.prototype.forEach.call( buttons, function ( button ) {
+			var target = document.getElementById( button.getAttribute( 'data-copy-text' ) );
+
+			if ( ! target || ! navigator.clipboard || ! navigator.clipboard.writeText ) {
+				return;
+			}
+
+			button.addEventListener( 'click', function () {
+				navigator.clipboard.writeText( target.value ).then(
+					function () {
+						announce( strings.reportCopied );
+					},
+					function () {
+						announce( strings.reportFailed );
+					}
+				);
+			} );
+		} );
+	}
+
 	function bindPanelMemory() {
 		var panels = document.querySelectorAll( 'details[data-remember]' );
 		var key = 'recoveryflow-panels';
@@ -276,6 +307,7 @@
 		bindConditionalRows();
 		bindConfirmations();
 		bindCopyLinks();
+		bindCopyText();
 		bindPanelMemory();
 		focusDeeplinkedField();
 	}
