@@ -8,6 +8,7 @@
 namespace WAcr\RecoveryFlow\Customer;
 
 use WAcr\RecoveryFlow\Database\Repository;
+use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Database\Table_Names;
 
 defined( 'ABSPATH' ) || exit;
@@ -20,9 +21,18 @@ defined( 'ABSPATH' ) || exit;
  * on the day you did", and only a history answers that. The latest row wins for
  * decisions; the rows behind it are the record.
  *
- * Rows are keyed on the phone hash rather than the customer id, so the ledger
- * outlives the customer record. That is what lets an erased customer stay
- * suppressed: the person is forgotten, the refusal is not.
+ * Rows are keyed on the identity HASH rather than the customer id, so the
+ * ledger outlives the customer record. That is what lets an erased customer
+ * stay suppressed: the person is forgotten, the refusal is not. Keying on the
+ * identity row id would break it, because erasure may delete that row.
+ *
+ * They are also keyed on the channel, because consent is not one decision.
+ * Agreeing to a WhatsApp message is not agreeing to a marketing email; the two
+ * are different acts under different law, and a refusal of one must neither
+ * silence nor licence the other. A decision meant to cover everything -- an
+ * erasure, an admin suppression, the workspace-level opt-out -- is recorded
+ * against Channel::ALL, so a channel added later cannot escape a refusal that
+ * was meant to be total.
  */
 final class Consent_Repository extends Repository {
 
@@ -48,7 +58,9 @@ final class Consent_Repository extends Repository {
 	/**
 	 * Append a consent decision.
 	 *
-	 * @param string   $phone_hash   Keyed hash of the number the decision is about.
+	 * @param string   $identity_kind Identity kind the decision is about.
+	 * @param string   $identity_hash Keyed hash of the identity value.
+	 * @param string   $channel      Channel being decided, or Channel::ALL.
 	 * @param int|null $customer_id  Customer, when one is known.
 	 * @param string   $status       One of the class constants.
 	 * @param string   $source       Where the decision came from, e.g. 'checkout_classic'.
@@ -56,33 +68,48 @@ final class Consent_Repository extends Repository {
 	 * @param string   $ip_hash      Keyed hash of the IP address, or empty.
 	 * @return int New row id.
 	 */
-	public function record( string $phone_hash, ?int $customer_id, string $status, string $source, string $text_version = '', string $ip_hash = '' ): int {
-		if ( '' === $phone_hash ) {
+	public function record( string $identity_kind, string $identity_hash, string $channel, ?int $customer_id, string $status, string $source, string $text_version = '', string $ip_hash = '' ): int {
+		if ( '' === $identity_kind || '' === $identity_hash ) {
+			return 0;
+		}
+
+		if ( Channel::ALL !== $channel && ! Channel::is_channel( $channel ) ) {
 			return 0;
 		}
 
 		return $this->insert(
 			array(
-				'phone_hash'   => $phone_hash,
-				'customer_id'  => $customer_id,
-				'status'       => substr( $status, 0, 12 ),
-				'source'       => substr( $source, 0, 32 ),
-				'text_version' => '' === $text_version ? null : substr( $text_version, 0, 16 ),
-				'ip_hash'      => '' === $ip_hash ? null : $ip_hash,
-				'created_at'   => $this->clock->now(),
+				'identity_kind' => substr( $identity_kind, 0, 16 ),
+				'identity_hash' => $identity_hash,
+				'channel'       => $channel,
+				'customer_id'   => $customer_id,
+				'status'        => substr( $status, 0, 12 ),
+				'source'        => substr( $source, 0, 32 ),
+				'text_version'  => '' === $text_version ? null : substr( $text_version, 0, 16 ),
+				'ip_hash'       => '' === $ip_hash ? null : $ip_hash,
+				'created_at'    => $this->clock->now(),
 			),
 			array()
 		);
 	}
 
 	/**
-	 * The decision that currently applies to a number.
+	 * The decision that currently applies to an identity on a channel.
 	 *
-	 * @param string $phone_hash Keyed hash of the number.
+	 * Rows recorded against Channel::ALL are considered alongside the channel's
+	 * own, and the newest of the two wins rather than the broadest. That order
+	 * matters: somebody who opts out of everything and then deliberately opts
+	 * back in to WhatsApp has changed their mind, and the ledger has to be able
+	 * to say so. A blanket refusal that could never be narrowed again would
+	 * make the opt-in link at the bottom of an email a lie.
+	 *
+	 * @param string $identity_kind Identity kind the decision is about.
+	 * @param string $identity_hash Keyed hash of the identity value.
+	 * @param string $channel       Channel being decided.
 	 * @return array<string,mixed>|null
 	 */
-	public function latest( string $phone_hash ): ?array {
-		if ( '' === $phone_hash ) {
+	public function latest( string $identity_kind, string $identity_hash, string $channel ): ?array {
+		if ( '' === $identity_kind || '' === $identity_hash ) {
 			return null;
 		}
 
@@ -91,47 +118,59 @@ final class Consent_Repository extends Repository {
 		return $this->one(
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant.
 			$this->db()->prepare(
-				"SELECT * FROM `{$table}` WHERE phone_hash = %s ORDER BY id DESC LIMIT 1",
-				$phone_hash
+				"SELECT * FROM `{$table}` WHERE identity_kind = %s AND identity_hash = %s AND channel IN ( %s, %s ) ORDER BY id DESC LIMIT 1",
+				$identity_kind,
+				$identity_hash,
+				$channel,
+				Channel::ALL
 			)
 		);
 	}
 
 	/**
-	 * The current status for a number, or 'unknown' if it was never asked.
+	 * The current status for an identity on a channel, or 'unknown'.
 	 *
-	 * @param string $phone_hash Keyed hash of the number.
+	 * @param string $identity_kind Identity kind.
+	 * @param string $identity_hash Keyed hash of the identity value.
+	 * @param string $channel       Channel being decided.
 	 * @return string
 	 */
-	public function status( string $phone_hash ): string {
-		$row = $this->latest( $phone_hash );
+	public function status( string $identity_kind, string $identity_hash, string $channel ): string {
+		$row = $this->latest( $identity_kind, $identity_hash, $channel );
 
 		return null === $row ? Customer::CONSENT_UNKNOWN : (string) $row['status'];
 	}
 
 	/**
-	 * Whether this number must not be messaged, whatever else is true.
+	 * Whether this identity must not be messaged on this channel.
 	 *
 	 * A suppression is checked before every send and is never overridden by a
 	 * later checkout tick-box: somebody who has said stop has to say start
 	 * again deliberately, not by filling in a form that happens to be pre-filled.
 	 *
-	 * @param string $phone_hash Keyed hash of the number.
+	 * @param string $identity_kind Identity kind.
+	 * @param string $identity_hash Keyed hash of the identity value.
+	 * @param string $channel       Channel being decided.
 	 * @return bool
 	 */
-	public function is_suppressed( string $phone_hash ): bool {
-		return in_array( $this->status( $phone_hash ), self::BLOCKING, true );
+	public function is_suppressed( string $identity_kind, string $identity_hash, string $channel ): bool {
+		return in_array( $this->status( $identity_kind, $identity_hash, $channel ), self::BLOCKING, true );
 	}
 
 	/**
-	 * Every decision recorded for a number, newest first.
+	 * Every decision recorded for an identity, on any channel, newest first.
 	 *
-	 * @param string $phone_hash Keyed hash of the number.
-	 * @param int    $limit      Maximum rows.
+	 * Unfiltered by channel on purpose: this is the evidence trail, and the
+	 * question it answers is what the person was asked and what they said, not
+	 * what applies right now.
+	 *
+	 * @param string $identity_kind Identity kind.
+	 * @param string $identity_hash Keyed hash of the identity value.
+	 * @param int    $limit         Maximum rows.
 	 * @return array<int,array<string,mixed>>
 	 */
-	public function history( string $phone_hash, int $limit = 50 ): array {
-		if ( '' === $phone_hash ) {
+	public function history( string $identity_kind, string $identity_hash, int $limit = 50 ): array {
+		if ( '' === $identity_kind || '' === $identity_hash ) {
 			return array();
 		}
 
@@ -140,8 +179,9 @@ final class Consent_Repository extends Repository {
 		return $this->many(
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant.
 			$this->db()->prepare(
-				"SELECT * FROM `{$table}` WHERE phone_hash = %s ORDER BY id DESC LIMIT %d",
-				$phone_hash,
+				"SELECT * FROM `{$table}` WHERE identity_kind = %s AND identity_hash = %s ORDER BY id DESC LIMIT %d",
+				$identity_kind,
+				$identity_hash,
 				max( 1, $limit )
 			)
 		);

@@ -12,6 +12,7 @@ use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
 use WAcr\RecoveryFlow\Customer\Customer;
+use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
 use WAcr\RecoveryFlow\Jobs\Stage_Interface;
@@ -348,11 +349,13 @@ final class Poll implements Stage_Interface {
 	 * @return void
 	 */
 	private function opt_out( Recovery_Journey $journey, Customer $customer, Stage_Stats $stats ): void {
-		// Suppression first, and unconditionally. It is keyed on the phone hash
-		// rather than the journey, so it holds even if this journey has already
-		// moved on underneath us -- losing a race must never lose an opt-out.
+		// Suppression first, and unconditionally. It is keyed on the identity
+		// hash rather than the journey, so it holds even if this journey has
+		// already moved on underneath us -- losing a race must never lose an
+		// opt-out. It covers every channel: somebody who replies STOP is
+		// declining to be contacted, not switching to email.
 		if ( '' !== $customer->phone_hash ) {
-			$this->consent->suppress( $customer->phone_hash, $customer->id, 'reply' );
+			$this->consent->suppress( Identity::E164, $customer->phone_hash, $customer->id, 'reply' );
 		}
 
 		$moved = $this->journeys->transition( $journey->id, $journey->status, Journey_State::OPTED_OUT, array(), 'reply_stop' );

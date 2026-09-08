@@ -8,6 +8,7 @@
 namespace WAcr\RecoveryFlow\Recovery;
 
 use WAcr\RecoveryFlow\Customer\Consent_Store;
+use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Customer\Customer;
 
 defined( 'ABSPATH' ) || exit;
@@ -158,23 +159,32 @@ final class Eligibility_Evaluator {
 			return Eligibility::deny( Eligibility::ANONYMIZED );
 		}
 
-		if ( '' === $customer->phone_raw && '' === $customer->phone_e164 ) {
-			return Eligibility::deny( Eligibility::NO_PHONE );
+		/*
+		 * Eligibility is decided per channel and the person is eligible if any
+		 * one channel allows them. Reporting the failure is the awkward part:
+		 * "not eligible" is useless to a merchant, so when every channel
+		 * refuses, the reason reported is the one from the channel that came
+		 * closest -- a suppression or a missing tick-box is something they can
+		 * act on, whereas "no channel" only tells them the person left nothing
+		 * to contact them with.
+		 */
+		$reason = Eligibility::NO_CHANNEL;
+
+		foreach ( Channel::all() as $channel ) {
+			$verdict = $this->check_channel( $customer, $rules, $channel );
+
+			if ( '' === $verdict ) {
+				$reason = '';
+				break;
+			}
+
+			if ( Eligibility::NO_CHANNEL === $reason || Eligibility::NO_PHONE === $reason || Eligibility::INVALID_PHONE === $reason ) {
+				$reason = $verdict;
+			}
 		}
 
-		if ( Customer::PHONE_VALID !== $customer->phone_status || '' === $customer->phone_e164 ) {
-			return Eligibility::deny( Eligibility::INVALID_PHONE );
-		}
-
-		// Asked before consent: an opt-out is a stronger statement than a
-		// missing tick-box, and reporting it as "no consent" would suggest the
-		// merchant could fix it by asking again.
-		if ( null !== $customer->opted_out_at || $this->consent->is_suppressed( $customer->phone_hash ) ) {
-			return Eligibility::deny( Eligibility::SUPPRESSED );
-		}
-
-		if ( 'explicit_consent' === $rules->eligibility_mode() && ! $this->consent->has_granted( $customer->phone_hash ) ) {
-			return Eligibility::deny( Eligibility::NO_CONSENT );
+		if ( '' !== $reason ) {
+			return Eligibility::deny( $reason );
 		}
 
 		if ( $rules->excludes_admins() && $this->is_staff( $customer ) ) {
@@ -182,6 +192,50 @@ final class Eligibility_Evaluator {
 		}
 
 		return Eligibility::allow();
+	}
+
+	/**
+	 * Whether this customer could be messaged on one particular channel.
+	 *
+	 * @param Customer $customer The person.
+	 * @param Rule_Set $rules    The thresholds in force.
+	 * @param string   $channel  Channel being considered.
+	 * @return string A denial reason, or '' when this channel is allowed.
+	 */
+	private function check_channel( Customer $customer, Rule_Set $rules, string $channel ): string {
+		if ( ! $rules->channel_enabled( $channel ) ) {
+			return Eligibility::NO_CHANNEL;
+		}
+
+		$kind = Channel::identity_kind( $channel );
+		$hash = Channel::WHATSAPP === $channel ? $customer->phone_hash : $customer->email_hash;
+
+		if ( Channel::WHATSAPP === $channel ) {
+			if ( '' === $customer->phone_raw && '' === $customer->phone_e164 ) {
+				return Eligibility::NO_PHONE;
+			}
+
+			if ( ! $customer->has_valid_phone() ) {
+				return Eligibility::INVALID_PHONE;
+			}
+		}
+
+		if ( '' === $hash ) {
+			return Eligibility::NO_CHANNEL;
+		}
+
+		// Asked before consent: an opt-out is a stronger statement than a
+		// missing tick-box, and reporting it as "no consent" would suggest the
+		// merchant could fix it by asking again.
+		if ( $this->consent->is_suppressed( $kind, $hash, $channel ) ) {
+			return Eligibility::SUPPRESSED;
+		}
+
+		if ( 'explicit_consent' === $rules->eligibility_mode() && ! $this->consent->has_granted( $kind, $hash, $channel ) ) {
+			return Eligibility::NO_CONSENT;
+		}
+
+		return '';
 	}
 
 	/**

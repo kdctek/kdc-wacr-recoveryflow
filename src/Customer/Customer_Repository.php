@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Customer;
 
+use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Database\Repository;
 use WAcr\RecoveryFlow\Database\Table_Names;
 
@@ -15,11 +16,34 @@ defined( 'ABSPATH' ) || exit;
 /**
  * Reads and writes customer records.
  *
- * Lookups are by hash, never by plaintext: the indexes are on phone_hash and
- * email_hash, and a query that searched the plaintext columns would both scan
- * the table and put a phone number into the slow query log.
+ * Lookups are by hash, never by plaintext: the identity index is on the hash,
+ * and a query that searched a plaintext column would both scan the table and
+ * put a phone number into the slow query log.
+ *
+ * Every customer returned from here is hydrated with their identity rows, so
+ * callers keep reading $customer->phone_e164 and ->email as before even though
+ * neither is a column any more.
  */
 final class Customer_Repository extends Repository {
+
+	/**
+	 * The identities that say how to reach these people.
+	 *
+	 * @var Identity_Repository
+	 */
+	private Identity_Repository $identities;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Clock               $clock      Clock.
+	 * @param Identity_Repository $identities Identity storage.
+	 */
+	public function __construct( Clock $clock, Identity_Repository $identities ) {
+		parent::__construct( $clock );
+
+		$this->identities = $identities;
+	}
 
 	/**
 	 * Which table this repository owns.
@@ -31,60 +55,69 @@ final class Customer_Repository extends Repository {
 	}
 
 	/**
+	 * Build a customer from a row, with their identities attached.
+	 *
+	 * @param array<string,mixed>|null $row Customer row.
+	 * @return Customer|null
+	 */
+	private function hydrate( ?array $row ): ?Customer {
+		if ( null === $row ) {
+			return null;
+		}
+
+		$customer = Customer::from_row( $row );
+		$customer->with_identities( $this->identities->for_customer( $customer->id ) );
+
+		return $customer;
+	}
+
+	/**
 	 * Fetch by row id.
 	 *
 	 * @param int $id Customer id.
 	 * @return Customer|null
 	 */
 	public function find( int $id ): ?Customer {
-		$row = $this->find_by_id( $id );
-
-		return null === $row ? null : Customer::from_row( $row );
+		return $this->hydrate( $this->find_by_id( $id ) );
 	}
 
 	/**
-	 * Fetch by the messaging identity key.
+	 * Fetch the person reachable on this phone number.
 	 *
 	 * @param string $phone_hash Keyed hash of the number.
 	 * @return Customer|null
 	 */
 	public function find_by_phone_hash( string $phone_hash ): ?Customer {
-		if ( '' === $phone_hash ) {
-			return null;
-		}
-
-		$row = $this->find_one_by( 'phone_hash', $phone_hash );
-
-		return null === $row ? null : Customer::from_row( $row );
+		return $this->find_by_identity( Identity::E164, $phone_hash );
 	}
 
 	/**
-	 * Fetch by email hash.
+	 * Fetch the person reachable at this email address.
 	 *
-	 * Email is a matching key, never a merge key, so this can legitimately
-	 * return one of several people who share an address. The caller decides
-	 * whether that is good enough, and it never is when a phone number is
-	 * available.
+	 * Email is a matching key, never a merge key. Where a number identifies one
+	 * person, an address may belong to several, so an ambiguous match returns
+	 * nothing rather than picking the oldest row: guessing which of two people
+	 * sharing an inbox is checking out would attach one person's cart to
+	 * another's, which is worse than not recognising a returning customer.
 	 *
 	 * @param string $email_hash Keyed hash of the address.
 	 * @return Customer|null
 	 */
 	public function find_by_email_hash( string $email_hash ): ?Customer {
-		if ( '' === $email_hash ) {
-			return null;
-		}
+		return $this->find_by_identity( Identity::EMAIL, $email_hash );
+	}
 
-		$table = $this->table();
+	/**
+	 * Fetch the person holding an identity, when exactly one holds it.
+	 *
+	 * @param string $kind       Identity kind.
+	 * @param string $value_hash Keyed hash of the value.
+	 * @return Customer|null
+	 */
+	public function find_by_identity( string $kind, string $value_hash ): ?Customer {
+		$customer_id = $this->identities->find_customer_id( $kind, $value_hash );
 
-		$row = $this->one(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant.
-			$this->db()->prepare(
-				"SELECT * FROM `{$table}` WHERE email_hash = %s ORDER BY id ASC LIMIT 1",
-				$email_hash
-			)
-		);
-
-		return null === $row ? null : Customer::from_row( $row );
+		return null === $customer_id ? null : $this->find( $customer_id );
 	}
 
 	/**
@@ -98,9 +131,7 @@ final class Customer_Repository extends Repository {
 			return null;
 		}
 
-		$row = $this->find_one_by( 'wp_user_id', $wp_user_id );
-
-		return null === $row ? null : Customer::from_row( $row );
+		return $this->hydrate( $this->find_one_by( 'wp_user_id', $wp_user_id ) );
 	}
 
 	/**
@@ -119,33 +150,6 @@ final class Customer_Repository extends Repository {
 	}
 
 	/**
-	 * Create a customer, or return the one that already holds this phone hash.
-	 *
-	 * The UNIQUE index on phone_hash is the arbiter: two requests racing to
-	 * enrol the same number produce one record, and the loser is handed the
-	 * winner's row rather than an error.
-	 *
-	 * @param array<string,mixed> $data Column values, including phone_hash.
-	 * @return Customer|null
-	 */
-	public function create_or_get( array $data ): ?Customer {
-		$now = $this->clock->now();
-
-		$data['created_at'] = $now;
-		$data['updated_at'] = $now;
-
-		$id = $this->insert_ignore( $data );
-
-		if ( 0 !== $id ) {
-			return $this->find( $id );
-		}
-
-		$phone_hash = isset( $data['phone_hash'] ) ? (string) $data['phone_hash'] : '';
-
-		return '' === $phone_hash ? null : $this->find_by_phone_hash( $phone_hash );
-	}
-
-	/**
 	 * Write columns on an existing customer.
 	 *
 	 * @param int                 $id   Customer id.
@@ -160,33 +164,6 @@ final class Customer_Repository extends Repository {
 		$data['updated_at'] = $this->clock->now();
 
 		return 0 !== $this->update( $data, array( 'id' => $id ) );
-	}
-
-	/**
-	 * Record that the customer opted out.
-	 *
-	 * @param int $id Customer id.
-	 * @return bool
-	 */
-	public function mark_opted_out( int $id ): bool {
-		return $this->update_customer(
-			$id,
-			array(
-				'opted_out_at'   => $this->clock->now(),
-				'consent_status' => Customer::CONSENT_SUPPRESSED,
-			)
-		);
-	}
-
-	/**
-	 * Cache the consent verdict on the customer row.
-	 *
-	 * @param int    $id     Customer id.
-	 * @param string $status One of the Customer CONSENT_* constants.
-	 * @return bool
-	 */
-	public function set_consent_status( int $id, string $status ): bool {
-		return $this->update_customer( $id, array( 'consent_status' => $status ) );
 	}
 
 	/**
@@ -209,9 +186,9 @@ final class Customer_Repository extends Repository {
 	/**
 	 * Strip the identifying columns, keeping the hashes.
 	 *
-	 * The hashes stay on purpose. They are what the suppression list is made
-	 * of, and an erasure that also forgot the opt-out would start messaging the
-	 * person again on their next visit.
+	 * The hashes stay on purpose, in the identity rows this delegates to. They
+	 * are what the suppression list is made of, and an erasure that also forgot
+	 * the opt-out would start messaging the person again on their next visit.
 	 *
 	 * @param int $id Customer id.
 	 * @return bool
@@ -219,11 +196,10 @@ final class Customer_Repository extends Repository {
 	public function anonymize( int $id ): bool {
 		$now = $this->clock->now();
 
+		$this->identities->anonymize( $id );
+
 		return 0 !== $this->update(
 			array(
-				'email'           => null,
-				'phone_e164'      => null,
-				'phone_raw'       => null,
 				'first_name'      => null,
 				'last_name'       => null,
 				'wacr_contact_id' => null,
@@ -245,13 +221,22 @@ final class Customer_Repository extends Repository {
 			return array();
 		}
 
-		$table = $this->table();
+		$table      = $this->table();
+		$identities = $this->identities->table_name();
 
 		$rows = $this->many(
-			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant.
-			$this->db()->prepare( "SELECT * FROM `{$table}` WHERE email_hash = %s ORDER BY id ASC LIMIT 100", $email_hash )
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names from class constants.
+			$this->db()->prepare(
+				"SELECT c.* FROM `{$table}` c INNER JOIN `{$identities}` i ON i.customer_id = c.id WHERE i.kind = %s AND i.value_hash = %s ORDER BY c.id ASC LIMIT 100",
+				Identity::EMAIL,
+				$email_hash
+			)
 		);
 
-		return array_map( array( Customer::class, 'from_row' ), $rows );
+		return array_values(
+			array_filter(
+				array_map( fn ( array $row ): ?Customer => $this->hydrate( $row ), $rows )
+			)
+		);
 	}
 }

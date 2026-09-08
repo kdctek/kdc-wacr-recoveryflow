@@ -25,6 +25,8 @@ use WAcr\RecoveryFlow\Core\Upgrader;
 use WAcr\RecoveryFlow\Core\Plugin;
 use WAcr\RecoveryFlow\Core\Requirements;
 use WAcr\RecoveryFlow\Core\Rewrites;
+use WAcr\RecoveryFlow\Customer\Identity;
+use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Customer\Phone_Normalizer;
 use WAcr\RecoveryFlow\Privacy\Redactor;
@@ -176,7 +178,22 @@ ok( 'one open event per source key', false !== strpos( $joined, 'UNIQUE KEY sour
 ok( 'one journey per event', false !== strpos( $joined, 'UNIQUE KEY event_id (event_id)' ) );
 ok( 'sends are deduplicated', false !== strpos( $joined, 'UNIQUE KEY idempotency_key (idempotency_key)' ) );
 ok( 'recovery tokens are unique', false !== strpos( $joined, 'UNIQUE KEY token_hash (token_hash)' ) );
-ok( 'a phone identifies one customer', false !== strpos( $joined, 'UNIQUE KEY phone_hash (phone_hash)' ) );
+// Identity is rows, not columns, and the uniqueness rule differs by kind: a
+// phone number identifies exactly one person, an email address does not. MySQL
+// has no partial index, so the rule rides on unique_value_hash being NULL for
+// an email -- NULLs in a UNIQUE index do not collide with one another, which is
+// what lets two people share a shared inbox while a race for the same number
+// still resolves to one customer.
+ok( 'a strong identity is unique', false !== strpos( $joined, 'UNIQUE KEY kind_unique_value (kind,unique_value_hash)' ) );
+ok( 'identities are looked up by kind and hash', false !== strpos( $joined, 'KEY kind_value (kind,value_hash)' ) );
+ok( 'unique_value_hash may be NULL, which is what exempts email', false !== strpos( $joined, 'unique_value_hash char(64) NULL' ) );
+ok( 'customers no longer carry a phone identity column', false === strpos( $joined, 'UNIQUE KEY phone_hash (phone_hash)' ) );
+
+// Consent is keyed by the identity HASH and the channel, never by the identity
+// row id: the eraser may delete the row, and a suppression that vanished with
+// it would silently grant consent again.
+ok( 'consent is keyed by identity and channel', false !== strpos( $joined, 'KEY identity_latest (identity_kind,identity_hash,channel,id)' ) );
+ok( 'consent defaults to the WhatsApp channel', false !== strpos( $joined, "channel varchar(16) NOT NULL DEFAULT 'whatsapp'" ) );
 ok( 'email is not a unique key', false === strpos( $joined, 'UNIQUE KEY email_hash' ) );
 
 check( 'table name is prefixed once', Table_Names::get( Table_Names::JOURNEYS ), 'wp_recoveryflow_journeys' );
@@ -797,6 +814,61 @@ ok( 'the upgrader stamps the version forward', false !== strpos( $upgrade, 'upda
 
 
 
+
+// ---------------------------------------------------------------------------
+// Identity: strong versus weak kinds, and the lock key's hard size limit.
+// ---------------------------------------------------------------------------
+
+ok( 'a phone number identifies one person', Identity::is_strong( Identity::E164 ) );
+ok( 'an external id identifies one person', Identity::is_strong( Identity::EXTERNAL_ID ) );
+ok( 'a WordPress account identifies one person', Identity::is_strong( Identity::WP_USER ) );
+
+// The one that matters: households and role addresses share an inbox, so an
+// email must never let two strangers' carts be merged.
+ok( 'an email address does NOT identify one person', ! Identity::is_strong( Identity::EMAIL ) );
+
+ok( 'every strong kind is a known kind', array() === array_diff( Identity::strong_kinds(), Identity::kinds() ) );
+ok( 'an unknown kind is rejected', ! Identity::is_kind( 'igsid' ) );
+
+// Email is lowercased because the hash is the lookup key and a hash of
+// "Asha@Example.com" would never match one of the same address in lower case.
+ok( 'an email is lowercased before hashing', 'asha@example.com' === Identity::normalize_value( Identity::EMAIL, '  Asha@Example.COM ' ) );
+
+// A phone number is not: case does not apply, and touching it here would
+// duplicate work Phone_Normalizer already owns.
+ok( 'a phone number keeps its case and plus', '+919876543210' === Identity::normalize_value( Identity::E164, ' +919876543210 ' ) );
+ok( 'an empty value normalises to nothing', '' === Identity::normalize_value( Identity::EMAIL, '   ' ) );
+
+// recoveryflow_locks.lock_key is varchar(64) AND the PRIMARY KEY, and a sha256
+// hash already fills all 64. Any prefix on the whole hash would overflow and be
+// truncated silently on a non-strict connection, so two identities sharing a
+// prefix would quietly share a lock. This assertion is the guard on that.
+$identity_lock_key = Identity_Repository::lock_key( str_repeat( 'a', 64 ) );
+
+ok( 'the identity lock key fits lock_key varchar(64)', strlen( $identity_lock_key ) <= 64 );
+ok( 'the identity lock key is bucketed, not per-identity', 'id:aaaaaaaa' === $identity_lock_key );
+
+// Bounded buckets are the point: a lock row per person would grow the lock
+// table with the customer base and nothing would ever delete it.
+ok(
+	'two identities in one bucket share a lock',
+	Identity_Repository::lock_key( str_repeat( 'b', 8 ) . str_repeat( '1', 56 ) )
+		=== Identity_Repository::lock_key( str_repeat( 'b', 8 ) . str_repeat( '2', 56 ) )
+);
+ok(
+	'identities in different buckets do not',
+	Identity_Repository::lock_key( str_repeat( 'c', 64 ) ) !== Identity_Repository::lock_key( str_repeat( 'd', 64 ) )
+);
+
+ok( 'an unusable value has no hash', '' === Identity_Repository::hash_for( Identity::EMAIL, '  ' ) );
+ok( 'the same address hashes the same either way', Identity_Repository::hash_for( Identity::EMAIL, 'Asha@Example.com' ) === Identity_Repository::hash_for( Identity::EMAIL, 'asha@example.com' ) );
+
+// The hash must agree with how the rest of the plugin already hashes an
+// identifier, or lookups from the order observer would silently never match.
+ok( 'the email hash matches Hash_Key::email()', Identity_Repository::hash_for( Identity::EMAIL, 'Asha@Example.com' ) === Hash_Key::email( 'Asha@Example.com' ) );
+ok( 'the phone hash matches Hash_Key::hash()', Identity_Repository::hash_for( Identity::E164, '+919876543210' ) === Hash_Key::hash( '+919876543210' ) );
+
+echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";
 echo "{$passed} passed, {$failed} failed\n";

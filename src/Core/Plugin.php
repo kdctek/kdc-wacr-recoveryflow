@@ -10,6 +10,7 @@ namespace WAcr\RecoveryFlow\Core;
 use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
+use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Identity_Resolver;
 use WAcr\RecoveryFlow\Database\Lock_Repository;
 use WAcr\RecoveryFlow\Database\Receipt_Repository;
@@ -131,15 +132,16 @@ final class Plugin {
 			'events'              => static fn ( Plugin $c ): Event_Repository => new Event_Repository( $c->clock() ),
 			'journeys'            => static fn ( Plugin $c ): Journey_Repository => new Journey_Repository( $c->clock() ),
 			'attempts'            => static fn ( Plugin $c ): Attempt_Repository => new Attempt_Repository( $c->clock() ),
-			'customers'           => static fn ( Plugin $c ): Customer_Repository => new Customer_Repository( $c->clock() ),
+			'identities'          => static fn ( Plugin $c ): Identity_Repository => new Identity_Repository( $c->clock() ),
+			'customers'           => static fn ( Plugin $c ): Customer_Repository => new Customer_Repository( $c->clock(), $c->identities() ),
 			'consents'            => static fn ( Plugin $c ): Consent_Repository => new Consent_Repository( $c->clock() ),
 			'locks'               => static fn ( Plugin $c ): Lock_Repository => new Lock_Repository( $c->clock() ),
 			'receipts'            => static fn ( Plugin $c ): Receipt_Repository => new Receipt_Repository( $c->clock() ),
 			'workflows'           => static fn ( Plugin $c ): Workflow_Repository => new Workflow_Repository( $c->clock() ),
 
 			// Identity, consent and the decision to message.
-			'identity'            => static fn ( Plugin $c ): Identity_Resolver => new Identity_Resolver( $c->customers(), $c->logger() ),
-			'consent'             => static fn ( Plugin $c ): Consent_Store => new Consent_Store( $c->consents(), $c->customers() ),
+			'identity'            => static fn ( Plugin $c ): Identity_Resolver => new Identity_Resolver( $c->customers(), $c->identities(), $c->lock(), $c->logger() ),
+			'consent'             => static fn ( Plugin $c ): Consent_Store => new Consent_Store( $c->consents() ),
 			'eligibility'         => static fn ( Plugin $c ): Eligibility_Evaluator => new Eligibility_Evaluator( $c->consent(), $c->journeys(), $c->attempts() ),
 			'ingest'              => static fn ( Plugin $c ): Event_Ingest => new Event_Ingest( $c->events(), $c->identity(), $c->consent(), $c->logger() ),
 			'conversions'         => static fn ( Plugin $c ): Conversion_Tracker => new Conversion_Tracker(
@@ -418,6 +420,15 @@ final class Plugin {
 	 */
 	public function customers(): Customer_Repository {
 		return $this->typed( 'customers', Customer_Repository::class );
+	}
+
+	/**
+	 * The identities service.
+	 *
+	 * @return Identity_Repository
+	 */
+	public function identities(): Identity_Repository {
+		return $this->typed( 'identities', Identity_Repository::class );
 	}
 
 	/**

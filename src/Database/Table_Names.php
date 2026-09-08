@@ -18,6 +18,7 @@ defined( 'ABSPATH' ) || exit;
 final class Table_Names {
 
 	public const CUSTOMERS         = 'recoveryflow_customers';
+	public const IDENTITIES        = 'recoveryflow_identities';
 	public const CONSENTS          = 'recoveryflow_consents';
 	public const EVENTS            = 'recoveryflow_events';
 	public const JOURNEYS          = 'recoveryflow_journeys';
@@ -36,6 +37,7 @@ final class Table_Names {
 	public static function all(): array {
 		return array(
 			self::CUSTOMERS,
+			self::IDENTITIES,
 			self::CONSENTS,
 			self::EVENTS,
 			self::JOURNEYS,
