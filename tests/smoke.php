@@ -58,13 +58,24 @@ use WAcr\RecoveryFlow\Security\Token_Service;
 use WAcr\RecoveryFlow\Support\Options;
 use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
+use WAcr\RecoveryFlow\Admin\Diagnostics;
+use WAcr\RecoveryFlow\Admin\Hook_Test;
 use WAcr\RecoveryFlow\Admin\Setup;
+use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
 use WAcr\RecoveryFlow\WAcr\Credentials;
+use WAcr\RecoveryFlow\WAcr\Opt_Out_Sync;
+use WAcr\RecoveryFlow\WAcr\Template_Catalog;
 use WAcr\RecoveryFlow\WAcr\Error;
 use WAcr\RecoveryFlow\WAcr\Result;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 use WAcr\RecoveryFlow\WAcr\Send_Request;
 use WAcr\RecoveryFlow\WAcr\Transport;
+use WAcr\RecoveryFlow\Admin\Step_Describer;
+use WAcr\RecoveryFlow\Admin\Workflow_Form;
+use WAcr\RecoveryFlow\Workflow\Message_Composer;
+use WAcr\RecoveryFlow\Workflow\Variable_Context;
+use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
+use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
 
 ( new Autoloader( dirname( __DIR__ ) . '/src/' ) )->register();
@@ -1964,6 +1975,8 @@ check( 'one recovery needs the journeys capability', Screen::capability( Screen:
 check( 'settings need the settings capability', Screen::capability( Screen::SETTINGS ), Capabilities::MANAGE_SETTINGS );
 check( 'integrations need the settings capability', Screen::capability( Screen::INTEGRATIONS ), Capabilities::MANAGE_SETTINGS );
 check( 'status needs the status capability', Screen::capability( Screen::STATUS ), Capabilities::VIEW_STATUS );
+check( 'the workflow list needs the workflows capability', Screen::capability( Screen::WORKFLOWS ), Capabilities::MANAGE_WORKFLOWS );
+check( 'one workflow needs the workflows capability', Screen::capability( Screen::WORKFLOW ), Capabilities::MANAGE_WORKFLOWS );
 
 // An unknown slug must fail closed. A screen somebody forgot to list should be
 // shut, not open to everyone.
@@ -1989,13 +2002,15 @@ $recoveryflow_screens = array(
 	'recovery'     => array( $plugin->admin_journey(), 'render' ),
 	'integrations' => array( $plugin->admin_integrations(), 'render' ),
 	'status'       => array( $plugin->admin_status(), 'render' ),
+	'workflows'    => array( $plugin->admin_workflows(), 'render' ),
+	'workflow'     => array( $plugin->admin_workflow(), 'render' ),
 );
 
 foreach ( $recoveryflow_screens as $recoveryflow_name => $recoveryflow_render ) {
 	$recoveryflow_html = recoveryflow_render_screen( $recoveryflow_render );
 
 	ok( "the {$recoveryflow_name} screen renders", false !== strpos( $recoveryflow_html, '<div class="wrap' ) );
-	ok( "the {$recoveryflow_name} screen has exactly one top-level heading", 1 === substr_count( $recoveryflow_html, '<h1>' ) );
+	ok( "the {$recoveryflow_name} screen has exactly one top-level heading", 1 === substr_count( $recoveryflow_html, '<h1' ) );
 }
 
 // Every screen must refuse somebody without its capability. wp_die is stubbed
@@ -2049,6 +2064,1144 @@ foreach ( $plugin->health()->checks() as $recoveryflow_check ) {
 
 ok( 'this site has checks in both states, so the count means something', $recoveryflow_failing > 0 && $recoveryflow_passing > 0 );
 check( 'the overview lists exactly the checks that need attention', substr_count( $recoveryflow_html, 'recoveryflow-attention__item' ), $recoveryflow_failing * 2 );
+
+/*
+ * The workflow list. Its job is to answer "what does this one actually do"
+ * without the reader opening anything, so the assertions are on the SENTENCES
+ * -- a card that renders the stored JSON, or renders a step count and no more,
+ * would pass a "the screen renders" check and fail the reader.
+ */
+$recoveryflow_snapshot_before = get_option( Options::ME_SNAPSHOT, array() );
+
+/*
+ * Primed with the definitions the plugin actually seeds, read off the
+ * repository rather than retyped here. A test that carries its own copy of a
+ * definition stops testing the shipped one the first time somebody edits the
+ * seed, and goes on passing.
+ */
+$recoveryflow_seeded = static function ( string $method ): array {
+	$reflection = new ReflectionMethod( Workflow_Repository::class, $method );
+	$reflection->setAccessible( true );
+
+	return (array) $reflection->invoke( null );
+};
+
+$recoveryflow_row = static function ( int $id, string $slug, array $definition, bool $is_default ): array {
+	return array(
+		'id'              => $id,
+		'name'            => (string) ( $definition['name'] ?? '' ),
+		'slug'            => $slug,
+		'source_id'       => '',
+		'status'          => 'active',
+		'definition_json' => wp_json_encode( $definition ),
+		'definition_hash' => '',
+		'version'         => 1,
+		'is_default'      => $is_default ? 1 : 0,
+		'created_at'      => '2026-01-01 00:00:00',
+		'updated_at'      => '2026-01-01 00:00:00',
+	);
+};
+
+$GLOBALS['wpdb']->rows['recoveryflow_workflows'] = array(
+	$recoveryflow_row( 1, Workflow_Repository::SLUG_DIRECT, $recoveryflow_seeded( 'direct_definition' ), true ),
+	$recoveryflow_row( 2, Workflow_Repository::SLUG_HANDOFF, $recoveryflow_seeded( 'handoff_definition' ), false ),
+);
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send', 'templates:read' ),
+	)
+);
+
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_workflows(), 'render' ) );
+
+ok( 'the workflow list names each workflow', false !== strpos( $recoveryflow_html, esc_html( 'Cart recovery' ) ) );
+ok( 'and puts a wait into words rather than an ISO duration', false !== strpos( $recoveryflow_html, esc_html__( 'Waits 1 day before going on.', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and never shows a raw duration', false === strpos( $recoveryflow_html, 'P1D' ) );
+ok( 'and says what a check does in plain words', false !== strpos( $recoveryflow_html, esc_html__( 'the order has still not been placed', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and names the raw condition nowhere on the screen', false === strpos( $recoveryflow_html, 'journey.not_completed' ) );
+ok( 'and says which channel a send goes over', false !== strpos( $recoveryflow_html, esc_html( _x( 'WhatsApp', 'message channel', 'kdc-wacr-recoveryflow' ) ) ) );
+ok( 'and says whether a workflow is the one new recoveries start on', false !== strpos( $recoveryflow_html, esc_html__( 'Active, and used for new recoveries', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'a connected workspace is offered a new workflow', false !== strpos( $recoveryflow_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and is not told the screen is read-only', false === strpos( $recoveryflow_html, esc_html__( 'Workflows are read-only on this workspace', 'kdc-wacr-recoveryflow' ) ) );
+
+// The other direction. A gate that is only ever exercised in one state is a
+// gate whose decision no assertion can see: reversing it would change nothing.
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => false,
+		'reason' => 'plan_upgrade_required',
+	)
+);
+
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_workflows(), 'render' ) );
+
+ok( 'a workspace below Scale still sees its workflows', false !== strpos( $recoveryflow_html, esc_html( 'Cart recovery' ) ) );
+ok( 'and is told the screen is read-only', false !== strpos( $recoveryflow_html, esc_html__( 'Workflows are read-only on this workspace', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and is told why in words it can act on', false !== strpos( $recoveryflow_html, esc_html( Feature_Gate::unavailable_reason() ) ) );
+ok( 'and is not offered a new workflow it could not save', false === strpos( $recoveryflow_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
+
+/*
+ * The exemption that keeps the Lite path from being trialware: handing a
+ * recovery to a WA.cr Auto Flow needs no developer API, so the hand-off
+ * workflow stays editable on a plan where the direct-send one does not.
+ */
+ok(
+	'the hand-off workflow stays editable below Scale',
+	false !== strpos(
+		$recoveryflow_html,
+		esc_html(
+			sprintf(
+				/* translators: %s: a workflow name. */
+				__( 'Edit %s', 'kdc-wacr-recoveryflow' ),
+				(string) ( $recoveryflow_seeded( 'handoff_definition' )['name'] ?? '' )
+			)
+		)
+	)
+);
+ok(
+	'while the direct-send one does not',
+	false === strpos(
+		$recoveryflow_html,
+		esc_html(
+			sprintf(
+				/* translators: %s: a workflow name. */
+				__( 'Edit %s', 'kdc-wacr-recoveryflow' ),
+				(string) ( $recoveryflow_seeded( 'direct_definition' )['name'] ?? '' )
+			)
+		)
+	)
+);
+ok( 'and is told why that one is closed', false !== strpos( $recoveryflow_html, esc_html__( 'This workflow sends from WordPress, which this workspace\'s plan does not include, so it cannot be edited or run here.', 'kdc-wacr-recoveryflow' ) ) );
+
+update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_before );
+$GLOBALS['wpdb']->rows = array();
+
+/*
+ * The editor. The property that matters is the round trip: what the screen
+ * draws, posted back unchanged, must be a definition the validator accepts.
+ * A screen that offers a choice its own validator refuses is a screen that
+ * tells a merchant they did something wrong when they did exactly as asked,
+ * so this is asserted rather than left to the fact that both were written on
+ * the same afternoon.
+ */
+$recoveryflow_posted = array(
+	'workflow_id'     => 0,
+	'workflow_name'   => 'Two touches',
+	'workflow_active' => '1',
+	'step'            => array(
+		array(
+			'type' => 'condition',
+			'if'   => 'journey.not_completed',
+			'else' => 'stop:recovered',
+		),
+		array(
+			'type'        => 'wait',
+			'wait_amount' => '2',
+			'wait_unit'   => 'hours',
+		),
+		array(
+			'type'     => 'action',
+			'do'       => 'wacr.send_template',
+			'channel'  => 'whatsapp',
+			'template' => 'cart_reminder_1',
+		),
+	),
+);
+
+$recoveryflow_definition = Workflow_Form::read( $recoveryflow_posted );
+
+check( 'the form reads the name a merchant typed', $recoveryflow_definition['name'], 'Two touches' );
+check( 'and keeps the steps in the order they were posted', count( $recoveryflow_definition['steps'] ), 3 );
+ok( 'and what the form builds is a definition the validator accepts', true === Workflow_Definition::validate( $recoveryflow_definition ) );
+
+// A number and a unit, not an ISO duration typed by hand.
+check( 'two hours becomes an ISO duration', Workflow_Form::duration( 2, 'hours' ), 'PT2H' );
+check( 'and a day is stored as a day', Workflow_Form::duration( 1, 'days' ), 'P1D' );
+check( 'and an unknown unit falls back to hours rather than to nothing', Workflow_Form::duration( 3, 'fortnights' ), 'PT3H' );
+
+// The way back must be the way in, or a merchant reopening the screen finds
+// their "1 day" has become "1440 minutes" and edits something they did not write.
+$recoveryflow_split = Workflow_Form::split_duration( 'P1D' );
+check( 'a day comes back as a day', $recoveryflow_split['unit'], 'days' );
+check( 'and as one of them', $recoveryflow_split['amount'], 1 );
+
+$recoveryflow_split = Workflow_Form::split_duration( 'PT90M' );
+check( 'ninety minutes stays in minutes, because no larger unit divides it', $recoveryflow_split['unit'], 'minutes' );
+check( 'and keeps its value', $recoveryflow_split['amount'], 90 );
+
+// Arguments belong to the action that understands them. Changing a step from a
+// send to a hand-off and submitting must not carry a template onto a step that
+// has no use for one -- the validator would refuse it, naming a field the
+// merchant can no longer see.
+$recoveryflow_switched                     = $recoveryflow_posted;
+$recoveryflow_switched['step'][2]['do']    = 'wacr.start_flow';
+$recoveryflow_handoff                      = Workflow_Form::read( $recoveryflow_switched );
+
+ok( 'switching an action drops the old action\'s arguments', ! isset( $recoveryflow_handoff['steps'][2]['with']['template'] ) );
+ok( 'and supplies the new one\'s default', 'primary' === $recoveryflow_handoff['steps'][2]['with']['hook'] );
+ok( 'so the switched definition still validates', true === Workflow_Definition::validate( $recoveryflow_handoff ) );
+
+// A step type nobody registered is dropped rather than written through.
+$recoveryflow_junk                  = $recoveryflow_posted;
+$recoveryflow_junk['step'][]        = array(
+	'type' => 'exec',
+	'do'   => 'rm -rf',
+);
+$recoveryflow_read                  = Workflow_Form::read( $recoveryflow_junk );
+
+check( 'a step type the plugin does not know is dropped, not stored', count( $recoveryflow_read['steps'] ), 3 );
+
+// A channel nobody offers falls back rather than being written through.
+$recoveryflow_junk                          = $recoveryflow_posted;
+$recoveryflow_junk['step'][2]['channel']    = 'carrier-pigeon';
+$recoveryflow_read                          = Workflow_Form::read( $recoveryflow_junk );
+
+check( 'an unknown channel falls back to WhatsApp', $recoveryflow_read['steps'][2]['channel'], 'whatsapp' );
+
+// Add, remove and move are submit buttons, so each is exercised as one.
+check( 'no button pressed means save', Workflow_Form::command( array() )['name'], 'save' );
+check( 'and a pressed button is read with the step it names', Workflow_Form::command( array( 'move_up' => '2' ) )['index'], 2 );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'move_up',
+		'index' => 1,
+	)
+);
+
+check( 'moving a step up puts it above the one that was there', $recoveryflow_moved['steps'][0]['type'], 'wait' );
+check( 'and puts that one below it', $recoveryflow_moved['steps'][1]['type'], 'condition' );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'move_up',
+		'index' => 0,
+	)
+);
+check( 'moving the first step up does nothing rather than falling off the top', $recoveryflow_moved['steps'][0]['type'], 'condition' );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'move_down',
+		'index' => 2,
+	)
+);
+check( 'and moving the last step down does nothing either', $recoveryflow_moved['steps'][2]['type'], 'action' );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'remove_step',
+		'index' => 1,
+	)
+);
+check( 'removing a step removes exactly one', count( $recoveryflow_moved['steps'] ), 2 );
+ok( 'and what is left still validates', true === Workflow_Definition::validate( $recoveryflow_moved ) );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'add_step',
+		'index' => -1,
+	)
+);
+check( 'adding a step adds exactly one', count( $recoveryflow_moved['steps'] ), 4 );
+ok( 'and the step it adds is one the validator accepts', true === Workflow_Definition::validate( $recoveryflow_moved ) );
+
+/*
+ * The rule that decides whether a workflow may be edited and stored on a plan
+ * below Scale. It lives on the definition because two screens ask it, and a
+ * list that offers an edit the save then refuses would be worse than either
+ * answer on its own -- so both are asserted against the same function.
+ */
+ok( 'a workflow that sends from WordPress needs the developer API', Workflow_Definition::needs_developer_api( $recoveryflow_definition ) );
+ok( 'and one that only hands off does not', ! Workflow_Definition::needs_developer_api( $recoveryflow_handoff ) );
+ok( 'a workflow with no steps at all does not either', ! Workflow_Definition::needs_developer_api( array( 'steps' => array() ) ) );
+
+$recoveryflow_snapshot_before = get_option( Options::ME_SNAPSHOT, array() );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => false,
+		'reason' => 'plan_upgrade_required',
+	)
+);
+
+ok( 'below Scale a sending workflow is refused before it reaches the store', ! Workflow_Form::may_write( $recoveryflow_definition ) );
+ok( 'but a hand-off workflow is still allowed, which is the whole Lite path', Workflow_Form::may_write( $recoveryflow_handoff ) );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send' ),
+	)
+);
+
+ok( 'and on Scale both are allowed', Workflow_Form::may_write( $recoveryflow_definition ) && Workflow_Form::may_write( $recoveryflow_handoff ) );
+
+/*
+ * Found by saving one on a real install: the refusal said "No WA.cr API key is
+ * connected yet" and nothing else. True of the stored credential, and an answer
+ * to a question nobody asked -- somebody who pressed Save on a workflow with a
+ * send step in it has not been told what they did, what was refused, or what to
+ * do instead. So the message must name all three.
+ */
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => false,
+		'reason' => 'plan_upgrade_required',
+	)
+);
+
+$recoveryflow_refusal = Workflow_Form::refusal();
+
+ok( 'a refused save says a step of THIS workflow is what was refused', false !== strpos( $recoveryflow_refusal, 'sends a message from WordPress' ) );
+ok( 'and says the workflow was not saved, rather than leaving it ambiguous', false !== strpos( $recoveryflow_refusal, 'was not saved' ) );
+ok( 'and carries the reason the connection cannot do it', false !== strpos( $recoveryflow_refusal, Feature_Gate::unavailable_reason() ) );
+ok( 'and offers the way forward that works on every plan', false !== strpos( $recoveryflow_refusal, 'Auto Flow' ) );
+ok( 'and is more than the bare reason on its own', Feature_Gate::unavailable_reason() !== $recoveryflow_refusal );
+
+/*
+ * The branch that CHOOSES that message, not just the function that builds it.
+ * Asserting only on the message let the whole refusal be swapped for the bare
+ * reason with every test still green -- the same shape of gap that Setup's
+ * plan-upgrade branch had, and the reason store() is free of redirects.
+ */
+$recoveryflow_outcome = $plugin->admin_workflow_form()->store( 2, $recoveryflow_definition, array( 'workflow_active' => '1' ) );
+
+ok( 'saving a sending workflow below Scale is refused', ! $recoveryflow_outcome['ok'] );
+check( 'and the refusal is the one that explains itself', $recoveryflow_outcome['message'], Workflow_Form::refusal() );
+check( 'and the merchant is sent back to what they were editing', $recoveryflow_outcome['id'], 2 );
+
+// A definition the validator refuses must be reported in the validator's own
+// words, not in the gate's -- they are different problems with different fixes.
+$recoveryflow_broken          = $recoveryflow_handoff;
+$recoveryflow_broken['name']  = '';
+$recoveryflow_outcome         = $plugin->admin_workflow_form()->store( 2, $recoveryflow_broken, array() );
+
+ok( 'a workflow with no name is refused', ! $recoveryflow_outcome['ok'] );
+ok( 'and is refused in the validator\'s words, not the gate\'s', Workflow_Form::refusal() !== $recoveryflow_outcome['message'] );
+ok( 'which say what to do about it', false !== strpos( $recoveryflow_outcome['message'], 'name' ) );
+
+/*
+ * And the path where it works. Every branch above is a refusal, so without
+ * this one the gate could stop being consulted altogether and the only thing
+ * that changed would be a test going green -- which is what happened when this
+ * was first written: the mutation that skipped the gate FATALED on an
+ * unstubbed sanitize_title(), and a fatal reads as a failing suite, so it was
+ * recorded as caught while nothing had exercised a successful save at all.
+ */
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send' ),
+	)
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_workflows'] = array(
+	$recoveryflow_row( 2, Workflow_Repository::SLUG_HANDOFF, $recoveryflow_seeded( 'handoff_definition' ), true ),
+);
+
+$recoveryflow_outcome = $plugin->admin_workflow_form()->store( 2, $recoveryflow_definition, array( 'workflow_active' => '1' ) );
+
+ok( 'on Scale the same workflow saves', $recoveryflow_outcome['ok'] );
+ok( 'and the merchant is told what saving did NOT do to journeys already running', false !== strpos( $recoveryflow_outcome['message'], 'version they started on' ) );
+check( 'and lands back on the workflow they just saved, not on a blank new one', $recoveryflow_outcome['id'], 2 );
+
+// A new workflow lands on the row it just created, which is the only way the
+// merchant can see that it exists.
+$recoveryflow_outcome = $plugin->admin_workflow_form()->store( 0, $recoveryflow_definition, array( 'workflow_active' => '1' ) );
+
+ok( 'a brand new workflow saves', $recoveryflow_outcome['ok'] );
+ok( 'and lands on the row it created rather than back on an empty form', $recoveryflow_outcome['id'] > 0 );
+
+/*
+ * The two switches, asserted on what reaches the database rather than on what
+ * the screen drew. Unticking "Active" and being told the workflow saved, while
+ * it goes on sending, is the worst failure this screen has available to it --
+ * somebody deliberately stopping messages to their customers and being told
+ * they had.
+ */
+$recoveryflow_insert = static function ( array $posted ) use ( $plugin, $recoveryflow_definition ): string {
+	$GLOBALS['wpdb']->queries = array();
+
+	$plugin->admin_workflow_form()->store( 0, $recoveryflow_definition, $posted );
+
+	foreach ( $GLOBALS['wpdb']->queries as $recoveryflow_sql ) {
+		if ( 0 === stripos( ltrim( (string) $recoveryflow_sql ), 'INSERT' ) && false !== strpos( (string) $recoveryflow_sql, 'recoveryflow_workflows' ) ) {
+			return (string) $recoveryflow_sql;
+		}
+	}
+
+	return '';
+};
+
+$recoveryflow_sql = $recoveryflow_insert( array( 'workflow_active' => '1' ) );
+
+ok( 'saving writes a row to the workflows table', '' !== $recoveryflow_sql );
+ok( 'ticking Active stores it as active', false !== strpos( $recoveryflow_sql, "'active'" ) );
+
+$recoveryflow_sql = $recoveryflow_insert( array() );
+
+ok( 'and unticking it stores a draft, which never runs', false !== strpos( $recoveryflow_sql, "'draft'" ) );
+ok( 'rather than storing it active anyway', false === strpos( $recoveryflow_sql, "'active'" ) );
+
+$GLOBALS['wpdb']->queries = array();
+
+$GLOBALS['wpdb']->rows = array();
+
+/*
+ * The editor's own round trip, asserted on the rendered HTML rather than on
+ * the form reader alone: every value the screen offers in a select must be one
+ * the validator accepts. A screen that offers a choice its own validator
+ * refuses tells a merchant they got it wrong when they did exactly as asked.
+ */
+$GLOBALS['wpdb']->rows['recoveryflow_workflows'] = array(
+	$recoveryflow_row( 1, Workflow_Repository::SLUG_DIRECT, $recoveryflow_seeded( 'direct_definition' ), true ),
+);
+
+$_GET['workflow']  = 1;
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'the editor opens a stored workflow', false !== strpos( $recoveryflow_html, esc_html__( 'Edit workflow', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and draws its name into the field', false !== strpos( $recoveryflow_html, 'name="workflow_name"' ) );
+ok( 'and numbers each step where a support call can refer to it', false !== strpos( $recoveryflow_html, esc_html( sprintf( __( 'Step %1$d. %2$s', 'kdc-wacr-recoveryflow' ), 1, Step_Describer::describe( $recoveryflow_seeded( 'direct_definition' )['steps'][0] ) ) ) ) );
+ok( 'and posts to admin-post rather than to an endpoint of its own', false !== strpos( $recoveryflow_html, 'admin-post.php' ) );
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_html, '_wpnonce' ) );
+
+// Add, remove and move must be real submit buttons, or the editor stops working
+// the moment a script is blocked -- which is the entire reason it is built this way.
+foreach ( array( 'add_step', 'remove_step', 'move_down' ) as $recoveryflow_button ) {
+	ok( "the editor's {$recoveryflow_button} control is a submit button, not a script", false !== strpos( $recoveryflow_html, 'name="' . $recoveryflow_button . '"' ) );
+}
+
+ok( 'the editor ships no inline script at all', false === stripos( $recoveryflow_html, '<script' ) );
+
+// Every option in every select, checked against what the validator will accept.
+$recoveryflow_offered = array();
+preg_match_all( '/<select name="step\[(\d+)\]\[(\w+)\]".*?<\/select>/s', $recoveryflow_html, $recoveryflow_selects, PREG_SET_ORDER );
+
+ok( 'the editor renders selects for its steps', count( $recoveryflow_selects ) > 0 );
+
+foreach ( $recoveryflow_selects as $recoveryflow_select ) {
+	preg_match_all( '/value="([^"]*)"/', $recoveryflow_select[0], $recoveryflow_values );
+	$recoveryflow_offered[ $recoveryflow_select[2] ] = array_unique(
+		array_merge( $recoveryflow_offered[ $recoveryflow_select[2] ] ?? array(), $recoveryflow_values[1] )
+	);
+}
+
+/*
+ * Each group is counted before it is walked. A foreach over an empty array
+ * passes every assertion inside it and asserts nothing, so a regex that stops
+ * matching -- or a field that stops being rendered -- would turn this whole
+ * block green while checking nothing at all.
+ */
+foreach ( array( 'type', 'if', 'do', 'else', 'channel' ) as $recoveryflow_group ) {
+	ok( "the editor offers at least one {$recoveryflow_group} to choose from", count( $recoveryflow_offered[ $recoveryflow_group ] ?? array() ) > 0 );
+}
+
+foreach ( ( $recoveryflow_offered['type'] ?? array() ) as $recoveryflow_value ) {
+	ok( "the type select only offers {$recoveryflow_value}, which the validator knows", in_array( $recoveryflow_value, array( 'condition', 'wait', 'action' ), true ) );
+}
+
+foreach ( ( $recoveryflow_offered['if'] ?? array() ) as $recoveryflow_value ) {
+	ok( "the check select only offers {$recoveryflow_value}, which is registered", null !== $plugin->steps()->condition( $recoveryflow_value ) );
+}
+
+foreach ( ( $recoveryflow_offered['do'] ?? array() ) as $recoveryflow_value ) {
+	ok( "the send select only offers {$recoveryflow_value}, which is registered", null !== $plugin->steps()->action( $recoveryflow_value ) );
+}
+
+foreach ( ( $recoveryflow_offered['else'] ?? array() ) as $recoveryflow_value ) {
+	ok(
+		"the stop select only offers {$recoveryflow_value}, which is a state a journey can end in",
+		'' === $recoveryflow_value || '' !== Workflow_Definition::stop_state( $recoveryflow_value )
+	);
+}
+
+foreach ( ( $recoveryflow_offered['channel'] ?? array() ) as $recoveryflow_value ) {
+	ok( "the channel select only offers {$recoveryflow_value}, which is a real channel", in_array( $recoveryflow_value, Workflow_Definition::CHANNELS, true ) );
+}
+
+// Every wait unit the screen offers must be one the form can actually build.
+// The unit select is the one place a value goes to the form reader rather than
+// to the validator, so the "only offers what the validator accepts" property
+// above does not reach it: an added unit would silently become hours.
+foreach ( ( $recoveryflow_offered['wait_unit'] ?? array() ) as $recoveryflow_value ) {
+	ok(
+		"the wait unit select only offers {$recoveryflow_value}, which the form can build",
+		Workflow_Form::duration( 3, $recoveryflow_value ) !== Workflow_Form::duration( 3, 'a unit that does not exist' )
+			|| 'hours' === $recoveryflow_value
+	);
+}
+
+/*
+ * The editor must carry the id of what it is editing. Without it every save
+ * makes a NEW workflow and leaves the original untouched, which looks like a
+ * save that worked and is discovered weeks later as a list of near-duplicates
+ * with the original still running. Nothing else on the screen would look wrong.
+ */
+ok( 'the editor carries the id of the workflow it is editing', 1 === preg_match( '/name="workflow_id" value="1"/', $recoveryflow_html ) );
+
+$_GET['workflow']       = 0;
+$recoveryflow_new_html  = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'and a new workflow carries a zero rather than somebody else\'s id', 1 === preg_match( '/name="workflow_id" value="0"/', $recoveryflow_new_html ) );
+ok( 'and is headed as an addition, not an edit', false !== strpos( $recoveryflow_new_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
+
+/*
+ * A refused save must hand the work back, not the stored version. Sending
+ * somebody to the last-saved workflow after telling them their edit was wrong
+ * discards everything they had typed AND makes the refusal about something
+ * they can no longer see -- the two worst halves of the same page load.
+ */
+set_transient(
+	'recoveryflow_workflow_draft_' . get_current_user_id(),
+	array(
+		'name'  => 'A name only in the unsaved edit',
+		'steps' => array(
+			array(
+				'type' => 'wait',
+				'for'  => 'PT45M',
+			),
+		),
+	),
+	60
+);
+
+$_GET['workflow']        = 1;
+$recoveryflow_draft_html = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'a refused edit is shown back rather than replaced by the stored one', false !== strpos( $recoveryflow_draft_html, esc_attr( 'A name only in the unsaved edit' ) ) );
+ok( 'and keeps the steps as they were being edited', false !== strpos( $recoveryflow_draft_html, 'value="45"' ) );
+ok( 'and the draft is consumed, so it does not reappear on the next visit', null === Workflow_Form::draft() );
+
+
+update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_before );
+$GLOBALS['wpdb']->rows = array();
+
+/*
+ * The template picker. The response shape asserted here is WA.cr's own, read
+ * off apps/api/src/app/v1/templates/route.ts rather than guessed: `{ ok,
+ * templates: [ { name, language, category, variables: [ { id, component, key,
+ * index, required, sample?, before?, after? } ] } ] }`. The platform resolves
+ * each template's blanks there deliberately, so that every client stops
+ * reimplementing the placeholder scan and drifting from the others -- and the
+ * `id` it hands back IS the slot key this plugin already stores.
+ */
+set_transient(
+	'recoveryflow_wacr_templates',
+	array(
+		'waba'  => '',
+		'value' => array(
+			'ok'        => true,
+			'templates' => array(
+				array(
+					'name'      => 'cart_reminder_1',
+					'language'  => 'en',
+					'category'  => 'MARKETING',
+					'variables' => array(
+						array(
+							'id'       => 'body_1',
+							'key'      => '1',
+							'index'    => 1,
+							'required' => true,
+							'before'   => 'Hi',
+							'after'    => ', your basket is waiting',
+						),
+						array(
+							'id'       => 'button_0_url_1',
+							'key'      => '1',
+							'index'    => 1,
+							'required' => true,
+							'sample'   => 'abc123',
+						),
+					),
+				),
+				array(
+					'name'      => 'seasonal_carousel',
+					'language'  => 'en',
+					'category'  => 'MARKETING',
+					'variables' => array(
+						array(
+							'id'       => 'header_media_image',
+							'key'      => 'image',
+							'index'    => 1,
+							'required' => true,
+						),
+						array(
+							'id'       => 'card_0_body_1',
+							'key'      => '1',
+							'index'    => 1,
+							'required' => true,
+						),
+					),
+				),
+				array(
+					'name'      => 'plain_notice',
+					'language'  => 'en',
+					'category'  => 'UTILITY',
+					'variables' => array(),
+				),
+			),
+		),
+	),
+	900
+);
+
+$recoveryflow_catalog = $plugin->template_catalog()->all();
+
+ok( 'the catalog reads WA.cr\'s answer', $recoveryflow_catalog['ok'] );
+check( 'and lists every approved template, usable or not', count( $recoveryflow_catalog['templates'] ), 3 );
+
+$recoveryflow_by_name = array();
+
+foreach ( $recoveryflow_catalog['templates'] as $recoveryflow_template ) {
+	$recoveryflow_by_name[ (string) $recoveryflow_template['name'] ] = $recoveryflow_template;
+}
+
+ok( 'a text-and-URL-button template can be used', $recoveryflow_by_name['cart_reminder_1']['usable'] );
+check( 'and its blanks are the slots this plugin already stores', array_column( $recoveryflow_by_name['cart_reminder_1']['slots'], 'id' ), array( 'body_1', 'button_0_url_1' ) );
+check( 'carrying the template\'s own wording, so the blank is recognisable', $recoveryflow_by_name['cart_reminder_1']['slots'][0]['before'], 'Hi' );
+
+// The verdict that matters: a template needing a value this plugin cannot
+// supply is listed and refused HERE, at the moment of choosing, rather than at
+// send time -- hours later, in a log, against a customer who got nothing.
+ok( 'a template needing an image header cannot be used', ! $recoveryflow_by_name['seasonal_carousel']['usable'] );
+ok( 'and it is listed rather than hidden from somebody looking for it', isset( $recoveryflow_by_name['seasonal_carousel'] ) );
+ok( 'and the refusal names the values it could not supply', false !== strpos( Template_Catalog::refusal( $recoveryflow_by_name['seasonal_carousel'] ), 'header_media_image' ) );
+check( 'a usable template has nothing to refuse', Template_Catalog::refusal( $recoveryflow_by_name['cart_reminder_1'] ), '' );
+ok( 'a template with no blanks is usable', $recoveryflow_by_name['plain_notice']['usable'] );
+
+// The rule is the composer's, asked in one place, so the picker cannot offer
+// what the composer will later refuse.
+ok( 'the composer fills a body slot', Message_Composer::supports_slot( 'body_1' ) );
+ok( 'and a header slot', Message_Composer::supports_slot( 'header_2' ) );
+ok( 'and a URL button slot', Message_Composer::supports_slot( 'button_0_url_1' ) );
+ok( 'but not an image header', ! Message_Composer::supports_slot( 'header_media_image' ) );
+ok( 'nor a button payload', ! Message_Composer::supports_slot( 'button_1_payload' ) );
+ok( 'nor a carousel card', ! Message_Composer::supports_slot( 'card_0_body_1' ) );
+ok( 'nor a limited-time-offer expiry', ! Message_Composer::supports_slot( 'limited_time_offer_expiration' ) );
+ok( 'and refuses a button index beyond the tenth', ! Message_Composer::supports_slot( 'button_10_url_1' ) );
+
+// An optional slot this plugin cannot fill must not condemn the template:
+// Meta marks the two decorative location-header slots optional, and refusing a
+// template over a value nobody has to send hides one that works.
+$recoveryflow_optional = $plugin->template_catalog();
+
+set_transient(
+	'recoveryflow_wacr_templates',
+	array(
+		'waba'  => '',
+		'value' => array(
+			'ok'        => true,
+			'templates' => array(
+				array(
+					'name'      => 'located',
+					'variables' => array(
+						array(
+							'id'       => 'header_location_name',
+							'required' => false,
+						),
+						array(
+							'id'       => 'body_1',
+							'required' => true,
+						),
+					),
+				),
+			),
+		),
+	),
+	900
+);
+
+ok( 'an OPTIONAL unsupported slot does not condemn a template', $recoveryflow_optional->all()['templates'][0]['usable'] );
+
+// The picker as the merchant meets it: a list, the template's own wording
+// beside each blank, and the variable choices from the allow-list.
+set_transient(
+	'recoveryflow_wacr_templates',
+	array(
+		'waba'  => '',
+		'value' => array(
+			'ok'        => true,
+			'templates' => array(
+				array(
+					'name'      => 'cart_reminder_1',
+					'variables' => array(
+						array(
+							'id'       => 'body_1',
+							'required' => true,
+							'before'   => 'Hi',
+							'after'    => ', your basket is waiting',
+						),
+					),
+				),
+				array(
+					'name'      => 'seasonal_carousel',
+					'variables' => array(
+						array(
+							'id'       => 'header_media_image',
+							'required' => true,
+						),
+					),
+				),
+			),
+		),
+	),
+	900
+);
+
+$recoveryflow_snapshot_keep = get_option( Options::ME_SNAPSHOT, array() );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send', 'templates:read' ),
+	)
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_workflows'] = array(
+	$recoveryflow_row( 1, Workflow_Repository::SLUG_DIRECT, $recoveryflow_seeded( 'direct_definition' ), true ),
+);
+
+$_GET['workflow']    = 1;
+$recoveryflow_picker = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'the template is a list, not a box to type a name into', 1 === preg_match( '/<select name="step\[2\]\[template\]"/', $recoveryflow_picker ) );
+ok( 'and offers the approved template', false !== strpos( $recoveryflow_picker, '>cart_reminder_1</option>' ) );
+ok( 'and lists the one it cannot send, saying so rather than hiding it', false !== strpos( $recoveryflow_picker, esc_html( sprintf( __( '%s -- cannot be used', 'kdc-wacr-recoveryflow' ), 'seasonal_carousel' ) ) ) );
+ok( 'and names each blank in the template\'s own words, not as body_1', false !== strpos( $recoveryflow_picker, esc_html( sprintf( __( '%1$s ____ %2$s', 'kdc-wacr-recoveryflow' ), 'Hi', ', your basket is waiting' ) ) ) );
+ok( 'and offers a variable in plain language', false !== strpos( $recoveryflow_picker, esc_html__( 'The customer\'s first name', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and keeps the stored value selected', false !== strpos( $recoveryflow_picker, 'value="{{customer.first_name}}" selected' ) );
+
+/*
+ * The seeded workflow's second send names cart_reminder_2, which this
+ * workspace does not have. It must still appear, selected, and say why --
+ * dropping it from the list would leave the select showing whatever sits at
+ * the top, and the next save would silently send a different template to every
+ * customer than the one the merchant last chose.
+ */
+ok(
+	'a template no longer in the workspace is still shown, and marked',
+	false !== strpos(
+		$recoveryflow_picker,
+		esc_html(
+			sprintf(
+				/* translators: %s: a message template name. */
+				__( '%s -- no longer in your workspace', 'kdc-wacr-recoveryflow' ),
+				'cart_reminder_2'
+			)
+		)
+	)
+);
+ok( 'and stays selected rather than being swapped for the top of the list', false !== strpos( $recoveryflow_picker, 'value="cart_reminder_2" selected' ) );
+
+// Every variable the picker offers must be one the renderer will substitute.
+// A picker offering a variable that renders empty is a picker that quietly
+// deletes half of somebody's message.
+preg_match_all( '/name="step\[\d+\]\[variables\]\[[^\]]+\]".*?<\/select>/s', $recoveryflow_picker, $recoveryflow_varsel, PREG_SET_ORDER );
+
+ok( 'the picker renders a control for each blank', count( $recoveryflow_varsel ) > 0 );
+
+foreach ( $recoveryflow_varsel as $recoveryflow_one ) {
+	preg_match_all( '/value="\{\{([^}]*)\}\}"/', $recoveryflow_one[0], $recoveryflow_keys );
+
+	foreach ( $recoveryflow_keys[1] as $recoveryflow_key ) {
+		ok( "the picker only offers {{{$recoveryflow_key}}}, which the renderer knows", in_array( $recoveryflow_key, Variable_Context::KEYS, true ) );
+	}
+}
+
+// And the form reads only slots the composer can fill.
+$recoveryflow_vars = Workflow_Form::read(
+	array(
+		'workflow_name' => 'Mapped',
+		'step'          => array(
+			array(
+				'type'      => 'action',
+				'do'        => 'wacr.send_template',
+				'channel'   => 'whatsapp',
+				'template'  => 'cart_reminder_1',
+				'variables' => array(
+					'body_1'                        => '{{customer.first_name}}',
+					'button_0_url_1'                => '{{recovery.token}}',
+					'header_media_image'            => 'https://example.test/x.png',
+					'limited_time_offer_expiration' => '123',
+					'body_2'                        => '',
+				),
+			),
+		),
+	)
+);
+
+$recoveryflow_slots = $recoveryflow_vars['steps'][0]['with']['variables'];
+
+ok( 'the form keeps a body slot', isset( $recoveryflow_slots['body_1'] ) );
+ok( 'and a URL button slot', isset( $recoveryflow_slots['button_0_url_1'] ) );
+ok( 'and drops a slot the composer cannot fill', ! isset( $recoveryflow_slots['header_media_image'] ) );
+ok( 'and another it cannot fill', ! isset( $recoveryflow_slots['limited_time_offer_expiration'] ) );
+ok( 'and leaves an empty slot out rather than storing a gap', ! isset( $recoveryflow_slots['body_2'] ) );
+ok( 'and what it builds is a definition the validator accepts', true === Workflow_Definition::validate( $recoveryflow_vars ) );
+
+/*
+ * And when WA.cr cannot be asked. Blocking here would be wrong: a credential
+ * without templates:read, or a minute of no network, still leaves a merchant
+ * in front of the screen who knows the name of their own template. What the
+ * fallback must not do is pretend there was no list to have.
+ */
+delete_transient( 'recoveryflow_wacr_templates' );
+
+$GLOBALS['__http_response'] = array(
+	'response' => array( 'code' => 403 ),
+	'body'     => '{"ok":false,"error":{"code":"insufficient_scope","message":"This key does not hold templates:read."}}',
+	'headers'  => array(),
+);
+
+$_GET['workflow']      = 1;
+$recoveryflow_fallback = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'with no list available the template becomes a box to type into', 1 === preg_match( '/<input type="text"[^>]*name="step\[2\]\[template\]"/', $recoveryflow_fallback ) );
+ok( 'and the merchant is told to type the name instead', false !== strpos( $recoveryflow_fallback, esc_html__( 'Type the name of an approved template instead. It is checked when the message is sent.', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and it does not silently drop the template already chosen', false !== strpos( $recoveryflow_fallback, 'value="cart_reminder_1"' ) );
+
+/*
+ * Connected, asked, and the answer was none: a different state from "could not
+ * ask", and one an empty select would render as a picker with nothing in it
+ * and no way to tell whether the plugin or the workspace was at fault.
+ */
+$GLOBALS['__http_response'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => '{"ok":true,"templates":[]}',
+	'headers'  => array(),
+);
+
+delete_transient( 'recoveryflow_wacr_templates' );
+
+$_GET['workflow']   = 1;
+$recoveryflow_empty = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'a workspace with no approved templates is told so', false !== strpos( $recoveryflow_empty, esc_html__( 'Your WA.cr workspace has no approved templates yet, so there is nothing to choose from. Approve one in the WA.cr console, or type its name here if you know it.', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'rather than being shown an empty list with no explanation', 1 !== preg_match( '/<select name="step\[2\]\[template\]"/', $recoveryflow_empty ) );
+
+unset( $GLOBALS['__http_response'] );
+delete_transient( 'recoveryflow_wacr_templates' );
+
+update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_keep );
+$GLOBALS['wpdb']->rows = array();
+
+/*
+ * The Auto Flow recipe, and the one thing that can quietly make it a lie.
+ *
+ * The hand-off path works on every WA.cr plan, so most merchants take it -- and
+ * everything that matters happens somewhere else, in a flow they build from
+ * this list. WA.cr seeds every top-level scalar of a hook body as a run
+ * variable named `hook_<key>`, so the documented keys ARE the variable names.
+ * Add a key to the push without documenting it and merchants never learn it
+ * exists; document one the push does not send and every flow that uses it
+ * prints a placeholder at a customer. Both are silent, so both are asserted
+ * against the real payload rather than against a copy.
+ */
+$recoveryflow_start_flow = new ReflectionMethod( Start_Flow::class, 'payload' );
+$recoveryflow_start_flow->setAccessible( true );
+
+$recoveryflow_documented = array_keys( Settings_Page::payload_keys() );
+
+ok( 'the recipe documents some keys at all', count( $recoveryflow_documented ) > 0 );
+
+$recoveryflow_source = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Workflow/Actions/Start_Flow.php', 'payload' );
+$recoveryflow_sent   = array();
+
+if ( 1 === preg_match( '/return array\((.*?)\n\t\t\);/s', $recoveryflow_source, $recoveryflow_body ) ) {
+	preg_match_all( "/'([a-z_]+)'\s*=>/", $recoveryflow_body[1], $recoveryflow_found );
+	$recoveryflow_sent = $recoveryflow_found[1];
+}
+
+ok( 'the real push payload can be read', count( $recoveryflow_sent ) > 0 );
+check( 'and every key it sends is documented in the recipe', array_values( array_diff( $recoveryflow_sent, $recoveryflow_documented ) ), array() );
+check( 'and the recipe documents nothing the push does not send', array_values( array_diff( $recoveryflow_documented, $recoveryflow_sent ) ), array() );
+
+// The test push has to be shaped like the real one, or it proves very little.
+$recoveryflow_test_keys = array_keys( Hook_Test::payload() );
+
+check(
+	'a test push carries every key a real one does',
+	array_values( array_diff( $recoveryflow_sent, $recoveryflow_test_keys ) ),
+	array()
+);
+
+/*
+ * And it has to be harmless. A webhook trigger fires on anything that reaches
+ * it -- there is no test mode to ask WA.cr for -- so a test push really does
+ * run the merchant's flow. It must not be able to message a real person.
+ */
+check( 'a test push carries no phone number, so a flow that sends has nobody to send to', Hook_Test::payload()['phone'], '' );
+ok( 'and names itself a test, so a flow can branch on it', Hook_Test::EVENT !== Start_Flow::EVENT );
+ok( 'and says so in the payload as well', true === Hook_Test::payload()['test'] );
+ok( 'and the button warns that the flow really runs', false !== strpos( recoveryflow_render_screen( array( Hook_Test::class, 'button' ) ), esc_html__( 'This really runs your Auto Flow, because a webhook trigger fires on anything that reaches it. The test carries no phone number, so a flow that goes on to send has nobody to send to.', 'kdc-wacr-recoveryflow' ) ) );
+
+// Without a hook address there is nothing to test, and saying so beats a
+// request that fails for a reason the merchant has to work out.
+ok( 'with no hook saved the test says what is missing rather than failing obscurely', false !== strpos( (string) $plugin->admin_hook_test()->push()['message'], 'no Auto Flow hook address saved' ) );
+
+/*
+ * Carrying an opt-out into the merchant's WA.cr workspace. Off by default
+ * because it writes to their workspace and changes who their OTHER campaigns
+ * reach -- that is a decision, not a default.
+ */
+$recoveryflow_snapshot_sync = get_option( Options::ME_SNAPSHOT, array() );
+$recoveryflow_settings_sync = get_option( Options::SETTINGS, array() );
+
+ok( 'carrying opt-outs to WA.cr is off until somebody turns it on', ! (bool) Options::get( Opt_Out_Sync::SETTING, false ) );
+
+// Both halves are required, and they fail differently: the setting is the
+// merchant's decision, the scope is whether their credential can act on it.
+// Reporting the sync as on while every attempt is refused would be worse than
+// reporting it off.
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send' ),
+	)
+);
+Options::set( Opt_Out_Sync::SETTING, true );
+
+ok( 'switched on but without contacts:write, the sync is not enabled', ! Opt_Out_Sync::is_enabled() );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send', Opt_Out_Sync::SCOPE ),
+	)
+);
+
+ok( 'with the setting and the scope, it is', Opt_Out_Sync::is_enabled() );
+
+Options::set( Opt_Out_Sync::SETTING, false );
+
+ok( 'and the scope alone is not enough either', ! Opt_Out_Sync::is_enabled() );
+
+// What gets queued. A cron argument lives in wp_options in the clear, so it
+// carries the internal row id and never the phone number -- the same rule the
+// rest of the plugin follows for logs.
+$GLOBALS['__single_events'] = array();
+
+Opt_Out_Sync::queue( 4242 );
+
+check( 'a disabled sync queues nothing at all', count( $GLOBALS['__single_events'] ), 0 );
+
+Options::set( Opt_Out_Sync::SETTING, true );
+Opt_Out_Sync::queue( 4242 );
+
+check( 'an enabled one queues exactly one job', count( $GLOBALS['__single_events'] ), 1 );
+check( 'against the sync action', $GLOBALS['__single_events'][0]['hook'], Opt_Out_Sync::ACTION );
+check( 'carrying the internal customer id', $GLOBALS['__single_events'][0]['args'], array( 4242 ) );
+
+foreach ( $GLOBALS['__single_events'][0]['args'] as $recoveryflow_arg ) {
+	ok( 'and nothing that looks like a phone number', 1 !== preg_match( '/\+?\d{7,}/', (string) $recoveryflow_arg ) );
+}
+
+$GLOBALS['__single_events'] = array();
+Opt_Out_Sync::queue( 0 );
+
+check( 'and a customer that does not exist queues nothing', count( $GLOBALS['__single_events'] ), 0 );
+
+// The job re-checks before acting. A merchant who switches this off, or whose
+// key loses the scope, between the opt-out and the job running should not have
+// the change made anyway.
+Options::set( Opt_Out_Sync::SETTING, false );
+$GLOBALS['wpdb']->queries = array();
+
+$plugin->opt_out_sync()->run( 4242 );
+
+check( 'a job that runs after the setting was switched off does nothing', count( $GLOBALS['wpdb']->queries ), 0 );
+
+/*
+ * And the order it happens in. "Stop messaging me" is recorded here first;
+ * whether it also reaches WA.cr is a setting and a network call, and neither
+ * may stand between a customer and being left alone.
+ */
+$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' );
+
+ok( 'the opt-out path queues the sync', false !== strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' ) );
+ok(
+	'and only after the local suppression is already recorded',
+	strpos( $recoveryflow_suppress, '$this->consent->suppress(' ) < strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' )
+);
+
+update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_sync );
+update_option( Options::SETTINGS, $recoveryflow_settings_sync );
+
+/*
+ * The diagnostic report. Its whole design constraint is what is NOT in it: it
+ * gets pasted into email, chat and public forums by people with no way to audit
+ * what they are sending. So the secrets are planted first and the report is
+ * searched for them -- asserting on what it contains would never catch a leak.
+ */
+$recoveryflow_diag_key      = 'wacr_live_abcdef0123456789abcdef0123456789';
+$recoveryflow_diag_hook     = 'https://api.wa.cr/hooks/vJx8Kq2mNp4RtY7wZa1BcD3eF6gH9iJk';
+$recoveryflow_diag_secret   = 'f47ac10b58cc4372a5670e02b2c3d479f47ac10b58cc4372a5670e02b2c3d479';
+$recoveryflow_diag_snapshot = get_option( Options::ME_SNAPSHOT, array() );
+
+$plugin->credentials()->set_api_key( $recoveryflow_diag_key );
+$plugin->credentials()->set_hook_secret( $recoveryflow_diag_secret );
+Options::set( 'wacr_hook_url', $recoveryflow_diag_hook );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'          => true,
+		'tenant_name' => 'A Test Shop',
+		'scopes'      => array( 'messages:send', 'templates:read' ),
+		'checked_at'  => '2026-09-08 10:00:00',
+	)
+);
+
+$recoveryflow_report = $plugin->admin_diagnostics()->report();
+
+ok( 'the report says something at all', strlen( $recoveryflow_report ) > 200 );
+
+// Each secret, by name, so a failure says which one leaked.
+$recoveryflow_secrets = array(
+	'the API key'          => $recoveryflow_diag_key,
+	'the hook address'     => $recoveryflow_diag_hook,
+	'the hook signing key' => $recoveryflow_diag_secret,
+);
+
+foreach ( $recoveryflow_secrets as $recoveryflow_what => $recoveryflow_secret ) {
+	ok( "the report does not contain {$recoveryflow_what}", false === strpos( $recoveryflow_report, $recoveryflow_secret ) );
+}
+
+// Not even a piece of one. A report that leaks the last eight characters of a
+// key has still leaked part of a key, and "it was masked" is how that gets
+// argued for.
+ok( 'nor the tail of the API key', false === strpos( $recoveryflow_report, substr( $recoveryflow_diag_key, -8 ) ) );
+ok( 'nor the token out of the hook address', false === strpos( $recoveryflow_report, 'vJx8Kq2mNp4RtY7wZa1BcD3eF6gH9iJk' ) );
+ok( 'and does not state how long the key is', 1 !== preg_match( '/\b39\b|\bkey length\b/i', $recoveryflow_report ) );
+
+// What it SHOULD say, so the whole thing is not vacuously safe by being empty.
+ok( 'it says whether a key is saved', false !== strpos( $recoveryflow_report, 'API key saved: yes' ) );
+ok( 'and whether the hook is set, without giving the address', false !== strpos( $recoveryflow_report, 'Hook address set: yes' ) );
+ok( 'and whether pushes are signed, without giving the secret', false !== strpos( $recoveryflow_report, 'Hook signed: yes' ) );
+ok( 'and names the workspace, which identifies no customer', false !== strpos( $recoveryflow_report, 'A Test Shop' ) );
+ok( 'and states the versions somebody would ask for', false !== strpos( $recoveryflow_report, 'PHP: ' ) && false !== strpos( $recoveryflow_report, 'WordPress: ' ) );
+ok( 'and reports each background pass', false !== strpos( $recoveryflow_report, 'processed' ) );
+ok( 'and says plainly what it left out', false !== strpos( $recoveryflow_report, 'No API key, hook address, customer details or log entries are included.' ) );
+
+/*
+ * The allow-list is the guarantee, so it has to actually be one: a setting
+ * added later must be absent until somebody decides it belongs. Reading it back
+ * off the class and checking every name is a real setting keeps the list from
+ * rotting into a list of names that no longer mean anything.
+ */
+$recoveryflow_safe = new ReflectionMethod( Diagnostics::class, 'safe_settings' );
+$recoveryflow_safe->setAccessible( true );
+
+$recoveryflow_allowed = (array) $recoveryflow_safe->invoke( null );
+
+ok( 'the allow-list names some settings', count( $recoveryflow_allowed ) > 0 );
+
+foreach ( $recoveryflow_allowed as $recoveryflow_name ) {
+	ok( "the report's allow-list entry {$recoveryflow_name} is a real setting", array_key_exists( $recoveryflow_name, Options::defaults() ) );
+}
+
+// And the two credentials must never be on it, however the list is edited.
+foreach ( array( 'wacr_hook_url', 'api_key' ) as $recoveryflow_never ) {
+	ok( "the allow-list never admits {$recoveryflow_never}", ! in_array( $recoveryflow_never, $recoveryflow_allowed, true ) );
+}
+
+/*
+ * The second line of defence, actually exercised. The allow-list keeps our own
+ * secrets out, so nothing normally reaches the Redactor and a test that only
+ * checks the allow-list would let the Redactor pass be deleted without noticing.
+ *
+ * These are the two ways somebody else's text gets into this report: a stage's
+ * last error, which can quote whatever a failed send was carrying, and the
+ * workspace name, which is typed by the merchant in WA.cr and arrives here
+ * verbatim. Both are given something that must not survive.
+ */
+$recoveryflow_stats_before = get_option( Options::STAGE_STATS, array() );
+
+update_option(
+	Options::STAGE_STATS,
+	array(
+		'dispatch' => array(
+			'stage'      => 'dispatch',
+			'processed'  => 3,
+			'failed'     => 1,
+			'backlog'    => 0,
+			'duration'   => 12,
+			'ran_at'     => '2026-09-08 09:00:00',
+			'last_error' => 'send to +447700900123 failed for asha@example.test',
+		),
+	),
+	false
+);
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'          => true,
+		'tenant_name' => 'Shop wacr_live_deadbeefdeadbeefdeadbeefdeadbeef',
+		'scopes'      => array( 'messages:send' ),
+		'checked_at'  => '2026-09-08 10:00:00',
+	)
+);
+
+$recoveryflow_report = $plugin->admin_diagnostics()->report();
+
+ok( 'a failed stage does not put its error text in the report', false === strpos( $recoveryflow_report, 'failed for' ) );
+ok( 'so a phone number quoted in an error cannot reach it', false === strpos( $recoveryflow_report, '+447700900123' ) );
+ok( 'nor an email address', false === strpos( $recoveryflow_report, 'asha@example.test' ) );
+ok( 'but it still says that the last run errored', false !== strpos( $recoveryflow_report, 'last run errored: yes' ) );
+
+/*
+ * The bug this test found. stage_report() read the RAW stored option -- an
+ * array of arrays -- while treating each entry as an object, so a stage that
+ * had never run was reported correctly from the fallback object and a stage
+ * that HAD run answered null to every property. The status screen therefore
+ * showed zeroes for exactly the stages that had done some work, which is the
+ * opposite of what a status screen is for, and said nothing while doing it.
+ */
+$recoveryflow_stages = $plugin->health()->stage_report();
+$recoveryflow_by_stage = array();
+
+foreach ( $recoveryflow_stages as $recoveryflow_stage ) {
+	$recoveryflow_by_stage[ (string) $recoveryflow_stage['stage'] ] = $recoveryflow_stage;
+}
+
+check( 'a stage that has run reports what it processed, not zero', $recoveryflow_by_stage['dispatch']['processed'], 3 );
+check( 'and what failed', $recoveryflow_by_stage['dispatch']['failed'], 1 );
+check( 'and when it ran', $recoveryflow_by_stage['dispatch']['ran_at'], '2026-09-08 09:00:00' );
+check( 'while a stage that never ran still reports zero', $recoveryflow_by_stage['expire']['processed'], 0 );
+
+// And a key-shaped value arriving from somebody else's system is masked by the
+// Redactor even though it came through a field this report includes on purpose.
+ok( 'a key-shaped workspace name is masked rather than printed', false === strpos( $recoveryflow_report, 'wacr_live_deadbeefdeadbeefdeadbeefdeadbeef' ) );
+
+update_option( Options::STAGE_STATS, $recoveryflow_stats_before );
+$plugin->credentials()->set_api_key( '' );
+Options::set( 'wacr_hook_url', '' );
+update_option( Options::ME_SNAPSHOT, $recoveryflow_diag_snapshot );
 
 /*
  * The one screen that can show a customer's real phone number. Contact details

@@ -118,9 +118,11 @@ final class Assets {
 			'nonce'       => wp_create_nonce( 'wp_rest' ),
 			'openPanels'  => $this->open_panels(),
 			'strings'     => array(
-				'focused'    => __( 'Moved to the setting you followed the link for.', 'kdc-wacr-recoveryflow' ),
-				'linkCopied' => __( 'Link to this section copied.', 'kdc-wacr-recoveryflow' ),
-				'linkFailed' => __( 'The link could not be copied. Copy it from the address bar instead.', 'kdc-wacr-recoveryflow' ),
+				'focused'      => __( 'Moved to the setting you followed the link for.', 'kdc-wacr-recoveryflow' ),
+				'linkCopied'   => __( 'Link to this section copied.', 'kdc-wacr-recoveryflow' ),
+				'linkFailed'   => __( 'The link could not be copied. Copy it from the address bar instead.', 'kdc-wacr-recoveryflow' ),
+				'reportCopied' => __( 'Diagnostic report copied.', 'kdc-wacr-recoveryflow' ),
+				'reportFailed' => __( 'The report could not be copied. Select the text in the box and copy it instead.', 'kdc-wacr-recoveryflow' ),
 			),
 		);
 	}

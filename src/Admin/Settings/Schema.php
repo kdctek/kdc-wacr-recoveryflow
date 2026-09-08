@@ -409,9 +409,10 @@ final class Schema {
 				'description' => __( 'RecoveryFlow can hand a journey to a WA.cr Auto Flow and let WA.cr do the messaging, or send each message itself on the schedule in the workflow.', 'kdc-wacr-recoveryflow' ),
 				'cards'       => array(
 					'dispatch' => array(
-						'title'  => __( 'Dispatch', 'kdc-wacr-recoveryflow' ),
-						'fields' => array(
-							'wacr_dispatch' => array(
+						'title'    => __( 'Dispatch', 'kdc-wacr-recoveryflow' ),
+						'renderer' => 'auto_flow',
+						'fields'   => array(
+							'wacr_dispatch'    => array(
 								'type'    => 'select',
 								'label'   => __( 'Send reminders by', 'kdc-wacr-recoveryflow' ),
 								'options' => array(
@@ -420,13 +421,19 @@ final class Schema {
 								),
 								'help'    => __( 'Handing over works on every WA.cr plan and puts the timing and the wording in WA.cr. Sending from WordPress keeps both here and needs a workspace that can use the WA.cr developer API.', 'kdc-wacr-recoveryflow' ),
 							),
-							'wacr_hook_url' => array(
+							'wacr_hook_url'    => array(
 								'type'        => 'url',
 								'label'       => __( 'Auto Flow hook address', 'kdc-wacr-recoveryflow' ),
 								'placeholder' => 'https://hook.wa.cr/...',
 								'help'        => __( 'Copied from the Auto Flow in WA.cr that should pick these journeys up. Each request is signed, so a hook address on its own is not enough for anyone else to trigger your flow.', 'kdc-wacr-recoveryflow' ),
 							),
-							'wacr_sender'   => array(
+							'wacr_push_optout' => array(
+								'type'    => 'checkbox',
+								'label'   => __( 'Opting out here also opts them out in WA.cr', 'kdc-wacr-recoveryflow' ),
+								'feature' => Feature_Gate::DIRECT_SEND,
+								'help'    => __( 'A customer who uses the unsubscribe link is asking the shop to stop, not this plugin. With this on, RecoveryFlow also marks them as opted out in your WA.cr workspace, which takes them out of broadcasts and any campaign built from a segment. It does NOT stop a message sent directly through the WA.cr API or named by an Auto Flow -- those never check the flag. Your key needs the contacts:write permission.', 'kdc-wacr-recoveryflow' ),
+							),
+							'wacr_sender'      => array(
 								'type'    => 'text',
 								'label'   => __( 'Send from', 'kdc-wacr-recoveryflow' ),
 								'feature' => Feature_Gate::DIRECT_SEND,
@@ -455,7 +462,7 @@ final class Schema {
 							),
 							'wacr_sync_optout'     => array(
 								'type'  => 'checkbox',
-								'label' => __( 'Honour opt-outs recorded in WA.cr', 'kdc-wacr-recoveryflow' ),
+								'label' => __( 'Opting out in WA.cr also stops reminders from here', 'kdc-wacr-recoveryflow' ),
 								'help'  => __( 'Somebody who replies STOP in WhatsApp is opted out in WA.cr. With this on, this site checks that before sending and stops messaging them too.', 'kdc-wacr-recoveryflow' ),
 							),
 						),

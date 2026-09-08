@@ -231,6 +231,35 @@ class Client {
 	}
 
 	/**
+	 * Mark a contact as opted out in the merchant's WA.cr workspace.
+	 *
+	 * What this DOES do: WA.cr expands every segment with a global
+	 * `opted_out = false` filter, so a contact marked here stops being pulled
+	 * into broadcasts and segment-based campaigns.
+	 *
+	 * What it does NOT do: a direct `/v1/messages` send does not consult the
+	 * flag at all. Anything the merchant sends by API, or a flow sends by name,
+	 * still reaches this person. That distinction is the whole reason the
+	 * setting that calls this has to describe it precisely -- a merchant who
+	 * believes they have a global stop switch, and has not, will find out from
+	 * a customer.
+	 *
+	 * @param string $contact_id The WA.cr contact id.
+	 * @return Result
+	 */
+	public function opt_out_contact( string $contact_id ): Result {
+		$contact_id = trim( $contact_id );
+
+		if ( '' === $contact_id ) {
+			return Result::failure(
+				Error::configuration( 'no_contact', __( 'No WA.cr contact to mark as opted out.', 'kdc-wacr-recoveryflow' ) )
+			);
+		}
+
+		return $this->request( 'PATCH', '/v1/contacts/' . rawurlencode( $contact_id ), array(), array( 'optedOut' => true ) );
+	}
+
+	/**
 	 * Send an approved template message.
 	 *
 	 * Never called without an attempt row already reserved, and never retried

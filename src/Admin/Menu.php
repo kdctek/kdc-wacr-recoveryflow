@@ -12,6 +12,8 @@ use WAcr\RecoveryFlow\Admin\Pages\Journey_Detail;
 use WAcr\RecoveryFlow\Admin\Pages\Journeys;
 use WAcr\RecoveryFlow\Admin\Pages\Overview;
 use WAcr\RecoveryFlow\Admin\Pages\System_Status;
+use WAcr\RecoveryFlow\Admin\Pages\Workflow_Edit;
+use WAcr\RecoveryFlow\Admin\Pages\Workflows;
 use WAcr\RecoveryFlow\Admin\Settings\Page as Settings_Page;
 
 defined( 'ABSPATH' ) || exit;
@@ -73,6 +75,20 @@ final class Menu {
 	private System_Status $status;
 
 	/**
+	 * The workflows screen.
+	 *
+	 * @var Workflows
+	 */
+	private Workflows $workflows;
+
+	/**
+	 * One workflow's editor.
+	 *
+	 * @var Workflow_Edit
+	 */
+	private Workflow_Edit $workflow;
+
+	/**
 	 * The first-run setup screen.
 	 *
 	 * @var Setup
@@ -87,6 +103,8 @@ final class Menu {
 	 * @param Journey_Detail $journey      Journey detail screen.
 	 * @param Integrations   $integrations Integrations screen.
 	 * @param System_Status  $status       Status screen.
+	 * @param Workflows      $workflows    Workflows screen.
+	 * @param Workflow_Edit  $workflow     One workflow's editor.
 	 * @param Setup          $setup        First-run setup screen.
 	 */
 	public function __construct(
@@ -95,6 +113,8 @@ final class Menu {
 		Journey_Detail $journey,
 		Integrations $integrations,
 		System_Status $status,
+		Workflows $workflows,
+		Workflow_Edit $workflow,
 		Setup $setup
 	) {
 		$this->overview     = $overview;
@@ -102,6 +122,8 @@ final class Menu {
 		$this->journey      = $journey;
 		$this->integrations = $integrations;
 		$this->status       = $status;
+		$this->workflows    = $workflows;
+		$this->workflow     = $workflow;
 		$this->setup        = $setup;
 	}
 
@@ -166,6 +188,22 @@ final class Menu {
 		);
 
 		/*
+		 * One workflow's editor, with no menu entry of its own: it is always
+		 * reached from the list, and "Workflows" plus "A workflow" as two
+		 * neighbouring menu items would be a menu that explains nothing.
+		 */
+		$this->remember(
+			add_submenu_page(
+				'',
+				__( 'Edit workflow', 'kdc-wacr-recoveryflow' ),
+				__( 'Edit workflow', 'kdc-wacr-recoveryflow' ),
+				Screen::capability( Screen::WORKFLOW ),
+				Screen::WORKFLOW,
+				array( $this->workflow, 'render' )
+			)
+		);
+
+		/*
 		 * The setup screen, likewise with no menu entry: it is reached by being
 		 * sent there on activation, and from the status screen when the
 		 * connection is what is wrong. Leaving a permanent "Setup" item in the
@@ -200,6 +238,11 @@ final class Menu {
 				'page_title' => __( 'Recoveries', 'kdc-wacr-recoveryflow' ),
 				'menu_title' => __( 'Recoveries', 'kdc-wacr-recoveryflow' ),
 				'callback'   => array( $this->journeys, 'render' ),
+			),
+			Screen::WORKFLOWS    => array(
+				'page_title' => __( 'Recovery workflows', 'kdc-wacr-recoveryflow' ),
+				'menu_title' => __( 'Workflows', 'kdc-wacr-recoveryflow' ),
+				'callback'   => array( $this->workflows, 'render' ),
 			),
 			Screen::INTEGRATIONS => array(
 				'page_title' => __( 'Integrations', 'kdc-wacr-recoveryflow' ),

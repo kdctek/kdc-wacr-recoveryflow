@@ -322,7 +322,16 @@ final class Health {
 	 * @return array<int,array<string,mixed>>
 	 */
 	public function stage_report(): array {
-		$stored = Stage_Stats::stored();
+		/*
+		 * all(), not stored(). stored() hands back the raw option -- an array
+		 * of arrays -- and every line below reads the entry as an OBJECT. For a
+		 * stage that has never run the `?? new Stage_Stats()` fallback supplied
+		 * one and the report was right; for a stage that HAD run it read
+		 * properties off an array, which PHP answers with null and a warning.
+		 * So the status screen reported zeroes for exactly the stages that had
+		 * done some work, and was correct only about the idle ones.
+		 */
+		$stored = Stage_Stats::all();
 		$report = array();
 
 		foreach ( Scheduler_Interface::STAGES as $stage ) {

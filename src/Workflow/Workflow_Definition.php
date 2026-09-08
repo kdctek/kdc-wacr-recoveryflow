@@ -439,6 +439,40 @@ final class Workflow_Definition {
 	}
 
 	/**
+	 * Whether running this definition needs the WA.cr developer API.
+	 *
+	 * Handing a recovery to a WA.cr Auto Flow is a signed push to a hook and
+	 * needs no API key, so a workflow built only from hand-offs runs on every
+	 * plan. Anything that sends from WordPress needs the developer API, which
+	 * is included from the Scale plan upwards.
+	 *
+	 * The question is asked of the STEPS rather than of the workflow's slug, so
+	 * a hand-off workflow a merchant built themselves is treated exactly like
+	 * the one the plugin seeds. It is asked in one place because two screens
+	 * ask it -- the list, to decide whether a workflow may be opened, and the
+	 * editor, to decide whether it may be stored -- and a list that offers an
+	 * edit the save then refuses is worse than either answer alone.
+	 *
+	 * @param array<string,mixed> $definition A workflow definition.
+	 * @return bool
+	 */
+	public static function needs_developer_api( array $definition ): bool {
+		$steps = isset( $definition['steps'] ) && is_array( $definition['steps'] ) ? $definition['steps'] : array();
+
+		foreach ( $steps as $step ) {
+			if ( ! is_array( $step ) || self::TYPE_ACTION !== ( $step['type'] ?? '' ) ) {
+				continue;
+			}
+
+			if ( 'wacr.start_flow' !== ( $step['do'] ?? '' ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Which channel an action step sends on.
 	 *
 	 * Absent means WhatsApp, so every workflow written before channels existed

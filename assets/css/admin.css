@@ -211,6 +211,124 @@
 	outline-offset: 2px;
 }
 
+/* Workflows --------------------------------------------------------------- */
+
+.recoveryflow-workflow-card {
+	max-width: 46em;
+	margin-bottom: 1.2em;
+}
+
+.recoveryflow-workflow-name {
+	margin-bottom: 0.2em;
+}
+
+.recoveryflow-workflow-meta {
+	margin-top: 0;
+	color: #50575e;
+}
+
+/*
+ * The steps read as a numbered sequence because that is what they are. The
+ * number is the step's position, which is how the editor addresses it and how
+ * a support conversation refers to it ("step 3 never fires"), so it is shown
+ * rather than suppressed with list-style: none.
+ */
+.recoveryflow-step-summary {
+	margin: 0 0 1em 1.6em;
+	padding: 0;
+}
+
+.recoveryflow-step-summary li {
+	margin-bottom: 0.5em;
+}
+
+/*
+ * The kind of step is stated in words, never by colour alone: a badge that is
+ * only distinguishable by its background is invisible to a reader who cannot
+ * tell the backgrounds apart, and unreadable in a black-and-white printout of
+ * the screen pasted into a support thread.
+ */
+.recoveryflow-step-kind {
+	display: inline-block;
+	min-width: 4.5em;
+	margin-right: 0.4em;
+	padding: 0.05em 0.5em;
+	border: 1px solid #c3c4c7;
+	border-radius: 3px;
+	background: #f6f7f7;
+	color: #1d2327;
+	font-size: 0.9em;
+	font-weight: 600;
+}
+
+.recoveryflow-workflow-actions {
+	margin-bottom: 0;
+}
+
+.recoveryflow-step > summary {
+	font-weight: 400;
+}
+
+/*
+ * The controls that reorder a step. They are submit buttons rather than script,
+ * so they are real targets with real labels ("Move step 2 up") that mean
+ * something read out of context, which 2.4.9 asks for at AAA.
+ */
+.recoveryflow-step-controls {
+	margin-bottom: 0;
+}
+
+.recoveryflow-step-controls .button {
+	margin-right: 0.3em;
+}
+
+/*
+ * The reason a template cannot be used. Stated in words with a border to draw
+ * the eye, never by colour alone -- somebody who cannot distinguish the border
+ * colour still reads the sentence, which carries the whole message.
+ */
+.recoveryflow-template-refused {
+	margin: 0.6em 0 0;
+	padding: 0.5em 0.8em;
+	border-left: 4px solid #b32d2e;
+	background: #fcf0f1;
+	max-width: 44em;
+}
+
+.recoveryflow-variables {
+	max-width: 44em;
+	margin-top: 0.4em;
+}
+
+.recoveryflow-variables th {
+	width: 45%;
+	font-weight: 400;
+}
+
+.recoveryflow-diagnostics textarea {
+	font-family: Consolas, Monaco, monospace;
+	font-size: 12px;
+	margin-top: 0.5em;
+}
+
+.recoveryflow-recipe__steps {
+	margin: 0 0 1em 1.6em;
+	max-width: 44em;
+}
+
+.recoveryflow-recipe__steps li {
+	margin-bottom: 0.5em;
+}
+
+.recoveryflow-recipe__payload {
+	max-width: 46em;
+}
+
+.recoveryflow-recipe__payload th {
+	width: 16em;
+	font-weight: 400;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.recoveryflow-settings * {
 		transition: none !important;

@@ -60,6 +60,16 @@ final class Screen {
 	public const SETUP = 'recoveryflow-setup';
 
 	/**
+	 * The list of recovery workflows.
+	 */
+	public const WORKFLOWS = 'recoveryflow-workflows';
+
+	/**
+	 * One workflow's editor.
+	 */
+	public const WORKFLOW = 'recoveryflow-workflow';
+
+	/**
 	 * Which capability each screen needs.
 	 *
 	 * @return array<string,string> Page slug => capability.
@@ -69,6 +79,8 @@ final class Screen {
 			self::OVERVIEW     => Capabilities::VIEW_STATUS,
 			self::JOURNEYS     => Capabilities::VIEW_JOURNEYS,
 			self::JOURNEY      => Capabilities::VIEW_JOURNEYS,
+			self::WORKFLOWS    => Capabilities::MANAGE_WORKFLOWS,
+			self::WORKFLOW     => Capabilities::MANAGE_WORKFLOWS,
 			self::INTEGRATIONS => Capabilities::MANAGE_SETTINGS,
 			self::SETTINGS     => Capabilities::MANAGE_SETTINGS,
 			self::STATUS       => Capabilities::VIEW_STATUS,
@@ -178,5 +190,19 @@ final class Screen {
 	 */
 	public static function journey_url( string $uid ): string {
 		return self::url( self::JOURNEY, array( 'journey' => $uid ) );
+	}
+
+	/**
+	 * The URL of one workflow's editor.
+	 *
+	 * An id of 0 addresses the editor with nothing loaded, which is how a new
+	 * workflow is started: the screen is the same one either way, so there is
+	 * no second "add" screen to keep in step with it.
+	 *
+	 * @param int $id Workflow id, or 0 for a new one.
+	 * @return string
+	 */
+	public static function workflow_url( int $id = 0 ): string {
+		return self::url( self::WORKFLOW, array( 'workflow' => $id ) );
 	}
 }

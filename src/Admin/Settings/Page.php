@@ -8,6 +8,7 @@
 namespace WAcr\RecoveryFlow\Admin\Settings;
 
 use WAcr\RecoveryFlow\Admin\Connection_Test;
+use WAcr\RecoveryFlow\Admin\Hook_Test;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Recovery\Channel;
@@ -180,6 +181,7 @@ final class Page {
 
 		settings_errors();
 		Connection_Test::notice();
+		Hook_Test::notice();
 
 		self::tab_bar( $tabs, $current );
 
@@ -354,6 +356,10 @@ final class Page {
 				self::wacr_connection();
 				break;
 
+			case 'auto_flow':
+				self::auto_flow();
+				break;
+
 			case 'signposts':
 				self::signposts();
 				break;
@@ -484,6 +490,99 @@ final class Page {
 		}
 
 		Connection_Test::button();
+	}
+
+	/**
+	 * How to build the Auto Flow on the other end of the hook.
+	 *
+	 * The hand-off is the path that works on every WA.cr plan, which makes it
+	 * the path most merchants take -- and it is the one where everything that
+	 * matters happens somewhere else. A merchant pastes an address here and
+	 * then has to go and build the thing that receives it, with no statement
+	 * anywhere of what will arrive. Guessing wrong shows up as recovery
+	 * quietly not happening.
+	 *
+	 * So the payload is written down, exactly, next to the address. WA.cr seeds
+	 * every top-level scalar of a hook body as a run variable named
+	 * `hook_<key>`, so this list IS the list of variables the flow will find
+	 * waiting for it -- the names are not an example, they are the names.
+	 *
+	 * @return void
+	 */
+	private static function auto_flow(): void {
+		Hook_Test::button();
+
+		echo '<details class="recoveryflow-details recoveryflow-recipe">';
+		printf( '<summary>%s</summary>', esc_html__( 'What to build in WA.cr, and what this site sends it', 'kdc-wacr-recoveryflow' ) );
+
+		echo '<ol class="recoveryflow-recipe__steps">';
+
+		foreach ( self::recipe_steps() as $step ) {
+			printf( '<li>%s</li>', esc_html( $step ) );
+		}
+
+		echo '</ol>';
+
+		printf(
+			'<p>%s</p>',
+			esc_html__( 'Every push carries the same keys, always, even when a value is empty -- a flow that refers to a variable the payload left out prints the placeholder to the customer instead of a name. WA.cr turns each one into a variable called hook_ plus the key, so "first_name" reaches your flow as hook_first_name.', 'kdc-wacr-recoveryflow' )
+		);
+
+		echo '<table class="widefat striped recoveryflow-recipe__payload"><thead><tr>';
+		printf( '<th scope="col">%s</th>', esc_html__( 'Variable in your flow', 'kdc-wacr-recoveryflow' ) );
+		printf( '<th scope="col">%s</th>', esc_html__( 'What it holds', 'kdc-wacr-recoveryflow' ) );
+		echo '</tr></thead><tbody>';
+
+		foreach ( self::payload_keys() as $key => $meaning ) {
+			printf(
+				'<tr><th scope="row"><code>hook_%1$s</code></th><td>%2$s</td></tr>',
+				esc_html( (string) $key ),
+				esc_html( (string) $meaning )
+			);
+		}
+
+		echo '</tbody></table>';
+		echo '</details>';
+	}
+
+	/**
+	 * The steps for building the receiving flow, in order.
+	 *
+	 * @return string[]
+	 */
+	private static function recipe_steps(): array {
+		return array(
+			__( 'In WA.cr, create an Auto Flow and give it a Webhook trigger.', 'kdc-wacr-recoveryflow' ),
+			__( 'Copy the webhook address it shows you and paste it into the box above, then save.', 'kdc-wacr-recoveryflow' ),
+			__( 'Turn on signing in WA.cr, copy the secret it generates, and paste that in as well. Without it, the address on its own is enough for anybody who learns it to start your flow.', 'kdc-wacr-recoveryflow' ),
+			__( 'Add whatever the flow should do -- usually one Send Template step, then a wait, then another. The timing and the wording live in WA.cr on this path; this site only says that a basket was left behind.', 'kdc-wacr-recoveryflow' ),
+			__( 'Use "Send a test push" above to prove the address before a real basket depends on it.', 'kdc-wacr-recoveryflow' ),
+		);
+	}
+
+	/**
+	 * Every key a push carries, and what it means.
+	 *
+	 * @return array<string,string>
+	 */
+	public static function payload_keys(): array {
+		return array(
+			'event'         => __( 'Always recovery.journey_eligible, so one flow can serve more than one sender.', 'kdc-wacr-recoveryflow' ),
+			'journey_uid'   => __( 'This recovery\'s own reference. Worth logging: it is what a support question will be about.', 'kdc-wacr-recoveryflow' ),
+			'source'        => __( 'Which integration noticed, such as woocommerce.', 'kdc-wacr-recoveryflow' ),
+			'source_type'   => __( 'What was left behind, such as cart or checkout.', 'kdc-wacr-recoveryflow' ),
+			'phone'         => __( 'The customer\'s number in full international form. Empty on a test push.', 'kdc-wacr-recoveryflow' ),
+			'first_name'    => __( 'The customer\'s first name, if the shop has one.', 'kdc-wacr-recoveryflow' ),
+			'currency'      => __( 'The three-letter currency code.', 'kdc-wacr-recoveryflow' ),
+			'total'         => __( 'What the basket comes to, as a plain number with two decimals and no symbol.', 'kdc-wacr-recoveryflow' ),
+			'item_count'    => __( 'How many items are in it.', 'kdc-wacr-recoveryflow' ),
+			'items_summary' => __( 'A short readable list of what is in it.', 'kdc-wacr-recoveryflow' ),
+			'recovery_url'  => __( 'The link that puts the basket back. This is the one to put in your button.', 'kdc-wacr-recoveryflow' ),
+			'opt_out_url'   => __( 'The link that stops the reminders. Include it: a recovery message is marketing.', 'kdc-wacr-recoveryflow' ),
+			'site_name'     => __( 'The shop\'s name.', 'kdc-wacr-recoveryflow' ),
+			'site_url'      => __( 'The shop\'s address.', 'kdc-wacr-recoveryflow' ),
+			'abandoned_at'  => __( 'When the basket was last touched, as an ISO 8601 timestamp in UTC.', 'kdc-wacr-recoveryflow' ),
+		);
 	}
 
 	/**

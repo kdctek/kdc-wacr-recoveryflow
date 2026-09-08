@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Admin\Pages;
 
+use WAcr\RecoveryFlow\Admin\Diagnostics;
 use WAcr\RecoveryFlow\Core\Health;
 use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
 use WAcr\RecoveryFlow\Security\Capabilities;
@@ -34,12 +35,21 @@ final class System_Status {
 	private Health $health;
 
 	/**
+	 * The support report.
+	 *
+	 * @var Diagnostics
+	 */
+	private Diagnostics $diagnostics;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Health $health The health checks.
+	 * @param Health      $health      The health checks.
+	 * @param Diagnostics $diagnostics The support report. The health checks.
 	 */
-	public function __construct( Health $health ) {
-		$this->health = $health;
+	public function __construct( Health $health, Diagnostics $diagnostics ) {
+		$this->health      = $health;
+		$this->diagnostics = $diagnostics;
 	}
 
 	/**
@@ -57,6 +67,7 @@ final class System_Status {
 
 		$this->checks();
 		$this->stages();
+		$this->diagnostics->render();
 
 		echo '</div>';
 	}

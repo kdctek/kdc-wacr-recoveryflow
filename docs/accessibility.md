@@ -43,7 +43,11 @@ Each item is checked in code review and, where a tool can catch it, by `tests/a1
 | Set RecoveryFlow up | The screen a fresh activation lands on. One `.card` with one step -- the API key field, labelled, `type="password"`, its help associated by `aria-describedby` -- plus a "Skip for now" link. The outcome of a connect attempt is a `role="status"` notice, so it is announced after the page loads without moving anybody's focus |
 | Public pages | Opt-out confirmation, opt-out done and invalid-link templates: single heading, plain text, one form with one button, no scripts |
 
-Not built yet: the workflows screen (slice 2), bulk actions and row actions on the queue, "Copy diagnostic report", and the WP-Cron "Run now" button.
+The workflows screen and its editor are built. Each step is a native `<details>` panel, so it is keyboard-reachable and needs no ARIA; add, remove and move are ordinary submit buttons with labels that stand up out of context ("Move step 2 up"), which is what 2.4.9 asks for at AAA; and every choice is a `<select>` or a number rather than free text, so nothing depends on knowing a syntax. The editor ships no JavaScript at all.
+
+The diagnostic report is built. It is a read-only `<textarea>` with a real label, which can be selected and copied by hand in any browser with scripts switched off; the "Copy the report" button is an enhancement on top of that and announces success or failure through the same live region the rest of the screen uses.
+
+Not built yet: bulk actions and row actions on the queue, and the WP-Cron "Run now" button.
 
 The setup screen has one step rather than four on purpose. Every later thing a wizard would ask -- which channel, how messages are sent, consent, retention -- already has a control on the settings screen with its own deeplink, and a wizard whose remaining steps restate settings that exist elsewhere is a wizard people learn to click through without reading. Connecting a workspace is the only thing on it because it is the only thing RecoveryFlow cannot do for itself.
 

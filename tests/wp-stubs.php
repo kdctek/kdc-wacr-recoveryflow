@@ -186,6 +186,13 @@ function wp_strip_all_tags( $value, $remove_breaks = false ) {
 
 	return trim( $value );
 }
+function sanitize_title( $value ) {
+	$value = strtolower( trim( strip_tags( (string) $value ) ) );
+	$value = preg_replace( '/[^a-z0-9\s\-_]/', '', $value );
+	$value = preg_replace( '/[\s_]+/', '-', (string) $value );
+
+	return trim( preg_replace( '/-+/', '-', (string) $value ), '-' );
+}
 function sanitize_key( $value ) {
 	return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $value ) );
 }
@@ -253,6 +260,15 @@ function wp_remote_retrieve_body( $response ) {
 }
 function wp_remote_retrieve_header( $response, $header ) {
 	return $response['headers'][ $header ] ?? '';
+}
+function wp_specialchars_decode( $value, $quote_style = ENT_NOQUOTES ) {
+	return html_entity_decode( (string) $value, is_int( $quote_style ) ? $quote_style : ENT_QUOTES, 'UTF-8' );
+}
+function wp_timezone_string() {
+	return 'Europe/London';
+}
+function get_locale() {
+	return 'en_GB';
 }
 function get_bloginfo( $what = '' ) {
 	return 'version' === $what ? '6.9' : 'Example Store';
@@ -510,6 +526,15 @@ function flush_rewrite_rules( $hard = true ) {}
 function wp_next_scheduled( $hook, $args = array() ) {
 	return false;
 }
+function wp_schedule_single_event( $timestamp, $hook, $args = array() ) {
+	$GLOBALS['__single_events'][] = array(
+		'timestamp' => $timestamp,
+		'hook'      => $hook,
+		'args'      => $args,
+	);
+
+	return true;
+}
 function wp_unschedule_event( $timestamp, $hook, $args = array() ) {}
 function wp_clear_scheduled_hook( $hook, $args = array() ) {}
 
@@ -623,6 +648,19 @@ class Fake_Wpdb extends wpdb {
 	public $insert_id = 0;
 	public $last_error = '';
 
+	/**
+	 * Rows to hand back, keyed by a fragment of the query that asks for them.
+	 *
+	 * Empty by default, so a test that primes nothing sees exactly the empty
+	 * results this stub has always returned. It exists because a screen whose
+	 * job is to put stored rows into words cannot be tested against a store
+	 * that is always empty: "the screen renders" would pass while the screen
+	 * showed nothing at all.
+	 *
+	 * @var array<string,array<int,array<string,mixed>>>
+	 */
+	public $rows = array();
+
 	public function get_charset_collate() {
 		return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci';
 	}
@@ -638,20 +676,68 @@ class Fake_Wpdb extends wpdb {
 	}
 	public function query( $sql ) {
 		$this->queries[] = $sql;
+
+		// Real wpdb sets insert_id on an INSERT, and repositories here read it
+		// straight back to learn the new row's id. A stub that leaves it at
+		// zero reports an insert that worked and produced no row, so every
+		// create path looks like a lost race and no test can reach the code
+		// after it.
+		if ( 0 === stripos( ltrim( (string) $sql ), 'INSERT' ) ) {
+			$this->insert_id = ++$GLOBALS['__fake_insert_id'];
+		}
+
 		return 1;
 	}
 	public function get_row( $sql, $output = null ) {
 		$this->queries[] = $sql;
-		return null;
+		$rows            = $this->primed( $sql );
+
+		return array() === $rows ? null : $rows[0];
 	}
 	public function get_results( $sql, $output = null ) {
 		$this->queries[] = $sql;
+
+		return $this->primed( $sql );
+	}
+	private function primed( $sql ) {
+		foreach ( $this->rows as $fragment => $rows ) {
+			if ( false !== strpos( (string) $sql, (string) $fragment ) ) {
+				return $rows;
+			}
+		}
+
 		return array();
 	}
 	public function get_var( $sql ) {
 		$this->queries[] = $sql;
 		return null;
 	}
+	/*
+	 * The write half. Without these, every repository path that ends in a write
+	 * fatals rather than fails -- and a fatal reads as a failing suite, so a
+	 * mutation that reached one was recorded as caught while nothing had
+	 * exercised a successful write at all. They record the call and report one
+	 * row affected, which is enough to let the code above the database run.
+	 */
+	public $writes = array();
+	public function insert( $table, $data, $format = null ) {
+		$this->writes[]  = array( 'insert', $table, $data );
+		$this->insert_id = count( $this->writes );
+
+		return 1;
+	}
+	public function update( $table, $data, $where, $format = null, $where_format = null ) {
+		$this->writes[] = array( 'update', $table, $data, $where );
+
+		return 1;
+	}
+	public function delete( $table, $where, $where_format = null ) {
+		$this->writes[] = array( 'delete', $table, $where );
+
+		return 1;
+	}
 }
 
-$GLOBALS['wpdb'] = new Fake_Wpdb();
+$GLOBALS['__single_events']  = array();
+$GLOBALS['__fake_insert_id'] = 0;
+$GLOBALS['wpdb']            = new Fake_Wpdb();
