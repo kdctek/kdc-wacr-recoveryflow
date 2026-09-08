@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T19:39:38+00:00\n"
+"POT-Creation-Date: 2026-09-08T19:48:25+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -160,20 +160,46 @@ msgstr ""
 msgid "You are not allowed to work the recovery queue on this site."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:123
+#: src/Admin/Journey_Actions.php:157
+msgid "No recoveries were selected, so nothing was done."
+msgstr ""
+
+#. translators: 1: the recovery's public reference, 2: the reason it was refused.
+#. translators: 1: what happened to a message. 2: the error code the messaging service gave.
+#: src/Admin/Journey_Actions.php:179
+#: src/Admin/Pages/Journey_Detail.php:338
+#, php-format
+msgid "%1$s (%2$s)"
+msgstr ""
+
+#. translators: %d: how many recoveries the action succeeded on.
+#: src/Admin/Journey_Actions.php:187
+#, php-format
+msgid "%d recovery was updated."
+msgid_plural "%d recoveries were updated."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: a comma-separated list of references, each with its reason.
+#: src/Admin/Journey_Actions.php:194
+#, php-format
+msgid "These were not: %s"
+msgstr ""
+
+#: src/Admin/Journey_Actions.php:221
 msgid "That is not something RecoveryFlow can do to a recovery."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:164
+#: src/Admin/Journey_Actions.php:262
 msgid "This recovery is back in the queue. Nothing has been sent yet: the next background pass will try it, and will still check consent, opt-outs and quiet hours before anything goes out."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:173
+#: src/Admin/Journey_Actions.php:271
 msgid "There were no working links on this recovery, so nothing changed. Any link already sent for it had expired or been revoked already."
 msgstr ""
 
 #. translators: %d: how many recovery links stopped working.
-#: src/Admin/Journey_Actions.php:178
+#: src/Admin/Journey_Actions.php:276
 #, php-format
 msgid "%d recovery link has stopped working. The recovery itself is still running, so a later step may send a new one."
 msgid_plural "%d recovery links have stopped working. The recovery itself is still running, so a later step may send a new one."
@@ -181,52 +207,52 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: 1: how many contact details were silenced, 2: how many recoveries were stopped.
-#: src/Admin/Journey_Actions.php:190
+#: src/Admin/Journey_Actions.php:288
 #, php-format
 msgid "This customer will not be messaged again. %1$d contact detail was silenced and %2$d open recovery was stopped, along with its links."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:196
+#: src/Admin/Journey_Actions.php:294
 msgid "This recovery has been cancelled and its links no longer work. Nothing further will be sent for it."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:207
+#: src/Admin/Journey_Actions.php:305
 msgid "Act on this recovery"
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:212
+#: src/Admin/Journey_Actions.php:310
 msgid "Acting on a recovery needs the \"recoveryflow_manage_journeys\" permission, which this account does not have. Reading the queue and changing it are separate permissions."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:262
+#: src/Admin/Journey_Actions.php:360
 msgid "Try this recovery again"
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:263
+#: src/Admin/Journey_Actions.php:361
 msgid "Puts it back in the queue. It does not send anything now, and consent, opt-outs and quiet hours are all still checked before it does."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:269
+#: src/Admin/Journey_Actions.php:367
 msgid "Stop this recovery"
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:270
+#: src/Admin/Journey_Actions.php:368
 msgid "Nothing further is sent for it and its links stop working. This cannot be undone."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:275
+#: src/Admin/Journey_Actions.php:373
 msgid "Stop the links working"
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:276
+#: src/Admin/Journey_Actions.php:374
 msgid "For a link that has gone somewhere it should not have. The recovery keeps running, so a later step may send a new link. Links already sent stop working for good."
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:280
+#: src/Admin/Journey_Actions.php:378
 msgid "Never message this customer again"
 msgstr ""
 
-#: src/Admin/Journey_Actions.php:281
+#: src/Admin/Journey_Actions.php:379
 msgid "For somebody who has asked by telephone or in person. It stops every open recovery for them, on every contact detail they have given, and survives being forgotten under a privacy request. This cannot be undone from here."
 msgstr ""
 
@@ -262,7 +288,7 @@ msgstr ""
 
 #: src/Admin/Menu.php:238
 #: src/Admin/Menu.php:239
-#: src/Admin/Pages/Journeys.php:81
+#: src/Admin/Pages/Journeys.php:82
 #: src/Admin/Pages/Overview.php:170
 msgid "Recoveries"
 msgstr ""
@@ -299,7 +325,7 @@ msgid "RecoveryFlow status"
 msgstr ""
 
 #: src/Admin/Menu.php:259
-#: src/Admin/Pages/Journeys_Table.php:89
+#: src/Admin/Pages/Journeys_Table.php:104
 #: src/Admin/Pages/Journey_Detail.php:166
 msgid "Status"
 msgstr ""
@@ -332,78 +358,112 @@ msgstr ""
 msgid "Settings for %s"
 msgstr ""
 
-#: src/Admin/Pages/Journeys.php:70
+#: src/Admin/Pages/Journeys.php:71
 #: src/Admin/Pages/Journey_Detail.php:111
 msgid "You do not have permission to view recoveries."
 msgstr ""
 
-#: src/Admin/Pages/Journeys.php:84
+#: src/Admin/Pages/Journeys.php:85
 msgid "Every basket a shopper left behind, and what has been done about it. Contact details are shortened here; open a recovery to see them in full."
 msgstr ""
 
-#: src/Admin/Pages/Journeys.php:92
+#: src/Admin/Pages/Journeys.php:106
 msgid "Search by reference"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:87
+#: src/Admin/Pages/Journeys_Table.php:102
 msgid "Reference"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:88
+#: src/Admin/Pages/Journeys_Table.php:103
 #: src/Admin/Pages/Journey_Detail.php:198
 #: src/Admin/Pages/Journey_Detail.php:207
 #: src/Admin/Pages/Journey_Detail.php:225
 msgid "Customer"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:90
+#: src/Admin/Pages/Journeys_Table.php:105
 msgid "Basket"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:91
+#: src/Admin/Pages/Journeys_Table.php:106
 msgid "Reminders"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:92
+#: src/Admin/Pages/Journeys_Table.php:107
 msgid "Next step"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:93
+#: src/Admin/Pages/Journeys_Table.php:108
 #: src/Admin/Pages/Journey_Detail.php:167
 #: src/Privacy/Exporter.php:291
 msgid "Started"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:161
+#. translators: %s: the recovery's public reference.
+#: src/Admin/Pages/Journeys_Table.php:132
+#, php-format
+msgid "Select recovery %s"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:163
+msgid "Stop these recoveries"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:164
+msgid "Try these again"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:165
+msgid "Stop their links working"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:166
+msgid "Never message these customers again"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:171
+msgid "Choose what to do with the selected recoveries"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:175
+msgid "Bulk actions"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:185
+msgid "Apply"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:288
 msgid "All"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:201
+#: src/Admin/Pages/Journeys_Table.php:328
 msgid "No recoveries yet. They appear here once a shopper leaves something behind."
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:227
+#: src/Admin/Pages/Journeys_Table.php:354
 #: src/Admin/Pages/Journey_Detail.php:168
 msgid "Nothing scheduled"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:295
+#: src/Admin/Pages/Journeys_Table.php:422
 msgid "Open and act on it"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:296
+#: src/Admin/Pages/Journeys_Table.php:423
 msgid "Open"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:333
+#: src/Admin/Pages/Journeys_Table.php:460
 msgid "Not known"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:349
+#: src/Admin/Pages/Journeys_Table.php:476
 msgid "Not identified"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:353
+#: src/Admin/Pages/Journeys_Table.php:480
 #: src/REST/Journeys_Controller.php:573
 msgid "Removed at the customer's request"
 msgstr ""
@@ -547,12 +607,6 @@ msgstr ""
 #: src/Admin/Pages/Journey_Detail.php:324
 #: src/Admin/Pages/System_Status.php:89
 msgid "Result"
-msgstr ""
-
-#. translators: 1: what happened to a message. 2: the error code the messaging service gave.
-#: src/Admin/Pages/Journey_Detail.php:338
-#, php-format
-msgid "%1$s (%2$s)"
 msgstr ""
 
 #: src/Admin/Pages/Journey_Detail.php:349

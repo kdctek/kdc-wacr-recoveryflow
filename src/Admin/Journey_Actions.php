@@ -94,14 +94,112 @@ final class Journey_Actions {
 
 		check_admin_referer( self::ACTION );
 
-		$uid = isset( $_POST['journey'] ) ? sanitize_text_field( wp_unslash( $_POST['journey'] ) ) : '';
 		$act = isset( $_POST['recoveryflow_action'] ) ? sanitize_key( wp_unslash( $_POST['recoveryflow_action'] ) ) : '';
 
-		set_transient( self::transient_key(), $this->run( $uid, $act ), self::RESULT_TTL );
+		/*
+		 * One form posts a single reference and the queue's bulk form posts an
+		 * array of them, and they are otherwise the same post: same nonce, same
+		 * action name, same vocabulary. Reading both here is what keeps there
+		 * from being a second handler with a second idea of what may be done.
+		 */
+		$posted = isset( $_POST['journey'] )
+			? map_deep( wp_unslash( $_POST['journey'] ), 'sanitize_text_field' )
+			: '';
+		$many   = is_array( $posted );
 
-		wp_safe_redirect( '' === $uid ? Screen::url( Screen::JOURNEYS ) : Screen::journey_url( $uid ) );
+		$uids = array_values(
+			array_filter(
+				array_map(
+					static fn ( $value ): string => (string) $value,
+					$many ? $posted : array( $posted )
+				),
+				static fn ( string $value ): bool => '' !== $value
+			)
+		);
+
+		set_transient( self::transient_key(), $this->run_many( $uids, $act ), self::RESULT_TTL );
+
+		/*
+		 * A bulk post came from the queue and goes back to the queue. Sending
+		 * somebody to the first of the eleven recoveries they just acted on
+		 * would lose the list they were working through.
+		 */
+		wp_safe_redirect(
+			$many || 1 !== count( $uids )
+				? Screen::url( Screen::JOURNEYS )
+				: Screen::journey_url( $uids[0] )
+		);
 
 		exit;
+	}
+
+	/**
+	 * Run one action over any number of recoveries and summarise it.
+	 *
+	 * Every recovery goes through `run()` -- and therefore through the REST
+	 * controller -- one at a time. Nothing here decides whether a recovery may
+	 * be cancelled or retried; a bulk action that answered that question itself
+	 * would be a second set of rules, and the one nobody exercised would be the
+	 * one that messaged somebody who had opted out.
+	 *
+	 * Refusals are reported BY REFERENCE rather than counted. "Three were
+	 * refused" tells a shop worker nothing they can act on; naming them tells
+	 * them which three to open.
+	 *
+	 * @param string[] $uids   The recoveries' public references.
+	 * @param string   $action One of Journeys_Controller::ACTIONS.
+	 * @return array{ok:bool,message:string}
+	 */
+	public function run_many( array $uids, string $action ): array {
+		if ( array() === $uids ) {
+			return array(
+				'ok'      => false,
+				'message' => __( 'No recoveries were selected, so nothing was done.', 'kdc-wacr-recoveryflow' ),
+			);
+		}
+
+		if ( 1 === count( $uids ) ) {
+			return $this->run( $uids[0], $action );
+		}
+
+		$done   = 0;
+		$argued = array();
+
+		foreach ( $uids as $uid ) {
+			$result = $this->run( $uid, $action );
+
+			if ( $result['ok'] ) {
+				++$done;
+
+				continue;
+			}
+
+			$argued[] = sprintf(
+				/* translators: 1: the recovery's public reference, 2: the reason it was refused. */
+				__( '%1$s (%2$s)', 'kdc-wacr-recoveryflow' ),
+				$uid,
+				$result['message']
+			);
+		}
+
+		$message = sprintf(
+			/* translators: %d: how many recoveries the action succeeded on. */
+			_n( '%d recovery was updated.', '%d recoveries were updated.', $done, 'kdc-wacr-recoveryflow' ),
+			$done
+		);
+
+		if ( array() !== $argued ) {
+			$message .= ' ' . sprintf(
+				/* translators: %s: a comma-separated list of references, each with its reason. */
+				__( 'These were not: %s', 'kdc-wacr-recoveryflow' ),
+				implode( ', ', $argued )
+			);
+		}
+
+		return array(
+			'ok'      => 0 < $done,
+			'message' => $message,
+		);
 	}
 
 	/**

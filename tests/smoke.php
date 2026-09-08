@@ -901,6 +901,37 @@ function kdc_wacr_recoveryflow_method_body( string $file, string $method ): stri
 	return '';
 }
 
+/**
+ * The same body with every comment removed.
+ *
+ * A source-inspecting assertion that matches a word in a COMMENT is asserting
+ * that somebody wrote a sentence, not that the code does anything -- and the
+ * comment explaining a rule almost always quotes the rule, so the two match the
+ * same string. That is how "the queue acts through a POST to admin-post.php"
+ * survived the mutation that changed the form to a GET: the docblock above it
+ * still said admin-post.php.
+ *
+ * Comments are stripped through the tokeniser rather than by regular
+ * expression, because a `//` inside a string literal is not a comment and this
+ * file is full of URLs.
+ *
+ * @param string $body A method body, from the function above.
+ * @return string
+ */
+function kdc_wacr_recoveryflow_code_only( string $body ): string {
+	$code = '';
+
+	foreach ( token_get_all( '<?php ' . $body ) as $token ) {
+		if ( is_array( $token ) && in_array( $token[0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) {
+			continue;
+		}
+
+		$code .= is_array( $token ) ? $token[1] : $token;
+	}
+
+	return $code;
+}
+
 $activate = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Core/Activator.php', 'activate' );
 $upgrade  = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Core/Upgrader.php', 'maybe_upgrade' );
 
@@ -4905,6 +4936,83 @@ ok(
 	false !== strpos( $recoveryflow_buttons_html, 'It does not send anything now' )
 );
 
+/*
+ * Working the queue in bulk. The whole design goal is that this adds a control
+ * and not a second set of rules, so what is asserted is mostly that it DID NOT
+ * grow one: every selected recovery goes through the same run(), which goes
+ * through the same REST controller.
+ */
+$recoveryflow_acts = $plugin->admin_journey_acts();
+
+$recoveryflow_bulk_none = $recoveryflow_acts->run_many( array(), 'cancel' );
+
+ok( 'a bulk action with nothing ticked refuses rather than reporting success', false === $recoveryflow_bulk_none['ok'] );
+
+check(
+	'one recovery selected gives exactly what the single-recovery form gives',
+	$recoveryflow_acts->run_many( array( 'rec-900-abcdef' ), 'send_now' ),
+	$recoveryflow_acts->run( 'rec-900-abcdef', 'send_now' )
+);
+
+/*
+ * Refusals are named rather than counted. "Two were refused" is not something a
+ * shop worker can act on; two references are.
+ */
+$recoveryflow_bulk_many = $recoveryflow_acts->run_many( array( 'rec-900-aaaaaa', 'rec-900-bbbbbb' ), 'send_now' );
+
+ok(
+	'a bulk refusal names each recovery it refused',
+	false !== strpos( $recoveryflow_bulk_many['message'], 'rec-900-aaaaaa' )
+		&& false !== strpos( $recoveryflow_bulk_many['message'], 'rec-900-bbbbbb' )
+);
+ok( 'and a bulk run where nothing succeeded is not reported as a success', false === $recoveryflow_bulk_many['ok'] );
+
+/*
+ * The bulk select cannot be called `action`. That name already means "which
+ * admin-post handler" on this form, so core's own naming would post a bulk verb
+ * into the slot that chooses the handler and the whole form would go nowhere.
+ */
+$recoveryflow_bulk_src = kdc_wacr_recoveryflow_code_only(
+	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys_Table.php', 'bulk_actions' )
+);
+
+ok(
+	'the bulk select posts under the same name the single-recovery form uses',
+	false !== strpos( $recoveryflow_bulk_src, 'name="recoveryflow_action"' )
+);
+ok(
+	'and never under core\'s name, which this form has already spent on the handler',
+	false === strpos( $recoveryflow_bulk_src, 'name="action"' )
+);
+
+/*
+ * Core's display_tablenav() opens with wp_nonce_field(), which writes both a
+ * name this handler does not check and an id this plugin removed from every
+ * other form on accessibility grounds. Overridden, and asserted in both
+ * directions so restoring core's call fails here.
+ */
+$recoveryflow_tablenav_src = kdc_wacr_recoveryflow_code_only(
+	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys_Table.php', 'display_tablenav' )
+);
+
+ok( 'the queue writes its nonce through the field that carries no id', false !== strpos( $recoveryflow_tablenav_src, 'Nonce_Field::render' ) );
+ok( 'and not through the core call that would put a second #_wpnonce on the screen', false === strpos( $recoveryflow_tablenav_src, 'wp_nonce_field(' ) );
+
+// And the queue screen posts its actions rather than getting them, for the same
+// reason a row action is not a link that does something.
+$recoveryflow_queue_src = kdc_wacr_recoveryflow_code_only(
+	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys.php', 'render' )
+);
+
+ok( 'the queue screen can be read', strlen( $recoveryflow_queue_src ) > 50 );
+ok(
+	'the queue acts through a POST to admin-post.php',
+	false !== strpos( $recoveryflow_queue_src, 'method="post"' )
+		&& false !== strpos( $recoveryflow_queue_src, "admin_url( 'admin-post.php' )" )
+);
+ok( 'and still searches over GET, so a filtered queue stays a linkable address', false !== strpos( $recoveryflow_queue_src, 'method="get"' ) );
+ok( 'and reports what a bulk action did', false !== strpos( $recoveryflow_queue_src, 'Journey_Actions::notice' ) );
+
 $GLOBALS['wpdb']->rows = array();
 
 
@@ -6058,7 +6166,9 @@ ok(
 $recoveryflow_route_flat = (string) preg_replace(
 	'/\s+/',
 	' ',
-	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'route' )
+	kdc_wacr_recoveryflow_code_only(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'route' )
+	)
 );
 
 ok(

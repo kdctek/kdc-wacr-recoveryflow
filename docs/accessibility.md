@@ -51,7 +51,28 @@ The "Run now" button on the status screen is built. It is an ordinary form posti
 
 The queue's row action opens a recovery and changes nothing. The four things that DO change one -- stop it, try it again, stop its links working, never message this customer again -- are POST buttons on the recovery's own screen, each with a sentence saying what it will do before it is pressed, because three of them cannot be undone. They are not row actions on the list on purpose: a row action is an anchor, and an anchor that cancels somebody's recovery is fetched by anything that follows links -- a prefetcher, a crawler, the antivirus proxy that opens every URL in an incoming email. A nonce is no defence, because the link in the page carries a valid one. Somebody who may read the queue but not change it is told which permission is missing rather than finding the buttons silently absent.
 
-Not built yet: bulk actions on the queue.
+The queue also acts in bulk, and it is the same four things through the same
+handler. Each row carries a tick-box labelled with the recovery's own reference,
+so a screen reader announces "Select recovery rec-812-4f9c1a" rather than
+twenty-five identical "Select" boxes; the chooser is a labelled `<select>` and an
+ordinary submit button, with no script in the path. The tick-boxes appear only
+for somebody who may act -- reading the queue and changing it are separate
+permissions, and a read-only view should look read-only rather than offering
+controls that answer "you are not allowed to do that".
+
+Two structural notes, because both were traps rather than choices. The screen
+carries **two forms**: searching and filtering stay `GET`, so a filtered queue is
+still a linkable address and the run above can check one by URL, while acting is
+`POST` to `admin-post.php` for the same reason a row action is not a link that
+does something. And the bulk chooser is named `recoveryflow_action` rather than
+core's `action`, which on a form posting to `admin-post.php` already means "which
+handler" -- core's own naming would have posted a bulk verb into the slot that
+picks the handler, and the form would have failed closed and silently.
+
+Nothing about what may be done changes in bulk. Every ticked recovery goes
+through the single-recovery handler one at a time, so the rules are decided
+once; a refusal is reported by reference rather than counted, because "three were
+refused" is not something a shop worker can act on and three references are.
 
 The setup screen has one step rather than four on purpose. Every later thing a wizard would ask -- which channel, how messages are sent, consent, retention -- already has a control on the settings screen with its own deeplink, and a wizard whose remaining steps restate settings that exist elsewhere is a wizard people learn to click through without reading. Connecting a workspace is the only thing on it because it is the only thing RecoveryFlow cannot do for itself.
 

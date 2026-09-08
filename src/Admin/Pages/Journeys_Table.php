@@ -7,6 +7,8 @@
 
 namespace WAcr\RecoveryFlow\Admin\Pages;
 
+use WAcr\RecoveryFlow\Admin\Journey_Actions;
+use WAcr\RecoveryFlow\Admin\Nonce_Field;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Customer\Mask;
@@ -83,15 +85,140 @@ final class Journeys_Table extends \WP_List_Table {
 	 * @return array<string,string>
 	 */
 	public function get_columns(): array {
-		return array(
-			'reference'  => __( 'Reference', 'kdc-wacr-recoveryflow' ),
-			'customer'   => __( 'Customer', 'kdc-wacr-recoveryflow' ),
-			'status'     => __( 'Status', 'kdc-wacr-recoveryflow' ),
-			'amount'     => __( 'Basket', 'kdc-wacr-recoveryflow' ),
-			'reminders'  => __( 'Reminders', 'kdc-wacr-recoveryflow' ),
-			'next'       => __( 'Next step', 'kdc-wacr-recoveryflow' ),
-			'created_at' => __( 'Started', 'kdc-wacr-recoveryflow' ),
+		/*
+		 * The tick-boxes appear only for somebody who may actually act. A
+		 * column of controls that answers "you are not allowed to do that" is
+		 * worse than no column: reading the queue and changing it are separate
+		 * permissions here, and the read-only view should look read-only.
+		 */
+		$columns = $this->can_manage()
+			// phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment -- core renders the select-all box from this slot; it carries no text.
+			? array( 'cb' => '<input type="checkbox" />' )
+			: array();
+
+		return array_merge(
+			$columns,
+			array(
+				'reference'  => __( 'Reference', 'kdc-wacr-recoveryflow' ),
+				'customer'   => __( 'Customer', 'kdc-wacr-recoveryflow' ),
+				'status'     => __( 'Status', 'kdc-wacr-recoveryflow' ),
+				'amount'     => __( 'Basket', 'kdc-wacr-recoveryflow' ),
+				'reminders'  => __( 'Reminders', 'kdc-wacr-recoveryflow' ),
+				'next'       => __( 'Next step', 'kdc-wacr-recoveryflow' ),
+				'created_at' => __( 'Started', 'kdc-wacr-recoveryflow' ),
+			)
 		);
+	}
+
+	/**
+	 * The tick-box for one row.
+	 *
+	 * The value is the public reference, not the row id, because that is what
+	 * every other way of acting on a recovery is addressed by -- the REST
+	 * route, the single-recovery form and the CLI. One vocabulary means the
+	 * bulk form posts exactly what the single form posts, and one handler reads
+	 * both.
+	 *
+	 * @param Recovery_Journey $item The recovery.
+	 * @return string
+	 */
+	public function column_cb( $item ): string {
+		return sprintf(
+			'<input type="checkbox" name="journey[]" value="%1$s" id="recoveryflow-select-%1$s" /><label for="recoveryflow-select-%1$s" class="screen-reader-text">%2$s</label>',
+			esc_attr( $item->journey_uid ),
+			esc_html(
+				sprintf(
+					/* translators: %s: the recovery's public reference. */
+					__( 'Select recovery %s', 'kdc-wacr-recoveryflow' ),
+					$item->journey_uid
+				)
+			)
+		);
+	}
+
+	/**
+	 * The bulk actions, named the way the rest of this plugin names them.
+	 *
+	 * Core renders this select as `name="action"`, which on a form posting to
+	 * `admin-post.php` is already taken: `action` is what chooses the handler.
+	 * So the select is rendered here under the same `recoveryflow_action` name
+	 * the single-recovery buttons post, which is why `Journey_Actions` needs no
+	 * second reader for the bulk case.
+	 *
+	 * All four are offered rather than only the ones that suit every selected
+	 * row. Whether a particular recovery may be retried or cancelled is decided
+	 * once, by the controller, per recovery -- and a refusal is reported by
+	 * reference. Filtering the list here would be a second set of rules that
+	 * could disagree with the first.
+	 *
+	 * @param string $which Top or bottom of the table.
+	 * @return void
+	 */
+	protected function bulk_actions( $which = '' ): void {
+		if ( ! $this->can_manage() || 'top' !== $which ) {
+			return;
+		}
+
+		$actions = array(
+			'cancel'       => __( 'Stop these recoveries', 'kdc-wacr-recoveryflow' ),
+			'retry'        => __( 'Try these again', 'kdc-wacr-recoveryflow' ),
+			'revoke_links' => __( 'Stop their links working', 'kdc-wacr-recoveryflow' ),
+			'opt_out'      => __( 'Never message these customers again', 'kdc-wacr-recoveryflow' ),
+		);
+
+		printf(
+			'<label for="recoveryflow-bulk-action" class="screen-reader-text">%s</label>',
+			esc_html__( 'Choose what to do with the selected recoveries', 'kdc-wacr-recoveryflow' )
+		);
+
+		echo '<select name="recoveryflow_action" id="recoveryflow-bulk-action">';
+		printf( '<option value="">%s</option>', esc_html__( 'Bulk actions', 'kdc-wacr-recoveryflow' ) );
+
+		foreach ( $actions as $value => $label ) {
+			printf( '<option value="%1$s">%2$s</option>', esc_attr( $value ), esc_html( $label ) );
+		}
+
+		echo '</select>';
+
+		printf(
+			'<button type="submit" class="button action" id="recoveryflow-bulk-apply">%s</button>',
+			esc_html__( 'Apply', 'kdc-wacr-recoveryflow' )
+		);
+	}
+
+	/**
+	 * The bar above and below the table.
+	 *
+	 * Overridden for one reason: core opens it with `wp_nonce_field()`, which
+	 * puts BOTH `name="_wpnonce"` and `id="_wpnonce"` on the page. The name
+	 * would carry a `bulk-recoveries` nonce into a form that posts to
+	 * `admin-post.php`, where the handler verifies its own action -- so the
+	 * bulk post would fail closed and silently. The id is the duplicate-id
+	 * defect this plugin has already fixed once.
+	 *
+	 * `Nonce_Field` solves both at once: it writes the nonce this handler
+	 * actually checks, and it writes it without the id.
+	 *
+	 * @param string $which Top or bottom of the table.
+	 * @return void
+	 */
+	protected function display_tablenav( $which ): void {
+		if ( 'top' === $which && $this->can_manage() ) {
+			Nonce_Field::render( Journey_Actions::ACTION );
+		}
+
+		printf( '<div class="tablenav %s">', esc_attr( $which ) );
+
+		if ( $this->has_items() ) {
+			echo '<div class="alignleft actions bulkactions">';
+			$this->bulk_actions( $which );
+			echo '</div>';
+		}
+
+		$this->extra_tablenav( $which );
+		$this->pagination( $which );
+
+		echo '<br class="clear" /></div>';
 	}
 
 	/**
