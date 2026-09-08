@@ -24,6 +24,7 @@ use WAcr\RecoveryFlow\Admin\Settings\Schema as Settings_Schema;
 use WAcr\RecoveryFlow\Core\Autoloader;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
+use WAcr\RecoveryFlow\Core\Health;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Core\Upgrader;
 use WAcr\RecoveryFlow\Core\Plugin;
@@ -1762,6 +1763,154 @@ $plugin->rest_settings()->save_ui_state(
 	)
 );
 check( 'and forgotten when they close it', get_user_meta( 1, Settings_Controller::UI_META, true ), array() );
+
+
+
+// ------------------------------------------------------ Admin: the screens.
+
+/*
+ * Every screen is registered, capability-gated, and renders. The last of those
+ * matters more than it sounds: an admin screen that fatals shows a white page
+ * with no clue what caused it, and nothing short of loading it finds out.
+ */
+$GLOBALS['recoveryflow_caps'] = null;
+
+$recoveryflow_menu = $plugin->admin_menu();
+$recoveryflow_menu->register();
+
+$recoveryflow_hooks = $recoveryflow_menu->hook_suffixes();
+
+ok( 'the menu registers a top-level screen and its submenus', count( $recoveryflow_hooks ) >= 6 );
+ok( 'and knows which screens are its own', $recoveryflow_menu->owns( $recoveryflow_hooks[0] ) );
+ok( 'and does not claim somebody else\'s', ! $recoveryflow_menu->owns( 'edit.php' ) );
+
+// A screen that forgot its capability is one anybody can open. Each is checked
+// against the capability it should need rather than against "not empty".
+check( 'the overview needs the status capability', Screen::capability( Screen::OVERVIEW ), Capabilities::VIEW_STATUS );
+check( 'the recoveries list needs the journeys capability', Screen::capability( Screen::JOURNEYS ), Capabilities::VIEW_JOURNEYS );
+check( 'one recovery needs the journeys capability', Screen::capability( Screen::JOURNEY ), Capabilities::VIEW_JOURNEYS );
+check( 'settings need the settings capability', Screen::capability( Screen::SETTINGS ), Capabilities::MANAGE_SETTINGS );
+check( 'integrations need the settings capability', Screen::capability( Screen::INTEGRATIONS ), Capabilities::MANAGE_SETTINGS );
+check( 'status needs the status capability', Screen::capability( Screen::STATUS ), Capabilities::VIEW_STATUS );
+
+// An unknown slug must fail closed. A screen somebody forgot to list should be
+// shut, not open to everyone.
+check( 'a screen nobody listed is closed rather than open', Screen::capability( 'recoveryflow-invented' ), Capabilities::MANAGE_SETTINGS );
+ok( 'and is not treated as one of ours', ! Screen::is_ours( 'recoveryflow-invented' ) );
+
+/**
+ * Render an admin screen and hand back the HTML.
+ *
+ * @param callable $render The screen's render method.
+ * @return string
+ */
+function recoveryflow_render_screen( callable $render ): string {
+	ob_start();
+	$render();
+
+	return (string) ob_get_clean();
+}
+
+$recoveryflow_screens = array(
+	'overview'     => array( $plugin->admin_overview(), 'render' ),
+	'recoveries'   => array( $plugin->admin_journeys(), 'render' ),
+	'recovery'     => array( $plugin->admin_journey(), 'render' ),
+	'integrations' => array( $plugin->admin_integrations(), 'render' ),
+	'status'       => array( $plugin->admin_status(), 'render' ),
+);
+
+foreach ( $recoveryflow_screens as $recoveryflow_name => $recoveryflow_render ) {
+	$recoveryflow_html = recoveryflow_render_screen( $recoveryflow_render );
+
+	ok( "the {$recoveryflow_name} screen renders", false !== strpos( $recoveryflow_html, '<div class="wrap' ) );
+	ok( "the {$recoveryflow_name} screen has exactly one top-level heading", 1 === substr_count( $recoveryflow_html, '<h1>' ) );
+}
+
+// Every screen must refuse somebody without its capability. wp_die is stubbed
+// to throw, so a screen that rendered anyway is a screen that failed to check.
+foreach ( $recoveryflow_screens as $recoveryflow_name => $recoveryflow_render ) {
+	$GLOBALS['recoveryflow_caps'] = array( 'read' );
+	$recoveryflow_refused         = false;
+
+	try {
+		recoveryflow_render_screen( $recoveryflow_render );
+	} catch ( RuntimeException $e ) {
+		$recoveryflow_refused = true;
+	}
+
+	ok( "the {$recoveryflow_name} screen refuses a user without the capability", $recoveryflow_refused );
+}
+
+$GLOBALS['recoveryflow_caps'] = null;
+
+// The status screen states each result in words in a column of its own, so a
+// screenshot pasted into a support thread keeps its meaning.
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_status(), 'render' ) );
+
+foreach ( $plugin->health()->checks() as $recoveryflow_check ) {
+	ok( "the status screen shows the {$recoveryflow_check['id']} check", false !== strpos( $recoveryflow_html, esc_html( (string) $recoveryflow_check['label'] ) ) );
+}
+
+ok( 'and says what each result means rather than only colouring it', false !== strpos( $recoveryflow_html, esc_html( _x( 'Working', 'the result of a system check', 'kdc-wacr-recoveryflow' ) ) ) );
+ok( 'and names every background pass in words, not stage keys', false !== strpos( $recoveryflow_html, esc_html__( 'Finding abandoned baskets', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'a failing check links to the setting that fixes it', false !== strpos( $recoveryflow_html, esc_html__( 'Go to this setting', 'kdc-wacr-recoveryflow' ) ) );
+
+// The overview shows what is wrong, not a wall of ticks somebody scrolls past.
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_overview(), 'render' ) );
+
+ok( 'the overview leads with what needs attention', false !== strpos( $recoveryflow_html, esc_html__( 'Needs attention', 'kdc-wacr-recoveryflow' ) ) );
+
+// Counted rather than looked for. A list of ticks is something people learn to
+// scroll past, and the one line that matters is then buried in the middle of
+// it -- so the overview must show exactly the checks that did not pass, and no
+// others.
+$recoveryflow_failing = 0;
+$recoveryflow_passing = 0;
+
+foreach ( $plugin->health()->checks() as $recoveryflow_check ) {
+	if ( Health::OK === $recoveryflow_check['severity'] ) {
+		++$recoveryflow_passing;
+	} else {
+		++$recoveryflow_failing;
+	}
+}
+
+ok( 'this site has checks in both states, so the count means something', $recoveryflow_failing > 0 && $recoveryflow_passing > 0 );
+check( 'the overview lists exactly the checks that need attention', substr_count( $recoveryflow_html, 'recoveryflow-attention__item' ), $recoveryflow_failing * 2 );
+
+/*
+ * The one screen that can show a customer's real phone number. Contact details
+ * are shortened until somebody with the reveal capability asks -- both halves,
+ * so a screen left open on a counter is not a list of phone numbers.
+ */
+$recoveryflow_detail = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journey_Detail.php', 'may_reveal' );
+
+ok( 'the reveal rule can be read', strlen( $recoveryflow_detail ) > 50 );
+// Both halves in one condition, asserted as one condition: checking only that
+// the words appear somewhere in the method would pass on a version that
+// computed $asked and then ignored it.
+ok( 'revealing requires having asked AND holding the capability', false !== strpos( $recoveryflow_detail, '! $asked || ! current_user_can' ) );
+ok( 'and the capability it requires is the reveal one', false !== strpos( $recoveryflow_detail, 'REVEAL_PII' ) );
+ok( 'and is recorded when it happens', false !== strpos( $recoveryflow_detail, 'KIND_REVEAL' ) );
+
+$recoveryflow_contact = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journey_Detail.php', 'contact' );
+
+ok( 'a contact detail is masked when revealing was not earned', false !== strpos( $recoveryflow_contact, 'Mask::phone' ) );
+ok( 'and so is an email address', false !== strpos( $recoveryflow_contact, 'Mask::email' ) );
+
+// The list is masked with no way to unmask it at all: it is the screen that
+// sits open, and one row at a time is the point of the detail screen.
+$recoveryflow_list = (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys_Table.php' );
+
+ok( 'the recoveries list masks the customer', false !== strpos( $recoveryflow_list, 'Mask::name' ) );
+ok( 'and offers no way to unmask a whole list at once', false === strpos( $recoveryflow_list, 'REVEAL_PII' ) );
+
+// WP_List_Table lives in wp-admin/includes and is not loaded on every request.
+// A subclass of it fatals the moment its file is included unless something has
+// required it first.
+$recoveryflow_journeys_page = (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys.php' );
+
+ok( 'the list table class is loaded before the subclass is reached', false !== strpos( $recoveryflow_journeys_page, 'class-wp-list-table.php' ) );
 
 
 echo "\n";

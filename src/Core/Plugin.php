@@ -9,6 +9,11 @@ namespace WAcr\RecoveryFlow\Core;
 
 use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
 use WAcr\RecoveryFlow\Admin\Menu as Admin_Menu;
+use WAcr\RecoveryFlow\Admin\Pages\Integrations as Integrations_Page;
+use WAcr\RecoveryFlow\Admin\Pages\Journey_Detail;
+use WAcr\RecoveryFlow\Admin\Pages\Journeys as Journeys_Page;
+use WAcr\RecoveryFlow\Admin\Pages\Overview as Overview_Page;
+use WAcr\RecoveryFlow\Admin\Pages\System_Status;
 use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
@@ -200,6 +205,10 @@ final class Plugin {
 			'scheduler'           => static fn (): Scheduler_Factory => new Scheduler_Factory( new Action_Scheduler_Driver(), new Wp_Cron_Driver() ),
 			'runner'              => static fn ( Plugin $c ): Stage_Runner => $c->build_stage_runner(),
 
+			// The health checks, shared by the status screen and the status
+			// endpoint so the two cannot drift into different diagnoses.
+			'health'              => static fn ( Plugin $c ): Health => new Health( $c->credentials(), $c->scheduler() ),
+
 			// REST. Registered on rest_api_init, which fires on its own request
 			// rather than in wp-admin, so these are built on every request the
 			// same way the public endpoint is.
@@ -210,7 +219,7 @@ final class Plugin {
 				$c->attempts(),
 				$c->receipts()
 			),
-			'rest_status'         => static fn ( Plugin $c ): Status_Controller => new Status_Controller( $c->credentials(), $c->wacr(), $c->scheduler() ),
+			'rest_status'         => static fn ( Plugin $c ): Status_Controller => new Status_Controller( $c->credentials(), $c->wacr(), $c->health() ),
 			'rest_settings'       => static fn (): Settings_Controller => new Settings_Controller(),
 
 			// Privacy. The anonymiser is shared: WordPress's eraser and the
@@ -237,7 +246,24 @@ final class Plugin {
 			// The admin. Built only when a request is actually in wp-admin --
 			// see boot() -- so a shop page never pays for a screen nobody is
 			// looking at.
-			'admin_menu'          => static fn (): Admin_Menu => new Admin_Menu(),
+			'admin_overview'      => static fn ( Plugin $c ): Overview_Page => new Overview_Page( $c->journeys(), $c->health() ),
+			'admin_journeys'      => static fn ( Plugin $c ): Journeys_Page => new Journeys_Page( $c->journeys(), $c->events(), $c->customers() ),
+			'admin_journey'       => static fn ( Plugin $c ): Journey_Detail => new Journey_Detail(
+				$c->journeys(),
+				$c->events(),
+				$c->customers(),
+				$c->attempts(),
+				$c->receipts()
+			),
+			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
+			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health() ),
+			'admin_menu'          => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
+				$c->admin_overview(),
+				$c->admin_journeys(),
+				$c->admin_journey(),
+				$c->admin_integrations(),
+				$c->admin_status()
+			),
 			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
 
 			// The public endpoint.
@@ -680,6 +706,15 @@ final class Plugin {
 	}
 
 	/**
+	 * The health checks.
+	 *
+	 * @return Health
+	 */
+	public function health(): Health {
+		return $this->typed( 'health', Health::class );
+	}
+
+	/**
 	 * The journeys REST controller.
 	 *
 	 * @return Journeys_Controller
@@ -731,6 +766,51 @@ final class Plugin {
 	 */
 	public function privacy_eraser(): Eraser {
 		return $this->typed( 'privacy_eraser', Eraser::class );
+	}
+
+	/**
+	 * The overview screen.
+	 *
+	 * @return Overview_Page
+	 */
+	public function admin_overview(): Overview_Page {
+		return $this->typed( 'admin_overview', Overview_Page::class );
+	}
+
+	/**
+	 * The journeys screen.
+	 *
+	 * @return Journeys_Page
+	 */
+	public function admin_journeys(): Journeys_Page {
+		return $this->typed( 'admin_journeys', Journeys_Page::class );
+	}
+
+	/**
+	 * The journey detail screen.
+	 *
+	 * @return Journey_Detail
+	 */
+	public function admin_journey(): Journey_Detail {
+		return $this->typed( 'admin_journey', Journey_Detail::class );
+	}
+
+	/**
+	 * The integrations screen.
+	 *
+	 * @return Integrations_Page
+	 */
+	public function admin_integrations(): Integrations_Page {
+		return $this->typed( 'admin_integrations', Integrations_Page::class );
+	}
+
+	/**
+	 * The status screen.
+	 *
+	 * @return System_Status
+	 */
+	public function admin_status(): System_Status {
+		return $this->typed( 'admin_status', System_Status::class );
 	}
 
 	/**

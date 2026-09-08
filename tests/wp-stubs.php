@@ -310,6 +310,63 @@ function register_rest_route( $namespace, $route, $args = array(), $override = f
 }
 
 /**
+ * Enough of WP_List_Table to load and drive a subclass.
+ *
+ * The real one lives in wp-admin/includes and is not loaded on a front-end
+ * request, so a subclass of it fatals the moment the file is included unless
+ * something has required it first. That is a production trap as much as a test
+ * one -- the admin page requires it before the autoloader reaches the subclass
+ * -- and stubbing it here is what lets the suite load every source file.
+ */
+class WP_List_Table {
+	public $items = array();
+	protected $_column_headers = array();
+	protected $_args = array();
+	protected $_pagination_args = array();
+
+	public function __construct( $args = array() ) {
+		$this->_args = $args;
+	}
+	public function get_items_per_page( $option, $default = 20 ) {
+		return $default;
+	}
+	public function get_pagenum() {
+		return max( 1, (int) ( $_GET['paged'] ?? 1 ) );
+	}
+	public function set_pagination_args( $args ) {
+		$this->_pagination_args = $args;
+	}
+	public function get_pagination_arg( $key ) {
+		return $this->_pagination_args[ $key ] ?? 0;
+	}
+	public function get_columns() {
+		return array();
+	}
+	public function get_sortable_columns() {
+		return array();
+	}
+	public function display() {
+		echo '<table class="wp-list-table widefat fixed striped"><tbody></tbody></table>';
+	}
+	public function views() {
+		$views = $this->get_views();
+		echo '<ul class="subsubsub">';
+		foreach ( $views as $view ) {
+			echo '<li>' . $view . '</li>';
+		}
+		echo '</ul>';
+	}
+	protected function get_views() {
+		return array();
+	}
+	public function search_box( $text, $input_id ) {
+		echo '<p class="search-box"><label class="screen-reader-text" for="' . esc_attr( $input_id ) . '">' . esc_html( $text ) . '</label><input type="search" id="' . esc_attr( $input_id ) . '" name="s" /></p>';
+	}
+	public function no_items() {}
+	public function prepare_items() {}
+}
+
+/**
  * Enough of WP_REST_Request to drive a controller.
  */
 class WP_REST_Request {

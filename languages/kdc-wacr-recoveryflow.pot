@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T04:12:22+00:00\n"
+"POT-Creation-Date: 2026-09-08T04:20:05+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -51,18 +51,447 @@ msgstr ""
 msgid "The link could not be copied. Copy it from the address bar instead."
 msgstr ""
 
-#: src/Admin/Menu.php:54
-#: src/Admin/Menu.php:55
+#: src/Admin/Menu.php:118
+#: src/Admin/Menu.php:119
+#: src/Admin/Menu.php:167
+#: src/Admin/Pages/Overview.php:70
 msgid "RecoveryFlow"
 msgstr ""
 
-#: src/Admin/Menu.php:69
+#: src/Admin/Menu.php:150
+#: src/Admin/Menu.php:151
+#: src/Admin/Settings/Schema.php:75
+#: src/Admin/Settings/Schema.php:105
+msgid "Recovery"
+msgstr ""
+
+#: src/Admin/Menu.php:168
+msgid "Overview"
+msgstr ""
+
+#: src/Admin/Menu.php:172
+#: src/Admin/Menu.php:173
+#: src/Admin/Pages/Journeys.php:81
+#: src/Admin/Pages/Overview.php:170
+msgid "Recoveries"
+msgstr ""
+
+#: src/Admin/Menu.php:177
+#: src/Admin/Menu.php:178
+#: src/Admin/Pages/Integrations.php:55
+msgid "Integrations"
+msgstr ""
+
+#: src/Admin/Menu.php:182
 #: src/Admin/Settings/Page.php:178
 msgid "RecoveryFlow settings"
 msgstr ""
 
-#: src/Admin/Menu.php:70
+#: src/Admin/Menu.php:183
+#: src/Admin/Pages/Overview.php:195
 msgid "Settings"
+msgstr ""
+
+#: src/Admin/Menu.php:187
+#: src/Admin/Pages/System_Status.php:56
+msgid "RecoveryFlow status"
+msgstr ""
+
+#: src/Admin/Menu.php:188
+#: src/Admin/Pages/Journeys_Table.php:88
+#: src/Admin/Pages/Journey_Detail.php:161
+msgid "Status"
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:49
+msgid "You do not have permission to view RecoveryFlow integrations."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:58
+msgid "Where RecoveryFlow looks for something a visitor started and did not finish. Each one works on its own; you do not need all of them."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:64
+msgid "Nothing is registered, so nothing is being watched. WooCommerce provides the integration RecoveryFlow ships with."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:97
+msgid "Status:"
+msgstr ""
+
+#. translators: %s: a comma-separated list of the kinds of thing an integration watches.
+#: src/Admin/Pages/Integrations.php:109
+#, php-format
+msgid "Watches: %s"
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:128
+msgid "Not available. Whatever this integration needs is not installed or not active on this site."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:132
+msgid "Active. Abandoned baskets from here are being recorded."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:133
+msgid "Available but switched off."
+msgstr ""
+
+#: src/Admin/Pages/Journeys.php:70
+#: src/Admin/Pages/Journey_Detail.php:109
+msgid "You do not have permission to view recoveries."
+msgstr ""
+
+#: src/Admin/Pages/Journeys.php:84
+msgid "Every basket a shopper left behind, and what has been done about it. Contact details are shortened here; open a recovery to see them in full."
+msgstr ""
+
+#: src/Admin/Pages/Journeys.php:92
+msgid "Search by reference"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:86
+msgid "Reference"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:87
+#: src/Admin/Pages/Journey_Detail.php:193
+#: src/Admin/Pages/Journey_Detail.php:202
+#: src/Admin/Pages/Journey_Detail.php:220
+msgid "Customer"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:89
+msgid "Basket"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:90
+msgid "Reminders"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:91
+msgid "Next step"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:92
+#: src/Admin/Pages/Journey_Detail.php:162
+#: src/Privacy/Exporter.php:291
+msgid "Started"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:160
+msgid "All"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:200
+msgid "No recoveries yet. They appear here once a shopper leaves something behind."
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:226
+#: src/Admin/Pages/Journey_Detail.php:163
+msgid "Nothing scheduled"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:283
+msgid "Not known"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:299
+msgid "Not identified"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:303
+#: src/REST/Journeys_Controller.php:347
+msgid "Removed at the customer's request"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:119
+msgid "Recovery not found"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:122
+msgid "No recovery was found with that reference. It may have been removed by the retention clear-out."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:124
+#: src/Admin/Pages/Journey_Detail.php:141
+msgid "Back to all recoveries"
+msgstr ""
+
+#. translators: %s: the public reference of a recovery.
+#: src/Admin/Pages/Journey_Detail.php:136
+#, php-format
+msgid "Recovery %s"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:163
+msgid "Next step due"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:164
+msgid "Expires"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:165
+#: src/Privacy/Exporter.php:293
+msgid "Reminders sent"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:166
+msgid "Link opened"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:167
+msgid "Where it came from"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:171
+msgid "Reason"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:175
+#: src/Privacy/Exporter.php:297
+msgid "Basket value"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:176
+msgid "What was in it"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:176
+msgid "No longer held"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:179
+msgid "This recovery"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:194
+msgid "Identified"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:194
+msgid "Nobody was identified, so nothing was ever sent."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:204
+msgid "Details"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:204
+msgid "Removed at the customer's request, or by the retention period expiring."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:205
+msgid "Removed on"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:215
+msgid "Name"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:216
+msgid "Phone"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:217
+#: src/Admin/Settings/Schema.php:328
+msgid "Email"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:233
+msgid "Not given"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:285
+msgid "Hide contact details"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:286
+msgid "This viewing has been recorded."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:293
+msgid "Show contact details"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:294
+msgid "Who looked and when is recorded."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:307
+msgid "Messages"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:310
+msgid "Nothing has been sent for this recovery."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:316
+msgid "When"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:317
+#: src/Privacy/Exporter.php:265
+msgid "Channel"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:318
+msgid "Step"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:319
+#: src/Admin/Pages/System_Status.php:74
+msgid "Result"
+msgstr ""
+
+#. translators: 1: what happened to a message. 2: the error code the messaging service gave.
+#: src/Admin/Pages/Journey_Detail.php:333
+#, php-format
+msgid "%1$s (%2$s)"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:344
+msgid "Message contents are not stored. What was sent is decided by the workflow and the template at the time it went out."
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:64
+msgid "You do not have permission to view RecoveryFlow."
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:96
+msgid "Needs attention"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:101
+msgid "Everything is set up and running."
+msgstr ""
+
+#. translators: prefixes a problem that stops recovery working.
+#: src/Admin/Pages/Overview.php:116
+msgid "Stopped:"
+msgstr ""
+
+#. translators: prefixes something working but perhaps not as expected.
+#: src/Admin/Pages/Overview.php:118
+msgid "Check:"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:126
+#: src/Admin/Pages/System_Status.php:90
+#: src/Admin/Settings/Page.php:420
+msgid "Go to this setting"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:149
+msgid "Being chased now"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:154
+msgid "Recovered"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:159
+msgid "Expired without an order"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:164
+msgid "Asked not to be messaged"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:193
+msgid "View all recoveries"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:52
+msgid "You do not have permission to view RecoveryFlow's status."
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:70
+msgid "Checks"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:73
+msgid "Check"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:75
+msgid "What this means"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:104
+msgid "Background jobs"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:107
+msgid "RecoveryFlow works in five small passes rather than one long one, so a busy shop finishes each of them. A backlog means the pass ran out of time and will carry on next run; it is only a problem if it never clears."
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:111
+msgid "Pass"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:112
+msgid "Last run"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:113
+msgid "Handled"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:114
+msgid "Failed"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:115
+msgid "More to do"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:122
+msgid "Not yet"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:125
+msgid "Yes"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:125
+msgid "No"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:144
+msgctxt "the result of a system check"
+msgid "Stopped"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:147
+msgctxt "the result of a system check"
+msgid "Check this"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:150
+msgctxt "the result of a system check"
+msgid "Working"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:163
+msgid "Finding abandoned baskets"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:166
+msgid "Sending reminders"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:169
+msgid "Checking for replies"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:172
+msgid "Closing recoveries that ran out of time"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:175
+msgid "Clearing out old data"
 msgstr ""
 
 #: src/Admin/Settings/Field_Renderer.php:323
@@ -114,10 +543,6 @@ msgid "Still to do before email reminders can be sent: %d thing."
 msgid_plural "Still to do before email reminders can be sent: %d things."
 msgstr[0] ""
 msgstr[1] ""
-
-#: src/Admin/Settings/Page.php:420
-msgid "Go to this setting"
-msgstr ""
 
 #: src/Admin/Settings/Page.php:441
 msgid "The saved key cannot be read."
@@ -173,11 +598,6 @@ msgstr ""
 
 #: src/Admin/Settings/Schema.php:71
 msgid "General"
-msgstr ""
-
-#: src/Admin/Settings/Schema.php:75
-#: src/Admin/Settings/Schema.php:105
-msgid "Recovery"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:79
@@ -427,7 +847,7 @@ msgid "The channel RecoveryFlow is built around. Sending needs a connected WA.cr
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:316
-#: src/REST/Status_Controller.php:287
+#: src/Core/Health.php:232
 msgid "WhatsApp reminders"
 msgstr ""
 
@@ -437,10 +857,6 @@ msgstr ""
 
 #: src/Admin/Settings/Schema.php:321
 msgid "Workflow steps set to WhatsApp are skipped while this is off. Nothing else changes: baskets are still recorded and journeys still run."
-msgstr ""
-
-#: src/Admin/Settings/Schema.php:328
-msgid "Email"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:329
@@ -472,8 +888,8 @@ msgid "Asked separately because an address is laid out according to its own coun
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:351
-#: src/REST/Status_Controller.php:302
-#: src/REST/Status_Controller.php:318
+#: src/Core/Health.php:247
+#: src/Core/Health.php:263
 msgid "Email reminders"
 msgstr ""
 
@@ -761,6 +1177,104 @@ msgstr ""
 msgid "WA.cr could not confirm this connection. Check the connection on the Settings screen."
 msgstr ""
 
+#: src/Core/Health.php:131
+msgid "Recovery is switched on"
+msgstr ""
+
+#: src/Core/Health.php:134
+msgid "Abandoned baskets are being recorded and worked."
+msgstr ""
+
+#: src/Core/Health.php:135
+msgid "Nothing is being recorded or sent. Switch recovery on to start."
+msgstr ""
+
+#: src/Core/Health.php:140
+msgid "Database tables"
+msgstr ""
+
+#: src/Core/Health.php:143
+msgid "All of the plugin's tables are present."
+msgstr ""
+
+#: src/Core/Health.php:144
+msgid "Some tables are missing. Deactivating and reactivating the plugin creates them."
+msgstr ""
+
+#: src/Core/Health.php:151
+msgid "Staff permissions"
+msgstr ""
+
+#: src/Core/Health.php:154
+msgid "Shop managers can work the recovery queue."
+msgstr ""
+
+#: src/Core/Health.php:155
+msgid "Some roles are missing RecoveryFlow permissions, which is why staff may not be able to see the journeys. Deactivating and reactivating the plugin re-applies them."
+msgstr ""
+
+#: src/Core/Health.php:174
+#: src/Core/Health.php:186
+#: src/Core/Health.php:197
+msgid "WA.cr connection"
+msgstr ""
+
+#: src/Core/Health.php:176
+msgid "The saved API key can no longer be read, which happens when a site's security keys are rotated. Enter the key again."
+msgstr ""
+
+#: src/Core/Health.php:188
+msgid "No API key is saved. Baskets are still recorded, but nothing can be sent."
+msgstr ""
+
+#: src/Core/Health.php:199
+msgid "An API key is saved. Use \"Test connection\" to check it against WA.cr."
+msgstr ""
+
+#: src/Core/Health.php:204
+msgid "WA.cr developer API"
+msgstr ""
+
+#: src/Core/Health.php:207
+msgid "This workspace can author workflows in WordPress and send directly."
+msgstr ""
+
+#: src/Core/Health.php:235
+msgid "Workflow steps set to WhatsApp will be sent."
+msgstr ""
+
+#: src/Core/Health.php:236
+msgid "WhatsApp is switched off, so steps set to it are skipped."
+msgstr ""
+
+#. translators: %s: what is stopping email from being sent.
+#: src/Core/Health.php:251
+#, php-format
+msgid "Email cannot be sent yet. %s"
+msgstr ""
+
+#: src/Core/Health.php:266
+msgid "Workflow steps set to email will be sent."
+msgstr ""
+
+#: src/Core/Health.php:267
+msgid "Everything the law asks for is settled, and email is still switched off. Turning it on is your decision."
+msgstr ""
+
+#: src/Core/Health.php:304
+msgid "Background processing"
+msgstr ""
+
+#. translators: 1: the name of the scheduler in use. 2: a human time difference, e.g. "3 mins".
+#: src/Core/Health.php:309
+#, php-format
+msgid "Running on %1$s. The next check is due in %2$s."
+msgstr ""
+
+#: src/Core/Health.php:313
+msgid "Nothing is scheduled, so no reminders will be sent. Deactivating and reactivating the plugin re-schedules the background jobs."
+msgstr ""
+
 #. translators: 1: required PHP version, 2: the PHP version running now.
 #: src/Core/Requirements.php:76
 #, php-format
@@ -903,10 +1417,6 @@ msgstr ""
 msgid "A record of whether you agreed to be reminded about unfinished orders, and on which channel."
 msgstr ""
 
-#: src/Privacy/Exporter.php:265
-msgid "Channel"
-msgstr ""
-
 #: src/Privacy/Exporter.php:266
 msgid "Decision"
 msgstr ""
@@ -923,20 +1433,8 @@ msgstr ""
 msgid "Wording agreed to"
 msgstr ""
 
-#: src/Privacy/Exporter.php:291
-msgid "Started"
-msgstr ""
-
 #: src/Privacy/Exporter.php:292
 msgid "Outcome"
-msgstr ""
-
-#: src/Privacy/Exporter.php:293
-msgid "Reminders sent"
-msgstr ""
-
-#: src/Privacy/Exporter.php:297
-msgid "Basket value"
 msgstr ""
 
 #: src/Privacy/Exporter.php:298
@@ -1183,128 +1681,26 @@ msgstr ""
 msgid "This recovery changed while you were looking at it. Reload and try again."
 msgstr ""
 
-#: src/REST/Journeys_Controller.php:347
-msgid "Removed at the customer's request"
-msgstr ""
-
 #: src/REST/Journeys_Controller.php:376
 msgid "No recovery was found with that reference."
 msgstr ""
 
-#: src/REST/Status_Controller.php:139
+#: src/REST/Status_Controller.php:126
 msgid "There is no API key saved to test."
 msgstr ""
 
-#: src/REST/Status_Controller.php:151
+#: src/REST/Status_Controller.php:138
 msgid "WA.cr could not be reached."
 msgstr ""
 
-#: src/REST/Status_Controller.php:163
+#: src/REST/Status_Controller.php:150
 msgid "Connected to WA.cr."
 msgstr ""
 
 #. translators: %s: the name of the connected WA.cr workspace.
-#: src/REST/Status_Controller.php:166
+#: src/REST/Status_Controller.php:153
 #, php-format
 msgid "Connected to %s."
-msgstr ""
-
-#: src/REST/Status_Controller.php:186
-msgid "Recovery is switched on"
-msgstr ""
-
-#: src/REST/Status_Controller.php:189
-msgid "Abandoned baskets are being recorded and worked."
-msgstr ""
-
-#: src/REST/Status_Controller.php:190
-msgid "Nothing is being recorded or sent. Switch recovery on to start."
-msgstr ""
-
-#: src/REST/Status_Controller.php:195
-msgid "Database tables"
-msgstr ""
-
-#: src/REST/Status_Controller.php:198
-msgid "All of the plugin's tables are present."
-msgstr ""
-
-#: src/REST/Status_Controller.php:199
-msgid "Some tables are missing. Deactivating and reactivating the plugin creates them."
-msgstr ""
-
-#: src/REST/Status_Controller.php:206
-msgid "Staff permissions"
-msgstr ""
-
-#: src/REST/Status_Controller.php:209
-msgid "Shop managers can work the recovery queue."
-msgstr ""
-
-#: src/REST/Status_Controller.php:210
-msgid "Some roles are missing RecoveryFlow permissions, which is why staff may not be able to see the journeys. Deactivating and reactivating the plugin re-applies them."
-msgstr ""
-
-#: src/REST/Status_Controller.php:229
-#: src/REST/Status_Controller.php:241
-#: src/REST/Status_Controller.php:252
-msgid "WA.cr connection"
-msgstr ""
-
-#: src/REST/Status_Controller.php:231
-msgid "The saved API key can no longer be read, which happens when a site's security keys are rotated. Enter the key again."
-msgstr ""
-
-#: src/REST/Status_Controller.php:243
-msgid "No API key is saved. Baskets are still recorded, but nothing can be sent."
-msgstr ""
-
-#: src/REST/Status_Controller.php:254
-msgid "An API key is saved. Use \"Test connection\" to check it against WA.cr."
-msgstr ""
-
-#: src/REST/Status_Controller.php:259
-msgid "WA.cr developer API"
-msgstr ""
-
-#: src/REST/Status_Controller.php:262
-msgid "This workspace can author workflows in WordPress and send directly."
-msgstr ""
-
-#: src/REST/Status_Controller.php:290
-msgid "Workflow steps set to WhatsApp will be sent."
-msgstr ""
-
-#: src/REST/Status_Controller.php:291
-msgid "WhatsApp is switched off, so steps set to it are skipped."
-msgstr ""
-
-#. translators: %s: what is stopping email from being sent.
-#: src/REST/Status_Controller.php:306
-#, php-format
-msgid "Email cannot be sent yet. %s"
-msgstr ""
-
-#: src/REST/Status_Controller.php:321
-msgid "Workflow steps set to email will be sent."
-msgstr ""
-
-#: src/REST/Status_Controller.php:322
-msgid "Everything the law asks for is settled, and email is still switched off. Turning it on is your decision."
-msgstr ""
-
-#: src/REST/Status_Controller.php:359
-msgid "Background processing"
-msgstr ""
-
-#. translators: 1: the name of the scheduler in use. 2: a human time difference, e.g. "3 mins".
-#: src/REST/Status_Controller.php:364
-#, php-format
-msgid "Running on %1$s. The next check is due in %2$s."
-msgstr ""
-
-#: src/REST/Status_Controller.php:368
-msgid "Nothing is scheduled, so no reminders will be sent. Deactivating and reactivating the plugin re-schedules the background jobs."
 msgstr ""
 
 #: src/WAcr/Client.php:247

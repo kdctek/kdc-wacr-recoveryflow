@@ -7,6 +7,11 @@
 
 namespace WAcr\RecoveryFlow\Admin;
 
+use WAcr\RecoveryFlow\Admin\Pages\Integrations;
+use WAcr\RecoveryFlow\Admin\Pages\Journey_Detail;
+use WAcr\RecoveryFlow\Admin\Pages\Journeys;
+use WAcr\RecoveryFlow\Admin\Pages\Overview;
+use WAcr\RecoveryFlow\Admin\Pages\System_Status;
 use WAcr\RecoveryFlow\Admin\Settings\Page as Settings_Page;
 
 defined( 'ABSPATH' ) || exit;
@@ -33,6 +38,64 @@ final class Menu {
 	private array $hooks = array();
 
 	/**
+	 * The overview screen.
+	 *
+	 * @var Overview
+	 */
+	private Overview $overview;
+
+	/**
+	 * The journeys screen.
+	 *
+	 * @var Journeys
+	 */
+	private Journeys $journeys;
+
+	/**
+	 * One journey in full.
+	 *
+	 * @var Journey_Detail
+	 */
+	private Journey_Detail $journey;
+
+	/**
+	 * The integrations screen.
+	 *
+	 * @var Integrations
+	 */
+	private Integrations $integrations;
+
+	/**
+	 * The status screen.
+	 *
+	 * @var System_Status
+	 */
+	private System_Status $status;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Overview       $overview     Overview screen.
+	 * @param Journeys       $journeys     Journeys screen.
+	 * @param Journey_Detail $journey      Journey detail screen.
+	 * @param Integrations   $integrations Integrations screen.
+	 * @param System_Status  $status       Status screen.
+	 */
+	public function __construct(
+		Overview $overview,
+		Journeys $journeys,
+		Journey_Detail $journey,
+		Integrations $integrations,
+		System_Status $status
+	) {
+		$this->overview     = $overview;
+		$this->journeys     = $journeys;
+		$this->journey      = $journey;
+		$this->integrations = $integrations;
+		$this->status       = $status;
+	}
+
+	/**
 	 * Attach to WordPress.
 	 *
 	 * @return void
@@ -50,31 +113,98 @@ final class Menu {
 	public function register(): void {
 		$this->hooks = array();
 
-		$top = add_menu_page(
-			__( 'RecoveryFlow', 'kdc-wacr-recoveryflow' ),
-			__( 'RecoveryFlow', 'kdc-wacr-recoveryflow' ),
-			Screen::capability( Screen::SETTINGS ),
-			Screen::SETTINGS,
-			array( Settings_Page::class, 'render' ),
-			'dashicons-cart',
-			57
+		$this->remember(
+			add_menu_page(
+				__( 'RecoveryFlow', 'kdc-wacr-recoveryflow' ),
+				__( 'RecoveryFlow', 'kdc-wacr-recoveryflow' ),
+				Screen::capability( Screen::OVERVIEW ),
+				Screen::OVERVIEW,
+				array( $this->overview, 'render' ),
+				'dashicons-cart',
+				57
+			)
 		);
 
-		if ( is_string( $top ) ) {
-			$this->hooks[] = $top;
+		foreach ( $this->submenus() as $slug => $submenu ) {
+			$this->remember(
+				add_submenu_page(
+					Screen::OVERVIEW,
+					$submenu['page_title'],
+					$submenu['menu_title'],
+					Screen::capability( $slug ),
+					$slug,
+					$submenu['callback']
+				)
+			);
 		}
 
-		$settings = add_submenu_page(
-			Screen::SETTINGS,
-			__( 'RecoveryFlow settings', 'kdc-wacr-recoveryflow' ),
-			__( 'Settings', 'kdc-wacr-recoveryflow' ),
-			Screen::capability( Screen::SETTINGS ),
-			Screen::SETTINGS,
-			array( Settings_Page::class, 'render' )
+		/*
+		 * One journey's own screen, registered with no parent so it has an
+		 * address and a capability check but no menu entry of its own. A
+		 * submenu item for "a recovery" would be meaningless: it is always
+		 * reached from the list.
+		 */
+		$this->remember(
+			add_submenu_page(
+				'',
+				__( 'Recovery', 'kdc-wacr-recoveryflow' ),
+				__( 'Recovery', 'kdc-wacr-recoveryflow' ),
+				Screen::capability( Screen::JOURNEY ),
+				Screen::JOURNEY,
+				array( $this->journey, 'render' )
+			)
 		);
+	}
 
-		if ( is_string( $settings ) ) {
-			$this->hooks[] = $settings;
+	/**
+	 * The submenu entries, in the order they are shown.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	private function submenus(): array {
+		return array(
+			Screen::OVERVIEW     => array(
+				'page_title' => __( 'RecoveryFlow', 'kdc-wacr-recoveryflow' ),
+				'menu_title' => __( 'Overview', 'kdc-wacr-recoveryflow' ),
+				'callback'   => array( $this->overview, 'render' ),
+			),
+			Screen::JOURNEYS     => array(
+				'page_title' => __( 'Recoveries', 'kdc-wacr-recoveryflow' ),
+				'menu_title' => __( 'Recoveries', 'kdc-wacr-recoveryflow' ),
+				'callback'   => array( $this->journeys, 'render' ),
+			),
+			Screen::INTEGRATIONS => array(
+				'page_title' => __( 'Integrations', 'kdc-wacr-recoveryflow' ),
+				'menu_title' => __( 'Integrations', 'kdc-wacr-recoveryflow' ),
+				'callback'   => array( $this->integrations, 'render' ),
+			),
+			Screen::SETTINGS     => array(
+				'page_title' => __( 'RecoveryFlow settings', 'kdc-wacr-recoveryflow' ),
+				'menu_title' => __( 'Settings', 'kdc-wacr-recoveryflow' ),
+				'callback'   => array( Settings_Page::class, 'render' ),
+			),
+			Screen::STATUS       => array(
+				'page_title' => __( 'RecoveryFlow status', 'kdc-wacr-recoveryflow' ),
+				'menu_title' => __( 'Status', 'kdc-wacr-recoveryflow' ),
+				'callback'   => array( $this->status, 'render' ),
+			),
+		);
+	}
+
+	/**
+	 * Keep a hook suffix WordPress handed back.
+	 *
+	 * WordPress returns false from add_submenu_page() when the current user may
+	 * not see the screen, which is not an error -- it is the check working. Only
+	 * a real suffix is kept, so asset loading is asked about screens that
+	 * actually exist for this user.
+	 *
+	 * @param string|false $suffix What WordPress returned.
+	 * @return void
+	 */
+	private function remember( $suffix ): void {
+		if ( is_string( $suffix ) && '' !== $suffix ) {
+			$this->hooks[] = $suffix;
 		}
 	}
 
