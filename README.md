@@ -41,7 +41,8 @@ composer lint                 # php -l + PHPCS (WordPress, WordPress-Extra, Word
 composer analyse              # PHPStan level 5 with the WordPress extension
 composer test:unit            # PHPUnit + Brain\Monkey, no WordPress, sub-second
 composer test:integration     # WordPress core test suite inside wp-env, with WooCommerce
-npm run a11y                  # pa11y-ci (WCAG2AAA standard, axe + htmlcs) over every admin screen
+npm run a11y                  # WCAG 2.2 AA over all 22 screens (the gate), then AAA as a report
+npm run a11y:keyboard         # walk every screen with the Tab key
 ```
 
 To work against a staging WA.cr workspace, choose **Staging** in Settings › WA.cr; the client then talks to `api.wacart.dev` instead of `api.wa.cr`. Define `KDC_WACR_RECOVERYFLOW_UNLOCK_ALL` in `wp-config.php` (wp-env only) to unlock plan-gated features for tests.
@@ -57,7 +58,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 ├── readme.txt · README.md · CHANGELOG.md · LICENSE
 ├── composer.json · phpcs.xml.dist · phpunit.xml.dist · phpstan.neon.dist · .distignore · .gitignore · .editorconfig
 ├── .wp-env.json                      WordPress + WooCommerce for integration tests and manual verification
-├── .github/workflows/ci.yml          phpcs + phpstan + unit; integration + a11y via wp-env
+├── .github/workflows/ci.yml          smoke on 8.0/8.3 + phpcs + phpstan + i18n + a11y via wp-env
 ├── src/
 │   ├── Core/        Plugin (container), Autoloader, Activator, Deactivator, Upgrader, Hooks, Clock, Feature_Gate
 │   ├── Recovery/    Recovery_Event, Event_Draft, Event_Ingest, Recovery_Journey, Journey_State, repositories,
@@ -82,7 +83,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 ├── assets/          css/admin.css, js/admin.js, js/settings.js (vanilla, no build), images/
 ├── languages/       kdc-wacr-recoveryflow.pot
 ├── templates/       recovery-invalid.php, opt-out-confirm.php, opt-out-done.php
-├── tests/           bootstrap.php, unit/, integration/, security/, failure/, a11y/, fixtures/
+├── tests/           smoke.php (the suite), a11y/ (built), unit|integration|security|failure/ (empty), fixtures/
 └── docs/            architecture, integrations, developer-api, security, privacy, wa-cr-integration, testing, accessibility, internationalization
 ```
 
@@ -105,7 +106,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 | [`docs/privacy.md`](docs/privacy.md) | Data inventory, consent model, opt-out, exporter, eraser, retention, uninstall, what is sent to WA.cr |
 | [`docs/wa-cr-integration.md`](docs/wa-cr-integration.md) | Connection and scopes, dispatch actions, template mapping, Auto Flow hand-off, polling, rate limits, errors |
 | [`docs/testing.md`](docs/testing.md) | Test suites, how to run them, fixtures, failure simulations, security matrix, accessibility runs |
-| [`docs/accessibility.md`](docs/accessibility.md) | The WCAG 2.2 checklist, settings deeplinks, and the accessibility suite that is not built yet |
+| [`docs/accessibility.md`](docs/accessibility.md) | The WCAG 2.2 checklist, settings deeplinks, the accessibility run and the recorded keyboard pass |
 | [`docs/internationalization.md`](docs/internationalization.md) | The translation rules every string follows, the three checks that enforce them, why nothing is translated before `init` |
 
 ## Status

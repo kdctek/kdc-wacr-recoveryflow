@@ -37,10 +37,16 @@ plan, and the plan cannot silently become a claim.
 | `test:security` | Authorisation, CSRF, injection, token guessing, replay | WordPress test suite | Empty |
 | `test:failure` | API unavailable, timeouts, rate limits, duplicate events | WordPress test suite | Empty |
 
-## `npm run a11y` — **NOT BUILT. `.pa11yci.json` lists no URLs.**
+## `npm run a11y` — **built: 22 screens, WCAG 2.2 AA**
 
-`pa11y-ci` against every admin screen at WCAG 2.2 AAA. Every screen has now
-shipped and not one is listed, so the command was checking nothing while
-passing. It now runs through `bin/a11y.sh`, which **refuses** on an empty URL
-list rather than reporting success. Add the URLs — and the scripted login
-action described in `docs/accessibility.md` — to `.pa11yci.json` to build it.
+`pa11y-ci` over every admin screen, every settings tab and the three public
+pages. The gate is AA and fails the build; AAA runs afterwards and is printed
+rather than enforced. `npm run a11y:keyboard` walks the same screens with the
+Tab key. Both need a running wp-env and seed the site themselves.
+
+It still **refuses** an empty URL list rather than reporting success, which is
+what it did for five slices. `tests/smoke.php` fails if a screen this plugin
+registers, or a settings tab it defines, is missing from `.pa11yci.json`.
+
+`tests/a11y/` holds the seeder, the corrected axe runner and the keyboard walk;
+`docs/accessibility.md` explains why each exists.

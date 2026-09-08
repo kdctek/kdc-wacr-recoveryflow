@@ -7,16 +7,17 @@
 
 namespace WAcr\RecoveryFlow\Admin\Pages;
 
+use WAcr\RecoveryFlow\Admin\Nonce_Field;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Admin\Step_Describer;
 use WAcr\RecoveryFlow\Admin\Workflow_Form;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\WAcr\Template_Catalog;
+use WAcr\RecoveryFlow\Workflow\Email_Composer;
 use WAcr\RecoveryFlow\Workflow\Step_Registry;
 use WAcr\RecoveryFlow\Workflow\Variable_Context;
 use WAcr\RecoveryFlow\Workflow\Workflow;
-use WAcr\RecoveryFlow\Workflow\Email_Composer;
 use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
@@ -126,7 +127,7 @@ final class Workflow_Edit {
 			esc_url( admin_url( 'admin-post.php' ) )
 		);
 
-		wp_nonce_field( Workflow_Form::ACTION );
+		Nonce_Field::render( Workflow_Form::ACTION );
 		printf( '<input type="hidden" name="action" value="%s">', esc_attr( Workflow_Form::ACTION ) );
 		printf( '<input type="hidden" name="workflow_id" value="%d">', (int) $id );
 

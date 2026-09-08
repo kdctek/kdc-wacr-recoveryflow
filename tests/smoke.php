@@ -6079,7 +6079,7 @@ $recoveryflow_a11y_src = (string) file_get_contents( $recoveryflow_root . '/bin/
  * was in the assertion, not the mutation.
  */
 $recoveryflow_a11y_refusal = strpos( $recoveryflow_a11y_src, 'lists no URLs' );
-$recoveryflow_a11y_run     = strpos( $recoveryflow_a11y_src, 'exec npx pa11y-ci' );
+$recoveryflow_a11y_run     = strpos( $recoveryflow_a11y_src, 'npx pa11y-ci --config' );
 
 // Both halves must be PRESENT before their order means anything: `false < 40`
 // is true in PHP, so an ordering test passes vacuously when the first is gone.
@@ -6096,7 +6096,9 @@ ok(
 );
 
 $recoveryflow_pa11y_config = json_decode( (string) file_get_contents( $recoveryflow_root . '/.pa11yci.json' ), true );
-$recoveryflow_pa11y_urls   = is_array( $recoveryflow_pa11y_config ) ? count( (array) ( $recoveryflow_pa11y_config['urls'] ?? array() ) ) : 0;
+$recoveryflow_pa11y_config = is_array( $recoveryflow_pa11y_config ) ? $recoveryflow_pa11y_config : array();
+$recoveryflow_pa11y_list   = (array) ( $recoveryflow_pa11y_config['urls'] ?? array() );
+$recoveryflow_pa11y_urls   = count( $recoveryflow_pa11y_list );
 
 $recoveryflow_a11y_doc = (string) file_get_contents( $recoveryflow_root . '/docs/accessibility.md' );
 
@@ -6109,6 +6111,208 @@ $recoveryflow_a11y_doc = (string) file_get_contents( $recoveryflow_root . '/docs
 ok(
 	'the accessibility docs claim a working pa11y run if and only if there is one',
 	( 0 === $recoveryflow_pa11y_urls ) === ( false !== strpos( $recoveryflow_a11y_doc, 'NOT BUILT' ) )
+);
+
+
+// ---------------------------------------------------------------------------
+// The accessibility suite checks every screen, and keeps meaning what it says.
+// ---------------------------------------------------------------------------
+
+/*
+ * A suite that checks most of the screens is the same defect as one that checks
+ * none, only harder to notice: it reports a pass, and the screen nobody listed
+ * is the screen nobody looked at. Every slice here added screens; the list has
+ * to be able to fail when the next one does.
+ */
+
+$recoveryflow_pa11y_text = '';
+
+foreach ( $recoveryflow_pa11y_list as $recoveryflow_entry ) {
+	$recoveryflow_pa11y_text .= is_array( $recoveryflow_entry )
+		? (string) ( $recoveryflow_entry['url'] ?? '' ) . ' '
+		: (string) $recoveryflow_entry . ' ';
+}
+
+$recoveryflow_screen_src = (string) file_get_contents( $recoveryflow_root . '/src/Admin/Screen.php' );
+
+preg_match_all( "/public const [A-Z_]+ = '([a-z0-9-]+)';/", $recoveryflow_screen_src, $recoveryflow_screen_slugs );
+
+$recoveryflow_missing_screens = array();
+
+foreach ( (array) ( $recoveryflow_screen_slugs[1] ?? array() ) as $recoveryflow_slug ) {
+	if ( false === strpos( $recoveryflow_pa11y_text, 'page=' . $recoveryflow_slug ) ) {
+		$recoveryflow_missing_screens[] = $recoveryflow_slug;
+	}
+}
+
+ok(
+	'every admin screen this plugin registers is in the accessibility run: ' . ( array() === $recoveryflow_missing_screens ? 'all of them' : 'MISSING ' . implode( ', ', $recoveryflow_missing_screens ) ),
+	array() === $recoveryflow_missing_screens
+);
+
+/*
+ * Every settings tab too. The tabs are separate documents with separate
+ * settings groups, and six of the seven were added after the first was written.
+ */
+$recoveryflow_missing_tabs = array();
+
+foreach ( array_keys( Settings_Schema::tabs() ) as $recoveryflow_tab ) {
+	if ( false === strpos( $recoveryflow_pa11y_text, 'tab=' . $recoveryflow_tab ) ) {
+		$recoveryflow_missing_tabs[] = (string) $recoveryflow_tab;
+	}
+}
+
+ok(
+	'every settings tab is in the accessibility run: ' . ( array() === $recoveryflow_missing_tabs ? 'all of them' : 'MISSING ' . implode( ', ', $recoveryflow_missing_tabs ) ),
+	array() === $recoveryflow_missing_tabs
+);
+
+/*
+ * THE GATE IS AA. The requirement is AA as the minimum with AAA where it can be
+ * reached, and the two are not interchangeable: running the gate at AAA would
+ * fail on 380 findings that are core WordPress's own colours on core's own
+ * components, which this plugin cannot change -- and a gate that cannot go
+ * green is turned off within a week. AAA is run separately and reported.
+ */
+ok(
+	'the accessibility gate is set to AA, which is the level this plugin commits to',
+	'WCAG2AA' === (string) ( $recoveryflow_pa11y_config['defaults']['standard'] ?? '' )
+);
+
+ok(
+	'and AAA is still run and reported, rather than dropped for being noisy',
+	false !== strpos( $recoveryflow_a11y_src, 'build_config WCAG2AAA' )
+);
+
+/*
+ * The axe runner is OURS. pa11y's bundled one reports axe's "could not
+ * determine" results as errors -- 28 contrast failures on core <select>
+ * elements measured at about 17:1. Going back to the bundled runner would not
+ * fail anything; it would just bury the real findings, which is why this is
+ * asserted rather than left to whoever next edits the config.
+ */
+$recoveryflow_pa11y_runners = (array) ( $recoveryflow_pa11y_config['defaults']['runners'] ?? array() );
+
+ok(
+	'the accessibility run uses this repository\'s axe runner, not the bundled one',
+	in_array( 'tests/a11y/axe-runner.js', $recoveryflow_pa11y_runners, true )
+		&& ! in_array( 'axe', $recoveryflow_pa11y_runners, true )
+);
+
+ok(
+	'and that runner tells axe violations apart from what axe could not decide',
+	false !== strpos( (string) file_get_contents( $recoveryflow_root . '/tests/a11y/axe-runner.js' ), "result.incomplete.map(issue => process(issue, 'warning'))" )
+);
+
+/*
+ * rootElement on the admin screens is load-bearing. wp-admin is behind a
+ * capability check and a login form passes an accessibility check cleanly, so a
+ * run that had quietly lost its session would report twenty green screens it
+ * never saw. Requiring an element that only exists inside wp-admin means such a
+ * run fails instead. Verified by mutation: point it at a selector that does not
+ * exist and 19 of 22 URLs fail.
+ */
+$recoveryflow_admin_entries = 0;
+$recoveryflow_admin_rooted  = 0;
+
+foreach ( $recoveryflow_pa11y_list as $recoveryflow_entry ) {
+	$recoveryflow_entry_url = is_array( $recoveryflow_entry ) ? (string) ( $recoveryflow_entry['url'] ?? '' ) : (string) $recoveryflow_entry;
+
+	if ( false === strpos( $recoveryflow_entry_url, 'wp-admin' ) ) {
+		continue;
+	}
+
+	++$recoveryflow_admin_entries;
+
+	if ( is_array( $recoveryflow_entry ) && '' !== (string) ( $recoveryflow_entry['rootElement'] ?? '' ) ) {
+		++$recoveryflow_admin_rooted;
+	}
+}
+
+ok(
+	'every admin screen in the run is pinned to an element only wp-admin has, so a lost session fails the run',
+	$recoveryflow_admin_entries > 0 && $recoveryflow_admin_entries === $recoveryflow_admin_rooted
+);
+
+/*
+ * Two rules are ignored, and both were verified against the browser's own
+ * accessibility tree rather than argued away. The pair asserted here is that
+ * the config and the document agree: an ignore nobody wrote down is an
+ * unexplained hole, and a document explaining an ignore that is no longer
+ * there sends the next reader looking for a problem that was fixed.
+ */
+$recoveryflow_pa11y_ignored = (array) ( $recoveryflow_pa11y_config['defaults']['ignore'] ?? array() );
+
+$recoveryflow_unexplained = array();
+
+foreach ( $recoveryflow_pa11y_ignored as $recoveryflow_rule ) {
+	if ( false === strpos( $recoveryflow_a11y_doc, (string) $recoveryflow_rule ) ) {
+		$recoveryflow_unexplained[] = (string) $recoveryflow_rule;
+	}
+}
+
+ok(
+	'every rule the accessibility run ignores is written down and justified in the docs: ' . ( array() === $recoveryflow_unexplained ? 'all of them' : 'UNEXPLAINED ' . implode( ', ', $recoveryflow_unexplained ) ),
+	array() === $recoveryflow_unexplained
+);
+
+/*
+ * And the other direction: the document must not go on explaining an exception
+ * that has been removed.
+ */
+preg_match_all( '/`(WCAG2AA\.[A-Za-z0-9_.,]+)`/', $recoveryflow_a11y_doc, $recoveryflow_doc_rules );
+
+$recoveryflow_stale = array();
+
+foreach ( array_unique( (array) ( $recoveryflow_doc_rules[1] ?? array() ) ) as $recoveryflow_rule ) {
+	if ( ! in_array( $recoveryflow_rule, $recoveryflow_pa11y_ignored, true ) ) {
+		$recoveryflow_stale[] = (string) $recoveryflow_rule;
+	}
+}
+
+ok(
+	'and the docs do not explain an exception the run no longer makes: ' . ( array() === $recoveryflow_stale ? 'none stale' : 'STALE ' . implode( ', ', $recoveryflow_stale ) ),
+	array() === $recoveryflow_stale
+);
+
+/*
+ * The keyboard pass. It is the half an automated document scan cannot do -- a
+ * control that takes focus while invisible reads as clean markup -- and the
+ * reason it never got done is that doing it by hand across twenty-two screens
+ * produces one sentence indistinguishable from one written without doing it.
+ */
+ok(
+	'there is a keyboard pass, and it is wired to a command rather than described',
+	is_array( $recoveryflow_package )
+		&& false !== strpos( (string) ( $recoveryflow_package['scripts']['a11y:keyboard'] ?? '' ), 'bin/keyboard.sh' )
+		&& is_file( $recoveryflow_root . '/tests/a11y/keyboard.js' )
+);
+
+/*
+ * The seeder is what puts rows on the screens. An empty WP_List_Table renders
+ * none of the status badges, none of the masked contact columns and none of the
+ * row actions the checklist makes claims about, so a run against an unseeded
+ * site checks markup no merchant ever sees and passes.
+ */
+ok(
+	'the accessibility run seeds the screens rather than checking whatever is there',
+	false !== strpos( $recoveryflow_a11y_src, 'RECOVERYFLOW_A11Y_SEED' )
+		&& is_file( $recoveryflow_root . '/tests/a11y/seed.php' )
+);
+
+/*
+ * And the seeder clears the CONSENT LEDGER, not only the journeys. Checking the
+ * opt-out page properly means pressing its button, and an opt-out is recorded
+ * against the identity, which outlives the journey -- so a clear-out that
+ * missed it left that person suppressed and the next seeding enrolled one
+ * fewer. The queue lost a row per run while every gate stayed green.
+ */
+$recoveryflow_a11y_seed_src = (string) file_get_contents( $recoveryflow_root . '/tests/a11y/seed.php' );
+
+ok(
+	'and clearing the seed data removes the consents too, so the suite does not thin out run by run',
+	false !== strpos( $recoveryflow_a11y_seed_src, "'consents'" )
+		&& false !== strpos( $recoveryflow_a11y_seed_src, 'identities' )
 );
 
 

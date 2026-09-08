@@ -11,9 +11,9 @@ RecoveryFlow by WA.cr moves money-adjacent state (a merchant's messaging wallet,
 | Integration | `tests/integration/` | WordPress core test suite inside wp-env, with WooCommerce | Yes | Minutes | **Not built. Empty.** |
 | Security | `tests/security/` | Runs inside the integration bootstrap | Yes | Minutes | **Not built. Empty.** |
 | Failure | `tests/failure/` | Runs inside the integration bootstrap, with a fake WA.cr transport | Yes | Minutes | **Not built. Empty.** |
-| Accessibility | `.pa11yci.json` | pa11y-ci (WCAG2AAA standard, axe and htmlcs runners) against a logged-in wp-env session | Yes | Minutes | **Not built. Lists no URLs.** |
+| Accessibility | `.pa11yci.json`, `tests/a11y/` | pa11y-ci at WCAG 2.2 AA over 22 screens, then AAA as a report; a Tab-key pass over the same screens | Yes | Minutes | **Built. 22 screens, run by CI.** |
 
-Everything asserted today is in the smoke suite: `php tests/smoke.php`, run by CI on PHP 8.0 and 8.3. The five rows below it describe a strategy, not a state -- read the note under [What each suite covers](#what-each-suite-covers) before quoting any of them. There is no `tests/a11y/` directory; pa11y-ci is configured by `.pa11yci.json` at the repository root, and its URL list is empty.
+Everything asserted about the PHP is in the smoke suite: `php tests/smoke.php`, run by CI on PHP 8.0 and 8.3. The four PHPUnit rows describe a strategy, not a state -- read the note under [What each suite covers](#what-each-suite-covers) before quoting any of them. The accessibility row is a state: `tests/a11y/` exists, `.pa11yci.json` lists 22 screens, and both run in CI.
 
 Static checks run alongside: `composer lint` (`php -l` plus PHPCS with WordPress, WordPress-Extra, WordPress.Security and PHPCompatibilityWP for PHP 8.0 and above) and `composer analyse` (PHPStan level 5 with the WordPress extension).
 
@@ -67,11 +67,12 @@ composer test:unit              # unit suite, no WordPress needed
 
 npx @wordpress/env start        # WordPress + WooCommerce in Docker; plugin mapped from the repo root
 composer test:integration       # integration, security and failure suites inside wp-env
-npm run a11y                    # pa11y-ci over every admin screen and the public pages
+npm run a11y                    # WCAG 2.2 AA over all 22 screens, then AAA as a report
+npm run a11y:keyboard           # walk the same screens with the Tab key
 npx @wordpress/env stop
 ```
 
-CI runs lint, analyse and unit on PHP 8.0 and 8.3, and integration plus accessibility on one matrix cell through wp-env.
+CI runs smoke on PHP 8.0 and 8.3, the static checks and the translation checks on one cell each, and the accessibility run and keyboard pass on one cell through wp-env. There is no PHPUnit job, for the reason below.
 
 ## Fixture approach
 
@@ -84,10 +85,13 @@ CI runs lint, analyse and unit on PHP 8.0 and 8.3, and integration plus accessib
 
 ## What each suite covers
 
-> **Not built yet, and this section describes the intention rather than the state.**
-> `tests/unit/`, `tests/integration/`, `tests/security/` and `tests/failure/` are
-> all empty, and `.pa11yci.json` lists no URLs. `composer test:unit` reports
-> "No tests executed!" and passes.
+> **The four PHPUnit suites are not built, and this section describes the
+> intention rather than the state.** `tests/unit/`, `tests/integration/`,
+> `tests/security/` and `tests/failure/` are all empty. `composer test:unit`
+> reports "No tests executed!" and passes.
+>
+> The accessibility suite is the exception and is now built: see
+> [Accessibility runs](#accessibility-runs).
 >
 > CI used to run that as a job called **Unit tests**, so every run since the
 > first release carried a green tick for coverage that did not exist. The job
@@ -95,8 +99,9 @@ CI runs lint, analyse and unit on PHP 8.0 and 8.3, and integration plus accessib
 > asserts that CI runs PHPUnit **if and only if** a PHPUnit test exists -- so
 > writing the first test fails the suite until the job is restored, and
 > restoring the job with the suites still empty fails it too. `npm run a11y`
-> likewise now refuses to run against an empty URL list instead of reporting
-> success against zero screens.
+> was the same defect and has been fixed by building the run rather than by
+> removing it; it still refuses an empty URL list, so emptying the list fails
+> instead of passing.
 >
 > Everything actually asserted today lives in `tests/smoke.php`, which boots the
 > real container against the fakes in `tests/wp-stubs.php`. That is a real suite
@@ -152,7 +157,11 @@ Each of these runs the real stages against the fake transport and asserts the le
 
 ## Accessibility runs
 
-`npm run a11y` starts from a logged-in wp-env session and runs pa11y-ci with the WCAG2AAA standard and both the axe and htmlcs runners over: Overview, Journeys, a journey detail, Workflows, Integrations, each Settings tab (General, Recovery, WA.cr, Privacy, Advanced), System Status, and the public opt-out confirmation and invalid-link pages. Any AA failure fails the build; AAA findings are reported and reviewed. A keyboard-only manual pass per screen is recorded in [`accessibility.md`](accessibility.md).
+`npm run a11y` seeds the site, logs in, and runs pa11y-ci over 22 screens: Overview; the queue unfiltered, filtered and with a search matching nothing; one recovery; the workflows list; the editor loaded and empty; Integrations; all seven Settings tabs; a deeplinked field; System Status; the setup screen; and the three public pages, including the one after the unsubscribe button has been pressed.
+
+**The gate is WCAG 2.2 AA and it fails the build.** The same command then runs the screens again at AAA and prints the findings without failing on them -- almost all of them are core WordPress's own colours on core's own components. `npm run a11y:keyboard` walks every screen with the Tab key.
+
+`docs/accessibility.md` carries the detail: the two rules that are ignored and the accessibility-tree evidence for each, what the AAA pass reports, and the recorded keyboard pass. Do not quote either number without re-reading that file -- `tests/smoke.php` fails if the ignore list and that document stop agreeing.
 
 ## Verification walkthrough
 

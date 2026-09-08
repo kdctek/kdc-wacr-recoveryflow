@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Privacy;
 
+use WAcr\RecoveryFlow\Admin\Nonce_Field;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Customer\Identity;
@@ -228,7 +229,7 @@ final class Erase_By_Phone {
 			esc_url( admin_url( 'admin-post.php' ) )
 		);
 
-		wp_nonce_field( self::ACTION );
+		Nonce_Field::render( self::ACTION );
 
 		printf(
 			'<input type="hidden" name="action" value="%1$s" />

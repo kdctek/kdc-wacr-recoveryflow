@@ -80,3 +80,58 @@ jobs:
   # Put the job back when the first PHPUnit test is written. tests/smoke.php
   # asserts that the two stay in step, in both directions, so neither this
   # comment nor the empty suites can quietly stop being true.
+
+  accessibility:
+    name: Accessibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Install tooling
+        run: npm ci
+
+      # wp-env brings up a real WordPress with this plugin and WooCommerce on
+      # it. The run needs one: every screen is behind a capability check, and
+      # three of them -- one recovery, one workflow's editor and the public
+      # opt-out page -- have no address at all until something exists to
+      # address.
+      - name: Start WordPress
+        run: npm run env:start
+
+      # Recovery is off by default, which is the right default and the wrong
+      # state to check: with it off, nothing enrols and the queue renders its
+      # empty state. Turning it on is part of arranging the site, not part of
+      # what is being tested.
+      - name: Turn recovery on
+        run: |
+          npx wp-env run cli wp rewrite structure '/%postname%/' --hard
+          npx wp-env run cli wp eval 'update_option( "recoveryflow_settings", array_merge( (array) get_option( "recoveryflow_settings", array() ), array( "enabled" => true ) ) );'
+
+      # The gate is WCAG 2.2 AA over every screen. The same command then runs
+      # the screens again at AAA and prints the findings without failing on
+      # them: AAA on core WordPress's own components is not something this
+      # plugin can fix, and a gate that can never go green gets switched off.
+      - name: WCAG 2.2 AA over every screen
+        run: npm run a11y
+
+      # What the document scan cannot see. A control that takes focus while
+      # invisible is perfectly good markup.
+      - name: Keyboard pass
+        run: npm run a11y:keyboard
+
+      - name: What the AAA pass found
+        if: always()
+        run: RECOVERYFLOW_A11Y_AAA_JSON=aaa.json npm run a11y > /dev/null && echo "AAA results in aaa.json"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-aaa
+          path: aaa.json
+          if-no-files-found: ignore
