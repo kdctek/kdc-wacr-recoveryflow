@@ -65,6 +65,7 @@ use WAcr\RecoveryFlow\WAcr\Result;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 use WAcr\RecoveryFlow\WAcr\Send_Request;
 use WAcr\RecoveryFlow\WAcr\Transport;
+use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
 
 ( new Autoloader( dirname( __DIR__ ) . '/src/' ) )->register();
@@ -1964,6 +1965,8 @@ check( 'one recovery needs the journeys capability', Screen::capability( Screen:
 check( 'settings need the settings capability', Screen::capability( Screen::SETTINGS ), Capabilities::MANAGE_SETTINGS );
 check( 'integrations need the settings capability', Screen::capability( Screen::INTEGRATIONS ), Capabilities::MANAGE_SETTINGS );
 check( 'status needs the status capability', Screen::capability( Screen::STATUS ), Capabilities::VIEW_STATUS );
+check( 'the workflow list needs the workflows capability', Screen::capability( Screen::WORKFLOWS ), Capabilities::MANAGE_WORKFLOWS );
+check( 'one workflow needs the workflows capability', Screen::capability( Screen::WORKFLOW ), Capabilities::MANAGE_WORKFLOWS );
 
 // An unknown slug must fail closed. A screen somebody forgot to list should be
 // shut, not open to everyone.
@@ -1989,13 +1992,14 @@ $recoveryflow_screens = array(
 	'recovery'     => array( $plugin->admin_journey(), 'render' ),
 	'integrations' => array( $plugin->admin_integrations(), 'render' ),
 	'status'       => array( $plugin->admin_status(), 'render' ),
+	'workflows'    => array( $plugin->admin_workflows(), 'render' ),
 );
 
 foreach ( $recoveryflow_screens as $recoveryflow_name => $recoveryflow_render ) {
 	$recoveryflow_html = recoveryflow_render_screen( $recoveryflow_render );
 
 	ok( "the {$recoveryflow_name} screen renders", false !== strpos( $recoveryflow_html, '<div class="wrap' ) );
-	ok( "the {$recoveryflow_name} screen has exactly one top-level heading", 1 === substr_count( $recoveryflow_html, '<h1>' ) );
+	ok( "the {$recoveryflow_name} screen has exactly one top-level heading", 1 === substr_count( $recoveryflow_html, '<h1' ) );
 }
 
 // Every screen must refuse somebody without its capability. wp_die is stubbed
@@ -2049,6 +2053,121 @@ foreach ( $plugin->health()->checks() as $recoveryflow_check ) {
 
 ok( 'this site has checks in both states, so the count means something', $recoveryflow_failing > 0 && $recoveryflow_passing > 0 );
 check( 'the overview lists exactly the checks that need attention', substr_count( $recoveryflow_html, 'recoveryflow-attention__item' ), $recoveryflow_failing * 2 );
+
+/*
+ * The workflow list. Its job is to answer "what does this one actually do"
+ * without the reader opening anything, so the assertions are on the SENTENCES
+ * -- a card that renders the stored JSON, or renders a step count and no more,
+ * would pass a "the screen renders" check and fail the reader.
+ */
+$recoveryflow_snapshot_before = get_option( Options::ME_SNAPSHOT, array() );
+
+/*
+ * Primed with the definitions the plugin actually seeds, read off the
+ * repository rather than retyped here. A test that carries its own copy of a
+ * definition stops testing the shipped one the first time somebody edits the
+ * seed, and goes on passing.
+ */
+$recoveryflow_seeded = static function ( string $method ): array {
+	$reflection = new ReflectionMethod( Workflow_Repository::class, $method );
+	$reflection->setAccessible( true );
+
+	return (array) $reflection->invoke( null );
+};
+
+$recoveryflow_row = static function ( int $id, string $slug, array $definition, bool $is_default ): array {
+	return array(
+		'id'              => $id,
+		'name'            => (string) ( $definition['name'] ?? '' ),
+		'slug'            => $slug,
+		'source_id'       => '',
+		'status'          => 'active',
+		'definition_json' => wp_json_encode( $definition ),
+		'definition_hash' => '',
+		'version'         => 1,
+		'is_default'      => $is_default ? 1 : 0,
+		'created_at'      => '2026-01-01 00:00:00',
+		'updated_at'      => '2026-01-01 00:00:00',
+	);
+};
+
+$GLOBALS['wpdb']->rows['recoveryflow_workflows'] = array(
+	$recoveryflow_row( 1, Workflow_Repository::SLUG_DIRECT, $recoveryflow_seeded( 'direct_definition' ), true ),
+	$recoveryflow_row( 2, Workflow_Repository::SLUG_HANDOFF, $recoveryflow_seeded( 'handoff_definition' ), false ),
+);
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send', 'templates:read' ),
+	)
+);
+
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_workflows(), 'render' ) );
+
+ok( 'the workflow list names each workflow', false !== strpos( $recoveryflow_html, esc_html( 'Cart recovery' ) ) );
+ok( 'and puts a wait into words rather than an ISO duration', false !== strpos( $recoveryflow_html, esc_html__( 'Waits 1 day before going on.', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and never shows a raw duration', false === strpos( $recoveryflow_html, 'P1D' ) );
+ok( 'and says what a check does in plain words', false !== strpos( $recoveryflow_html, esc_html__( 'the order has still not been placed', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and names the raw condition nowhere on the screen', false === strpos( $recoveryflow_html, 'journey.not_completed' ) );
+ok( 'and says which channel a send goes over', false !== strpos( $recoveryflow_html, esc_html( _x( 'WhatsApp', 'message channel', 'kdc-wacr-recoveryflow' ) ) ) );
+ok( 'and says whether a workflow is the one new recoveries start on', false !== strpos( $recoveryflow_html, esc_html__( 'Active, and used for new recoveries', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'a connected workspace is offered a new workflow', false !== strpos( $recoveryflow_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and is not told the screen is read-only', false === strpos( $recoveryflow_html, esc_html__( 'Workflows are read-only on this workspace', 'kdc-wacr-recoveryflow' ) ) );
+
+// The other direction. A gate that is only ever exercised in one state is a
+// gate whose decision no assertion can see: reversing it would change nothing.
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => false,
+		'reason' => 'plan_upgrade_required',
+	)
+);
+
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_workflows(), 'render' ) );
+
+ok( 'a workspace below Scale still sees its workflows', false !== strpos( $recoveryflow_html, esc_html( 'Cart recovery' ) ) );
+ok( 'and is told the screen is read-only', false !== strpos( $recoveryflow_html, esc_html__( 'Workflows are read-only on this workspace', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and is told why in words it can act on', false !== strpos( $recoveryflow_html, esc_html( Feature_Gate::unavailable_reason() ) ) );
+ok( 'and is not offered a new workflow it could not save', false === strpos( $recoveryflow_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
+
+/*
+ * The exemption that keeps the Lite path from being trialware: handing a
+ * recovery to a WA.cr Auto Flow needs no developer API, so the hand-off
+ * workflow stays editable on a plan where the direct-send one does not.
+ */
+ok(
+	'the hand-off workflow stays editable below Scale',
+	false !== strpos(
+		$recoveryflow_html,
+		esc_html(
+			sprintf(
+				/* translators: %s: a workflow name. */
+				__( 'Edit %s', 'kdc-wacr-recoveryflow' ),
+				(string) ( $recoveryflow_seeded( 'handoff_definition' )['name'] ?? '' )
+			)
+		)
+	)
+);
+ok(
+	'while the direct-send one does not',
+	false === strpos(
+		$recoveryflow_html,
+		esc_html(
+			sprintf(
+				/* translators: %s: a workflow name. */
+				__( 'Edit %s', 'kdc-wacr-recoveryflow' ),
+				(string) ( $recoveryflow_seeded( 'direct_definition' )['name'] ?? '' )
+			)
+		)
+	)
+);
+ok( 'and is told why that one is closed', false !== strpos( $recoveryflow_html, esc_html__( 'This workflow sends from WordPress, which this workspace\'s plan does not include, so it cannot be edited or run here.', 'kdc-wacr-recoveryflow' ) ) );
+
+update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_before );
+$GLOBALS['wpdb']->rows = array();
 
 /*
  * The one screen that can show a customer's real phone number. Contact details

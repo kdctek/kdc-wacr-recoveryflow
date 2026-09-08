@@ -623,6 +623,19 @@ class Fake_Wpdb extends wpdb {
 	public $insert_id = 0;
 	public $last_error = '';
 
+	/**
+	 * Rows to hand back, keyed by a fragment of the query that asks for them.
+	 *
+	 * Empty by default, so a test that primes nothing sees exactly the empty
+	 * results this stub has always returned. It exists because a screen whose
+	 * job is to put stored rows into words cannot be tested against a store
+	 * that is always empty: "the screen renders" would pass while the screen
+	 * showed nothing at all.
+	 *
+	 * @var array<string,array<int,array<string,mixed>>>
+	 */
+	public $rows = array();
+
 	public function get_charset_collate() {
 		return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci';
 	}
@@ -642,10 +655,22 @@ class Fake_Wpdb extends wpdb {
 	}
 	public function get_row( $sql, $output = null ) {
 		$this->queries[] = $sql;
-		return null;
+		$rows            = $this->primed( $sql );
+
+		return array() === $rows ? null : $rows[0];
 	}
 	public function get_results( $sql, $output = null ) {
 		$this->queries[] = $sql;
+
+		return $this->primed( $sql );
+	}
+	private function primed( $sql ) {
+		foreach ( $this->rows as $fragment => $rows ) {
+			if ( false !== strpos( (string) $sql, (string) $fragment ) ) {
+				return $rows;
+			}
+		}
+
 		return array();
 	}
 	public function get_var( $sql ) {

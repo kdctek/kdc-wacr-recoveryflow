@@ -16,6 +16,7 @@ use WAcr\RecoveryFlow\Admin\Pages\Journey_Detail;
 use WAcr\RecoveryFlow\Admin\Pages\Journeys as Journeys_Page;
 use WAcr\RecoveryFlow\Admin\Pages\Overview as Overview_Page;
 use WAcr\RecoveryFlow\Admin\Pages\System_Status;
+use WAcr\RecoveryFlow\Admin\Pages\Workflows as Workflows_Page;
 use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
@@ -259,6 +260,7 @@ final class Plugin {
 			),
 			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
 			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health() ),
+			'admin_workflows'     => static fn ( Plugin $c ): Workflows_Page => new Workflows_Page( $c->workflows() ),
 			'admin_setup'         => static fn ( Plugin $c ): Setup => new Setup( $c->wacr(), $c->credentials() ),
 			'admin_menu'          => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
 				$c->admin_overview(),
@@ -266,6 +268,7 @@ final class Plugin {
 				$c->admin_journey(),
 				$c->admin_integrations(),
 				$c->admin_status(),
+				$c->admin_workflows(),
 				$c->admin_setup()
 			),
 			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
@@ -816,6 +819,15 @@ final class Plugin {
 	 */
 	public function admin_status(): System_Status {
 		return $this->typed( 'admin_status', System_Status::class );
+	}
+
+	/**
+	 * The workflows screen.
+	 *
+	 * @return Workflows_Page
+	 */
+	public function admin_workflows(): Workflows_Page {
+		return $this->typed( 'admin_workflows', Workflows_Page::class );
 	}
 
 	/**

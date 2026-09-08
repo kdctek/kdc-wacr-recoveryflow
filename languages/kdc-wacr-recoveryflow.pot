@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T05:00:30+00:00\n"
+"POT-Creation-Date: 2026-09-08T05:39:41+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -91,59 +91,68 @@ msgstr ""
 msgid "Connection test failed."
 msgstr ""
 
-#: src/Admin/Menu.php:128
-#: src/Admin/Menu.php:129
-#: src/Admin/Menu.php:195
+#: src/Admin/Menu.php:139
+#: src/Admin/Menu.php:140
+#: src/Admin/Menu.php:206
 #: src/Admin/Pages/Overview.php:70
 msgid "RecoveryFlow"
 msgstr ""
 
-#: src/Admin/Menu.php:160
-#: src/Admin/Menu.php:161
+#: src/Admin/Menu.php:171
+#: src/Admin/Menu.php:172
 #: src/Admin/Settings/Schema.php:75
 #: src/Admin/Settings/Schema.php:105
 msgid "Recovery"
 msgstr ""
 
-#: src/Admin/Menu.php:178
-#: src/Admin/Menu.php:179
+#: src/Admin/Menu.php:189
+#: src/Admin/Menu.php:190
 #: src/Admin/Setup.php:298
 msgid "Set RecoveryFlow up"
 msgstr ""
 
-#: src/Admin/Menu.php:196
+#: src/Admin/Menu.php:207
 msgid "Overview"
 msgstr ""
 
-#: src/Admin/Menu.php:200
-#: src/Admin/Menu.php:201
+#: src/Admin/Menu.php:211
+#: src/Admin/Menu.php:212
 #: src/Admin/Pages/Journeys.php:81
 #: src/Admin/Pages/Overview.php:170
 msgid "Recoveries"
 msgstr ""
 
-#: src/Admin/Menu.php:205
-#: src/Admin/Menu.php:206
+#: src/Admin/Menu.php:216
+msgid "Recovery workflows"
+msgstr ""
+
+#: src/Admin/Menu.php:217
+#: src/Admin/Pages/Workflows.php:70
+msgid "Workflows"
+msgstr ""
+
+#: src/Admin/Menu.php:221
+#: src/Admin/Menu.php:222
 #: src/Admin/Pages/Integrations.php:55
 msgid "Integrations"
 msgstr ""
 
-#: src/Admin/Menu.php:210
+#: src/Admin/Menu.php:226
 #: src/Admin/Settings/Page.php:179
 msgid "RecoveryFlow settings"
 msgstr ""
 
-#: src/Admin/Menu.php:211
+#: src/Admin/Menu.php:227
 #: src/Admin/Pages/Overview.php:195
 msgid "Settings"
 msgstr ""
 
-#: src/Admin/Menu.php:215
+#: src/Admin/Menu.php:231
 #: src/Admin/Pages/System_Status.php:56
 msgid "RecoveryFlow status"
 msgstr ""
 
-#: src/Admin/Menu.php:216
+#: src/Admin/Menu.php:232
 #: src/Admin/Pages/Journeys_Table.php:88
 #: src/Admin/Pages/Journey_Detail.php:161
 msgid "Status"
@@ -538,6 +547,66 @@ msgstr ""
 
 #: src/Admin/Pages/System_Status.php:175
 msgid "Clearing out old data"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:63
+msgid "You do not have permission to manage recovery workflows."
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:76
+msgid "Add workflow"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:84
+msgid "A workflow is what happens after a basket is left behind: what is checked, how long is waited, and what is sent. One workflow runs for each recovery, chosen when the recovery starts, and it keeps running the version it started on even if you edit it afterwards."
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:112
+msgid "Workflows are read-only on this workspace"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:117
+msgid "Check the WA.cr connection"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:132
+msgid "There are no workflows"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:135
+msgid "Nothing will be sent for an abandoned basket until at least one workflow exists and is active. RecoveryFlow installs two when it is activated; if both have been deleted, add one here."
+msgstr ""
+
+#. translators: %d: a version number.
+#: src/Admin/Pages/Workflows.php:164
+#, php-format
+msgid "version %d"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:170
+msgid "This workflow has no steps, so it does nothing."
+msgstr ""
+
+#. translators: %s: a workflow name.
+#: src/Admin/Pages/Workflows.php:198
+#, php-format
+msgid "Edit %s"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:206
+msgid "This workflow sends from WordPress, which this workspace's plan does not include, so it cannot be edited or run here."
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:250
+msgid "Draft, so it never runs"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:254
+msgid "Active, and used for new recoveries"
+msgstr ""
+
+#: src/Admin/Pages/Workflows.php:257
+msgid "Active, but not the one new recoveries start on"
 msgstr ""
 
 #: src/Admin/Settings/Field_Renderer.php:323
@@ -1296,6 +1365,152 @@ msgstr ""
 
 #: src/Admin/Setup.php:435
 msgid "Skipping changes nothing that is already running: abandoned baskets go on being recorded, and nothing is sent until a workspace is connected."
+msgstr ""
+
+#. translators: %s: the step type as stored in the workflow.
+#: src/Admin/Step_Describer.php:55
+#, php-format
+msgid "Runs the step type %s, which was added by another plugin."
+msgstr ""
+
+#: src/Admin/Step_Describer.php:69
+msgctxt "workflow step type"
+msgid "Wait"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:72
+msgctxt "workflow step type"
+msgid "Check"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:75
+msgctxt "workflow step type"
+msgid "Send"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:78
+msgctxt "workflow step type"
+msgid "Step"
+msgstr ""
+
+#. translators: %d: a number of days.
+#: src/Admin/Step_Describer.php:102
+#, php-format
+msgid "%d day"
+msgid_plural "%d days"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: a number of hours.
+#: src/Admin/Step_Describer.php:109
+#, php-format
+msgid "%d hour"
+msgid_plural "%d hours"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: a number of minutes.
+#: src/Admin/Step_Describer.php:115
+#, php-format
+msgid "%d minute"
+msgid_plural "%d minutes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Admin/Step_Describer.php:126
+msgctxt "message channel"
+msgid "email"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:129
+msgctxt "message channel"
+msgid "WhatsApp"
+msgstr ""
+
+#. translators: %s: a length of time, already in words, such as "1 day".
+#: src/Admin/Step_Describer.php:142
+#, php-format
+msgid "Waits %s before going on."
+msgstr ""
+
+#. translators: 1: what is checked, 2: what happens when the check fails.
+#: src/Admin/Step_Describer.php:157
+#, php-format
+msgid "Checks that %1$s. If not, %2$s."
+msgstr ""
+
+#: src/Admin/Step_Describer.php:175
+msgid "Hands the recovery to a WA.cr Auto Flow, which decides what to send from there."
+msgstr ""
+
+#. translators: %s: a channel name, such as WhatsApp.
+#: src/Admin/Step_Describer.php:183
+#, php-format
+msgid "Sends a message over %s. No template has been chosen yet."
+msgstr ""
+
+#. translators: 1: a message template name, 2: a channel name such as WhatsApp.
+#: src/Admin/Step_Describer.php:188
+#, php-format
+msgid "Sends the %1$s template over %2$s."
+msgstr ""
+
+#. translators: 1: an action name as stored, 2: a channel name.
+#: src/Admin/Step_Describer.php:196
+#, php-format
+msgid "Runs %1$s over %2$s."
+msgstr ""
+
+#: src/Admin/Step_Describer.php:214
+msgid "the order has still not been placed"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:217
+msgid "the customer has not replied or opened their basket again"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:220
+msgid "the customer may still be messaged"
+msgstr ""
+
+#. translators: %s: an amount of money, as typed by the merchant.
+#: src/Admin/Step_Describer.php:225
+#, php-format
+msgid "the basket is worth at least %s"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:244
+msgid "the recovery stops and is recorded as recovered"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:247
+msgid "the recovery stops and is recorded as cancelled"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:250
+msgid "the recovery stops, because the customer asked not to be messaged"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:253
+msgid "the recovery stops and is recorded as expired"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:256
+msgid "the recovery stops, because there is no way to reach this customer"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:259
+msgid "the recovery stops and is recorded as failed"
+msgstr ""
+
+#. translators: %s: a journey state name.
+#: src/Admin/Step_Describer.php:264
+#, php-format
+msgid "the recovery stops as %s"
+msgstr ""
+
+#: src/Admin/Step_Describer.php:267
+msgid "the recovery stops"
 msgstr ""
 
 #: src/Core/Feature_Gate.php:119
