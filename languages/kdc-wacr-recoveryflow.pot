@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T09:13:21+00:00\n"
+"POT-Creation-Date: 2026-09-08T09:49:31+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -220,7 +220,7 @@ msgid "Settings"
 msgstr ""
 
 #: src/Admin/Menu.php:258
-#: src/Admin/Pages/System_Status.php:66
+#: src/Admin/Pages/System_Status.php:67
 msgid "RecoveryFlow status"
 msgstr ""
 
@@ -479,7 +479,7 @@ msgid "Step"
 msgstr ""
 
 #: src/Admin/Pages/Journey_Detail.php:319
-#: src/Admin/Pages/System_Status.php:85
+#: src/Admin/Pages/System_Status.php:89
 msgid "Result"
 msgstr ""
 
@@ -516,7 +516,7 @@ msgid "Check:"
 msgstr ""
 
 #: src/Admin/Pages/Overview.php:126
-#: src/Admin/Pages/System_Status.php:101
+#: src/Admin/Pages/System_Status.php:105
 #: src/Admin/Settings/Page.php:428
 msgid "Go to this setting"
 msgstr ""
@@ -541,95 +541,78 @@ msgstr ""
 msgid "View all recoveries"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:62
+#: src/Admin/Pages/System_Status.php:63
 msgid "You do not have permission to view RecoveryFlow's status."
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:81
+#: src/Admin/Pages/System_Status.php:85
 msgid "Checks"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:84
+#: src/Admin/Pages/System_Status.php:88
 msgid "Check"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:86
+#: src/Admin/Pages/System_Status.php:90
 msgid "What this means"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:115
+#: src/Admin/Pages/System_Status.php:119
 msgid "Background jobs"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:118
+#: src/Admin/Pages/System_Status.php:122
 msgid "RecoveryFlow works in five small passes rather than one long one, so a busy shop finishes each of them. A backlog means the pass ran out of time and will carry on next run; it is only a problem if it never clears."
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:122
+#: src/Admin/Pages/System_Status.php:126
+#: src/Admin/Run_Now.php:352
 msgid "Pass"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:123
+#: src/Admin/Pages/System_Status.php:127
 msgid "Last run"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:124
+#: src/Admin/Pages/System_Status.php:128
+#: src/Admin/Run_Now.php:353
 msgid "Handled"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:125
+#: src/Admin/Pages/System_Status.php:129
+#: src/Admin/Run_Now.php:354
 msgid "Failed"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:126
+#: src/Admin/Pages/System_Status.php:130
 msgid "More to do"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:133
+#: src/Admin/Pages/System_Status.php:137
 msgid "Not yet"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:136
+#: src/Admin/Pages/System_Status.php:140
 msgid "Yes"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:136
+#: src/Admin/Pages/System_Status.php:140
 msgid "No"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:155
+#: src/Admin/Pages/System_Status.php:159
 msgctxt "the result of a system check"
 msgid "Stopped"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:158
+#: src/Admin/Pages/System_Status.php:162
 msgctxt "the result of a system check"
 msgid "Check this"
 msgstr ""
 
-#: src/Admin/Pages/System_Status.php:161
+#: src/Admin/Pages/System_Status.php:165
 msgctxt "the result of a system check"
 msgid "Working"
-msgstr ""
-
-#: src/Admin/Pages/System_Status.php:174
-msgid "Finding abandoned baskets"
-msgstr ""
-
-#: src/Admin/Pages/System_Status.php:177
-msgid "Sending reminders"
-msgstr ""
-
-#: src/Admin/Pages/System_Status.php:180
-msgid "Checking for replies"
-msgstr ""
-
-#: src/Admin/Pages/System_Status.php:183
-msgid "Closing recoveries that ran out of time"
-msgstr ""
-
-#: src/Admin/Pages/System_Status.php:186
-msgid "Clearing out old data"
 msgstr ""
 
 #: src/Admin/Pages/Workflows.php:64
@@ -982,6 +965,101 @@ msgstr ""
 
 #: src/Admin/Pages/Workflow_Edit.php:809
 msgid "Save workflow"
+msgstr ""
+
+#: src/Admin/Run_Now.php:101
+msgid "You are not allowed to run RecoveryFlow's background passes on this site."
+msgstr ""
+
+#: src/Admin/Run_Now.php:146
+msgid "No background passes are registered, so nothing ran. This is a fault rather than an empty queue; the diagnostic report below is worth sending to support."
+msgstr ""
+
+#: src/Admin/Run_Now.php:192
+msgid "Skipped: another run was already working on this pass. That is ordinary on a busy shop."
+msgstr ""
+
+#: src/Admin/Run_Now.php:196
+msgid "This pass stopped on an error. The details are in the log."
+msgstr ""
+
+#: src/Admin/Run_Now.php:200
+msgid "There is more to do than fitted in one run. The rest has been queued and will carry on."
+msgstr ""
+
+#: src/Admin/Run_Now.php:203
+msgid "Finished with nothing left over."
+msgstr ""
+
+#. translators: %d: number of background passes that ran.
+#: src/Admin/Run_Now.php:225
+#, php-format
+msgid "%d pass ran."
+msgid_plural "%d passes ran."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: number of records handled.
+#: src/Admin/Run_Now.php:231
+#, php-format
+msgid "It handled %d record."
+msgid_plural "It handled %d records."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %s: how long the run took, in seconds, already formatted.
+#: src/Admin/Run_Now.php:237
+#, php-format
+msgid "It took %s seconds."
+msgstr ""
+
+#. translators: %d: number of records that failed.
+#: src/Admin/Run_Now.php:244
+#, php-format
+msgid "%d record failed; the log says why."
+msgid_plural "%d records failed; the log says why."
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: number of passes that were already running.
+#: src/Admin/Run_Now.php:257
+#, php-format
+msgid "%d pass was skipped because it was already running."
+msgid_plural "%d passes were skipped because they were already running."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Admin/Run_Now.php:268
+msgid "Nothing was waiting. The passes are working; there was simply no eligible recovery to act on."
+msgstr ""
+
+#: src/Admin/Run_Now.php:285
+#: src/Admin/Run_Now.php:319
+msgid "Run the passes now"
+msgstr ""
+
+#: src/Admin/Run_Now.php:290
+msgid "Running the passes by hand needs the \"recoveryflow_manage_journeys\" permission, which this account does not have. It can send reminders to real customers, which is why reading this screen and running them are separate permissions."
+msgstr ""
+
+#: src/Admin/Run_Now.php:298
+msgid "Runs all five passes once, in the foreground, using exactly the code the scheduler uses. This is the way to answer \"has it stopped working\" without waiting for the next scheduled run."
+msgstr ""
+
+#: src/Admin/Run_Now.php:303
+msgid "This really sends."
+msgstr ""
+
+#: src/Admin/Run_Now.php:304
+msgid "The dispatch pass is one of the five, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward."
+msgstr ""
+
+#: src/Admin/Run_Now.php:344
+msgid "The passes ran."
+msgstr ""
+
+#: src/Admin/Run_Now.php:355
+msgid "What happened"
 msgstr ""
 
 #: src/Admin/Settings/Field_Renderer.php:327
@@ -2273,6 +2351,26 @@ msgstr ""
 
 #: src/Integration/WooCommerce/Source.php:140
 msgid "Recovers abandoned carts and checkouts, on both the classic and the block checkout."
+msgstr ""
+
+#: src/Jobs/Stage_Label.php:40
+msgid "Finding abandoned baskets"
+msgstr ""
+
+#: src/Jobs/Stage_Label.php:43
+msgid "Sending reminders"
+msgstr ""
+
+#: src/Jobs/Stage_Label.php:46
+msgid "Checking for replies"
+msgstr ""
+
+#: src/Jobs/Stage_Label.php:49
+msgid "Closing recoveries that ran out of time"
+msgstr ""
+
+#: src/Jobs/Stage_Label.php:52
+msgid "Clearing out old data"
 msgstr ""
 
 #: src/Jobs/Wp_Cron_Driver.php:78

@@ -55,6 +55,8 @@ use WAcr\RecoveryFlow\Integration\GravityForms\Unpaid_Entry as Gf_Unpaid_Entry;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\Event_Batch;
 use WAcr\RecoveryFlow\Integration\Pollable_Source_Interface;
+use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
+use WAcr\RecoveryFlow\Jobs\Stage_Label;
 use WAcr\RecoveryFlow\Jobs\Stage_Stats;
 use WAcr\RecoveryFlow\Jobs\Stages\Evaluate;
 use WAcr\RecoveryFlow\Jobs\Time_Budget;
@@ -79,6 +81,7 @@ use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
 use WAcr\RecoveryFlow\WAcr\Credentials;
@@ -4165,6 +4168,140 @@ ok( 'closing stale events is addressed by primary key too', false !== stripos( $
 ok( 'and re-checks that they are still open and unclaimed', false !== stripos( $recoveryflow_sql[0], 'journey_id IS NULL' ) );
 
 $GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// "Run now": running the background passes from the status screen.
+//
+// The button sends real reminders and bills a real account, so what is asserted
+// here is mostly about what it REFUSES and what it SAYS -- the counts are the
+// easy part. Note the harness detail that makes these honest: the stats are
+// built by the real Stage_Runner against the real stages, so a pass that is
+// removed from the runner changes these answers.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_caps_before = $GLOBALS['recoveryflow_caps'] ?? null;
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_JOURNEYS );
+
+$recoveryflow_run = $plugin->admin_run_now()->run();
+
+ok( 'running the passes by hand reports one row per pass that ran', count( $recoveryflow_run['rows'] ) > 0 );
+check(
+	'and runs the same five passes the scheduler does, not a set of its own',
+	array_column( $recoveryflow_run['rows'], 'pass' ),
+	array_values( Scheduler_Interface::STAGES )
+);
+ok(
+	'and really works the primed rows rather than reporting an idle queue',
+	false !== strpos( $recoveryflow_run['message'], 'It handled' )
+		&& 0 < array_sum( array_column( $recoveryflow_run['rows'], 'handled' ) )
+);
+
+// The idle wording matters most on a shop where nothing is wrong, which is the
+// hardest state to reach through the primed harness -- so it is asserted of the
+// decision directly.
+$recoveryflow_idle = Run_Now::describe(
+	array_combine(
+		Scheduler_Interface::STAGES,
+		array_map(
+			static fn ( string $stage ): Stage_Stats => new Stage_Stats( $stage ),
+			Scheduler_Interface::STAGES
+		)
+	)
+);
+
+ok( 'an idle run is reported as working, not as a fault', true === $recoveryflow_idle['ok'] );
+ok(
+	'and says plainly that nothing was waiting rather than leaving a row of zeroes to be read as a breakage',
+	false !== strpos( $recoveryflow_idle['message'], 'Nothing was waiting.' )
+);
+
+// The counts are summed from the stats, so a pass reporting work must show up
+// in the summary. Asserted by driving the real runner rather than by faking a
+// stats array, which would only test the formatter.
+$recoveryflow_run_html = recoveryflow_render_screen( array( Run_Now::class, 'button' ) );
+
+ok(
+	'the button warns that this really sends and really bills, before it is pressed',
+	false !== strpos(
+		$recoveryflow_run_html,
+		esc_html__( 'The dispatch pass is one of the five, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward.', 'kdc-wacr-recoveryflow' )
+	)
+);
+ok(
+	'and posts to admin-post.php under its own action',
+	false !== strpos( $recoveryflow_run_html, 'name="action" value="' . Run_Now::ACTION . '"' )
+);
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_run_html, 'name="_wpnonce"' ) );
+
+// Reading the status screen and making the shop send are separate permissions.
+// VIEW_STATUS falls back to manage_options, so an account holding only it is
+// exactly the case that must not get the button.
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::VIEW_STATUS );
+
+$recoveryflow_run_html = recoveryflow_render_screen( array( Run_Now::class, 'button' ) );
+
+ok(
+	'somebody who may read the status screen but not work the queue gets no button',
+	false === strpos( $recoveryflow_run_html, 'name="action" value="' . Run_Now::ACTION . '"' )
+);
+ok(
+	'and is told which permission is missing rather than finding a control silently absent',
+	false !== strpos( $recoveryflow_run_html, 'recoveryflow_manage_journeys' )
+);
+
+$GLOBALS['recoveryflow_caps'] = $recoveryflow_caps_before;
+
+// A pass that could not take its lock must not read as "there was nothing to
+// do" -- that is the opposite diagnosis on the one screen somebody uses to work
+// out why nothing is happening.
+$recoveryflow_locked             = new Stage_Stats( Scheduler_Interface::DISPATCH );
+$recoveryflow_locked->last_error = 'locked';
+
+$recoveryflow_busy = Run_Now::describe( array( Scheduler_Interface::DISPATCH => $recoveryflow_locked ) );
+
+ok( 'a pass that was already running is reported as skipped', false !== strpos( $recoveryflow_busy['rows'][0]['note'], 'Skipped' ) );
+ok( 'and says that is ordinary rather than reading as a fault', false !== strpos( $recoveryflow_busy['rows'][0]['note'], 'ordinary' ) );
+ok(
+	'and the summary counts it as skipped rather than as an idle queue',
+	false !== strpos( $recoveryflow_busy['message'], 'already running' )
+);
+ok(
+	'so it never claims nothing was waiting',
+	false === strpos( $recoveryflow_busy['message'], 'Nothing was waiting.' )
+);
+
+// A pass that failed is not a pass that succeeded quietly.
+$recoveryflow_broken         = new Stage_Stats( Scheduler_Interface::DISPATCH );
+$recoveryflow_broken->failed = 3;
+
+$recoveryflow_bad = Run_Now::describe( array( Scheduler_Interface::DISPATCH => $recoveryflow_broken ) );
+
+ok( 'a run with failures is not reported as ok', false === $recoveryflow_bad['ok'] );
+ok( 'and says how many failed', false !== strpos( $recoveryflow_bad['message'], '3 records failed' ) );
+
+// No passes at all is a fault, not an empty queue -- the two look identical in
+// a count and need opposite responses from whoever is reading.
+$recoveryflow_none = Run_Now::describe( array() );
+
+ok( 'no registered passes is reported as a fault', false === $recoveryflow_none['ok'] );
+ok(
+	'and is distinguished from an empty queue in words',
+	false !== strpos( $recoveryflow_none['message'], 'fault rather than an empty queue' )
+);
+
+// One rule, one home: both tables on the status screen name a pass the same way.
+check(
+	'the status table and the run-now table give a pass the same name',
+	Stage_Label::for_stage( Scheduler_Interface::DISPATCH ),
+	__( 'Sending reminders', 'kdc-wacr-recoveryflow' )
+);
+check(
+	'and a stage nobody here registered keeps its own key rather than becoming "Unknown"',
+	Stage_Label::for_stage( 'somebody-elses-pass' ),
+	'somebody-elses-pass'
+);
 
 
 echo "\n";

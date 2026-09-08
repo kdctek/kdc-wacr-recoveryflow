@@ -11,6 +11,7 @@ use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Workflow_Form;
 use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Admin\Menu as Admin_Menu;
@@ -294,6 +295,7 @@ final class Plugin {
 			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
 			'admin_connection'    => static fn ( Plugin $c ): Connection_Test => new Connection_Test( $c->wacr(), $c->credentials() ),
 			'admin_hook_test'     => static fn ( Plugin $c ): Hook_Test => new Hook_Test( $c->wacr(), $c->credentials() ),
+			'admin_run_now'       => static fn ( Plugin $c ): Run_Now => new Run_Now( $c->runner() ),
 
 			// The public endpoint.
 			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
@@ -944,6 +946,15 @@ final class Plugin {
 	}
 
 	/**
+	 * The "Run now" button on the status screen.
+	 *
+	 * @return Run_Now
+	 */
+	public function admin_run_now(): Run_Now {
+		return $this->typed( 'admin_run_now', Run_Now::class );
+	}
+
+	/**
 	 * The first-run setup screen.
 	 *
 	 * @return Setup
@@ -1019,6 +1030,7 @@ final class Plugin {
 			$this->admin_connection()->hooks();
 			$this->admin_workflow_form()->hooks();
 			$this->admin_hook_test()->hooks();
+			$this->admin_run_now()->hooks();
 			$this->admin_setup()->hooks();
 		}
 
