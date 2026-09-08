@@ -150,7 +150,24 @@ final class Journey_State {
 			self::CANCELLED       => array(),
 			self::OPTED_OUT       => array(),
 			self::INVALID         => array(),
-			self::FAILED          => array(),
+			/*
+			 * FAILED is the one terminal state that means "the machinery could
+			 * not", rather than "do not message this person". RECOVERED,
+			 * EXPIRED, CANCELLED, OPTED_OUT and INVALID all carry a decision
+			 * about the customer and stay closed for good; a send that died
+			 * because WA.cr was unreachable or a template had been withdrawn
+			 * carries no such decision, and a shopkeeper who has since fixed
+			 * the cause is entitled to ask for it again.
+			 *
+			 * SCHEDULED and nothing else, and only ever from a person asking:
+			 * no background pass may resurrect a journey, or a fault that
+			 * failed a thousand recoveries would retry all thousand by itself.
+			 * Eligibility is not re-granted by this -- the send gate still asks
+			 * about consent, opt-out and quiet hours before anything goes out,
+			 * so a customer who opted out between the failure and the retry is
+			 * still not messaged.
+			 */
+			self::FAILED          => array( self::SCHEDULED ),
 		);
 	}
 

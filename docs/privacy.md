@@ -100,6 +100,8 @@ A customer is only anonymised when *every* journey they have is finished, so som
 
 **Uninstall.** `uninstall.php` always removes the API key, the signing and webhook secrets, the hash key, capabilities, scheduled actions and transients. Tables and options are dropped only when `delete_data_on_uninstall` is enabled (default off), so a merchant who removes the plugin by mistake does not lose their history — including the record of who opted out. On multisite it iterates every site.
 
+**A shopkeeper can record an opt-out taken by telephone.** It runs the same code as the unsubscribe link: every identity the customer has is suppressed, not merely the phone number, and every open recovery of theirs is stopped along with its links. The suppression survives a privacy erasure, because the hashes are the suppression list -- erasing them would forget that this person asked not to be messaged, and message them again the next time they typed the same number into a checkout.
+
 ### Not built yet
 
 The plan also describes an erase-by-phone admin action for customers who never gave an email address. That does not exist yet; erasure today goes through WordPress's own privacy tools, which are keyed by email.

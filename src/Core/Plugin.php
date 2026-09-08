@@ -11,6 +11,7 @@ use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Admin\Journey_Actions;
 use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Workflow_Form;
 use WAcr\RecoveryFlow\Admin\Setup;
@@ -70,6 +71,7 @@ use WAcr\RecoveryFlow\Recovery\Event_Ingest;
 use WAcr\RecoveryFlow\Recovery\Event_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Recovery_Controller;
+use WAcr\RecoveryFlow\Recovery\Suppressor;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Security\Rate_Limiter;
 use WAcr\RecoveryFlow\Support\Logger;
@@ -237,7 +239,9 @@ final class Plugin {
 				$c->events(),
 				$c->customers(),
 				$c->attempts(),
-				$c->receipts()
+				$c->receipts(),
+				$c->suppressor(),
+				$c->clock()
 			),
 			'rest_status'         => static fn ( Plugin $c ): Status_Controller => new Status_Controller( $c->credentials(), $c->wacr(), $c->health() ),
 			'rest_settings'       => static fn (): Settings_Controller => new Settings_Controller(),
@@ -300,6 +304,7 @@ final class Plugin {
 			'admin_connection'    => static fn ( Plugin $c ): Connection_Test => new Connection_Test( $c->wacr(), $c->credentials() ),
 			'admin_hook_test'     => static fn ( Plugin $c ): Hook_Test => new Hook_Test( $c->wacr(), $c->credentials() ),
 			'admin_run_now'       => static fn ( Plugin $c ): Run_Now => new Run_Now( $c->runner() ),
+			'admin_journey_acts'  => static fn ( Plugin $c ): Journey_Actions => new Journey_Actions( $c->rest_journeys() ),
 
 			// The public endpoint.
 			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
@@ -307,12 +312,18 @@ final class Plugin {
 				$c->attempts(),
 				$c->journeys(),
 				$c->events(),
-				$c->customers(),
-				$c->consent(),
 				$c->sources(),
 				$c->rate_limiter(),
 				$c->logger(),
-				$c->clock()
+				$c->clock(),
+				$c->suppressor()
+			),
+			'suppressor'          => static fn ( Plugin $c ): Suppressor => new Suppressor(
+				$c->customers(),
+				$c->consent(),
+				$c->journeys(),
+				$c->attempts(),
+				$c->logger()
 			),
 		);
 	}
@@ -977,6 +988,15 @@ final class Plugin {
 	}
 
 	/**
+	 * The buttons that act on one recovery.
+	 *
+	 * @return Journey_Actions
+	 */
+	public function admin_journey_acts(): Journey_Actions {
+		return $this->typed( 'admin_journey_acts', Journey_Actions::class );
+	}
+
+	/**
 	 * The first-run setup screen.
 	 *
 	 * @return Setup
@@ -1008,6 +1028,15 @@ final class Plugin {
 	 *
 	 * @return Recovery_Controller
 	 */
+	/**
+	 * The one implementation of "stop messaging me".
+	 *
+	 * @return Suppressor
+	 */
+	public function suppressor(): Suppressor {
+		return $this->typed( 'suppressor', Suppressor::class );
+	}
+
 	public function recovery_controller(): Recovery_Controller {
 		return $this->typed( 'recovery_controller', Recovery_Controller::class );
 	}
@@ -1053,6 +1082,7 @@ final class Plugin {
 			$this->admin_workflow_form()->hooks();
 			$this->admin_hook_test()->hooks();
 			$this->admin_run_now()->hooks();
+			$this->admin_journey_acts()->hooks();
 			$this->admin_setup()->hooks();
 		}
 

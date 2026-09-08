@@ -11,11 +11,14 @@ use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Database\Receipt_Repository;
+use WAcr\RecoveryFlow\Core\Clock;
+use WAcr\RecoveryFlow\Recovery\Attempt;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Event_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
+use WAcr\RecoveryFlow\Recovery\Suppressor;
 use WAcr\RecoveryFlow\Security\Capabilities;
 
 defined( 'ABSPATH' ) || exit;
@@ -33,6 +36,18 @@ defined( 'ABSPATH' ) || exit;
  * and asks; see Abstract_Controller for why both halves are required.
  */
 final class Journeys_Controller extends Abstract_Controller {
+
+	/**
+	 * What may be done to a journey through this endpoint.
+	 *
+	 * Every one of these either stops work or re-queues it. None of them sends
+	 * anything: `retry` hands the journey back to the dispatch pass, which
+	 * asks the send gate about consent, opt-out and quiet hours before
+	 * anything reaches a customer. There is deliberately no "send now" -- an
+	 * endpoint that fires a message costs money and reaches a real person, and
+	 * is a much larger thing to get right than one that can only queue.
+	 */
+	public const ACTIONS = array( 'cancel', 'retry', 'revoke_links', 'opt_out' );
 
 	/**
 	 * Journey storage.
@@ -63,26 +78,46 @@ final class Journeys_Controller extends Abstract_Controller {
 	private Attempt_Repository $attempts;
 
 	/**
+	 * The one implementation of "stop messaging me".
+	 *
+	 * @var Suppressor
+	 */
+	private Suppressor $suppressor;
+
+	/**
+	 * The clock.
+	 *
+	 * @var Clock
+	 */
+	private Clock $clock;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Journey_Repository  $journeys  Journey storage.
 	 * @param Event_Repository    $events    Event storage.
 	 * @param Customer_Repository $customers Customer storage.
 	 * @param Attempt_Repository  $attempts  Attempt ledger.
-	 * @param Receipt_Repository  $receipts  Receipt ledger, for reveal auditing.
+	 * @param Receipt_Repository  $receipts   Receipt ledger, for reveal auditing.
+	 * @param Suppressor          $suppressor The one implementation of "stop messaging me".
+	 * @param Clock               $clock      The clock.
 	 */
 	public function __construct(
 		Journey_Repository $journeys,
 		Event_Repository $events,
 		Customer_Repository $customers,
 		Attempt_Repository $attempts,
-		Receipt_Repository $receipts
+		Receipt_Repository $receipts,
+		Suppressor $suppressor,
+		Clock $clock
 	) {
-		$this->journeys  = $journeys;
-		$this->events    = $events;
-		$this->customers = $customers;
-		$this->attempts  = $attempts;
-		$this->receipts  = $receipts;
+		$this->journeys   = $journeys;
+		$this->events     = $events;
+		$this->customers  = $customers;
+		$this->attempts   = $attempts;
+		$this->receipts   = $receipts;
+		$this->suppressor = $suppressor;
+		$this->clock      = $clock;
 	}
 
 	/**
@@ -157,7 +192,7 @@ final class Journeys_Controller extends Abstract_Controller {
 				),
 				array(
 					'methods'             => 'POST',
-					'callback'            => array( $this, 'cancel' ),
+					'callback'            => array( $this, 'act' ),
 					'permission_callback' => $this->require_cap( Capabilities::MANAGE_JOURNEYS ),
 					'args'                => array(
 						'uid'    => array(
@@ -168,7 +203,7 @@ final class Journeys_Controller extends Abstract_Controller {
 						'action' => array(
 							'type'              => 'string',
 							'required'          => true,
-							'enum'              => array( 'cancel' ),
+							'enum'              => self::ACTIONS,
 							'sanitize_callback' => 'sanitize_key',
 						),
 					),
@@ -242,6 +277,201 @@ final class Journeys_Controller extends Abstract_Controller {
 	}
 
 	/**
+	 * Work a journey: stop it, re-queue it, kill its links, or opt the customer out.
+	 *
+	 * One entry point rather than four routes, because these are four things
+	 * done to one journey and a caller should not have to know four addresses
+	 * to do them. The action is an enum, so an unknown one is refused by
+	 * WordPress before any of this runs.
+	 *
+	 * @param \WP_REST_Request $request The request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public function act( \WP_REST_Request $request ) {
+		switch ( (string) $request->get_param( 'action' ) ) {
+			case 'retry':
+				return $this->retry( $request );
+
+			case 'revoke_links':
+				return $this->revoke_links( $request );
+
+			case 'opt_out':
+				return $this->opt_out( $request );
+
+			default:
+				return $this->cancel( $request );
+		}
+	}
+
+	/**
+	 * Put a failed recovery back in the queue.
+	 *
+	 * Only a FAILED journey may be retried, and the state machine enforces it:
+	 * failed is the one terminal state meaning "the machinery could not"
+	 * rather than "do not message this person". A recovered, expired,
+	 * cancelled, opted-out or invalid journey each carries a decision about
+	 * the customer and stays closed.
+	 *
+	 * **This does not send.** It moves the journey to SCHEDULED and asks for it
+	 * to be picked up now; the dispatch pass does the sending, and the send
+	 * gate still asks about consent, opt-out and quiet hours first. A customer
+	 * who opted out between the failure and the retry is not messaged.
+	 *
+	 * **A step already at its attempt cap is refused rather than queued.** The
+	 * dispatch action counts the attempts on the step and gives up at the cap,
+	 * so re-queueing an exhausted step produces a journey that fails again the
+	 * moment a pass reaches it. Answering "queued" to that would be a lie with
+	 * a delay on it.
+	 *
+	 * @param \WP_REST_Request $request The request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	private function retry( \WP_REST_Request $request ) {
+		$journey = $this->journeys->find_by_uid( (string) $request->get_param( 'uid' ) );
+
+		if ( null === $journey ) {
+			return $this->not_found();
+		}
+
+		if ( Journey_State::FAILED !== $journey->status ) {
+			return new \WP_Error(
+				'recoveryflow_not_failed',
+				sprintf(
+					/* translators: %s: the recovery's current state, in words. */
+					__( 'Only a recovery that failed can be retried. This one is %s.', 'kdc-wacr-recoveryflow' ),
+					Journey_State::label( $journey->status )
+				),
+				array( 'status' => 409 )
+			);
+		}
+
+		$used = $this->attempts->attempts_for_step( $journey->id, $journey->current_step );
+
+		if ( $used >= Attempt::MAX_PER_STEP ) {
+			return new \WP_Error(
+				'recoveryflow_attempts_exhausted',
+				sprintf(
+					/* translators: 1: how many times this step has been tried, 2: the most times it may be tried. */
+					__( 'This step has already been tried %1$d times out of %2$d, so retrying it would fail again straight away. Edit the workflow, or start a new recovery.', 'kdc-wacr-recoveryflow' ),
+					$used,
+					Attempt::MAX_PER_STEP
+				),
+				array( 'status' => 409 )
+			);
+		}
+
+		$done = $this->journeys->transition(
+			$journey->id,
+			$journey->status,
+			Journey_State::SCHEDULED,
+			array( 'next_action_at' => $this->clock->now() ),
+			'admin_retry'
+		);
+
+		if ( ! $done ) {
+			return $this->moved();
+		}
+
+		return new \WP_REST_Response(
+			array(
+				'uid'    => $journey->journey_uid,
+				'status' => Journey_State::SCHEDULED,
+				// Said explicitly because "retry" reads like "send now", and
+				// the difference matters to somebody watching a bill.
+				'queued' => true,
+			)
+		);
+	}
+
+	/**
+	 * Kill the recovery links already sent for this journey.
+	 *
+	 * For the case a link has gone somewhere it should not -- forwarded,
+	 * posted publicly, caught in a shared inbox. It stops the links working
+	 * without stopping the recovery: a later step may still send a new one,
+	 * which is the difference between this and cancelling.
+	 *
+	 * Safe to repeat. Revoking links that are already revoked revokes nothing
+	 * and says so.
+	 *
+	 * @param \WP_REST_Request $request The request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	private function revoke_links( \WP_REST_Request $request ) {
+		$journey = $this->journeys->find_by_uid( (string) $request->get_param( 'uid' ) );
+
+		if ( null === $journey ) {
+			return $this->not_found();
+		}
+
+		return new \WP_REST_Response(
+			array(
+				'uid'     => $journey->journey_uid,
+				'status'  => $journey->status,
+				'revoked' => $this->attempts->revoke_tokens( $journey->id ),
+			)
+		);
+	}
+
+	/**
+	 * Record that this customer has asked not to be messaged.
+	 *
+	 * The case is a telephone call: somebody rings the shop and says stop, and
+	 * until now the only way to honour that was to hand them a link and hope.
+	 *
+	 * It does exactly what the unsubscribe link does, through the same
+	 * Suppressor -- every identity the customer has, not merely the phone
+	 * number, and every open journey of theirs, not merely this one. A person
+	 * who asks by telephone has asked for what a person who clicks has asked
+	 * for. Only the recorded source differs.
+	 *
+	 * @param \WP_REST_Request $request The request.
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	private function opt_out( \WP_REST_Request $request ) {
+		$journey = $this->journeys->find_by_uid( (string) $request->get_param( 'uid' ) );
+
+		if ( null === $journey ) {
+			return $this->not_found();
+		}
+
+		$result = $this->suppressor->suppress( $journey->customer_id, Suppressor::SOURCE_ADMIN );
+
+		if ( ! $result['ok'] ) {
+			return new \WP_Error(
+				'recoveryflow_nothing_to_suppress',
+				$result['reason'],
+				array( 'status' => 409 )
+			);
+		}
+
+		return new \WP_REST_Response(
+			array(
+				'uid'        => $journey->journey_uid,
+				'status'     => Journey_State::OPTED_OUT,
+				// Both counts, because "we stopped 4 recoveries across 2 ways
+				// of reaching you" is the fact somebody needs to repeat back
+				// to the customer on the telephone.
+				'identities' => $result['identities'],
+				'journeys'   => $result['journeys'],
+			)
+		);
+	}
+
+	/**
+	 * The answer when a background pass moved the journey mid-request.
+	 *
+	 * @return \WP_Error
+	 */
+	private function moved(): \WP_Error {
+		return new \WP_Error(
+			'recoveryflow_moved',
+			__( 'This recovery changed while you were looking at it. Reload and try again.', 'kdc-wacr-recoveryflow' ),
+			array( 'status' => 409 )
+		);
+	}
+
+	/**
 	 * Stop working a journey.
 	 *
 	 * Cancelling is the one write this controller offers, and it only ever
@@ -280,11 +510,7 @@ final class Journeys_Controller extends Abstract_Controller {
 			// now: a background run moved it between the read and the write.
 			// Reporting that is more useful than retrying into whatever it has
 			// since become.
-			return new \WP_Error(
-				'recoveryflow_moved',
-				__( 'This recovery changed while you were looking at it. Reload and try again.', 'kdc-wacr-recoveryflow' ),
-				array( 'status' => 409 )
-			);
+			return $this->moved();
 		}
 
 		$this->attempts->revoke_tokens( $journey->id );

@@ -402,9 +402,38 @@ class WP_List_Table {
  */
 class WP_REST_Request {
 	private $params;
+	private $method;
+	private $route;
 
-	public function __construct( array $params = array() ) {
-		$this->params = $params;
+	/*
+	 * The real constructor is ( $method = '', $route = '', $attributes = [] ).
+	 * This stub used to take an array of params instead, so production code
+	 * building a request the way WordPress documents it fataled here -- and a
+	 * fatal reads as a failing suite rather than as "the double is wrong".
+	 * It now accepts BOTH: the real three-argument form, and the array-of-params
+	 * shorthand the existing tests were written against.
+	 */
+	public function __construct( $method = '', $route = '', $attributes = array() ) {
+		if ( is_array( $method ) ) {
+			$this->params = $method;
+			$this->method = '';
+			$this->route  = '';
+
+			return;
+		}
+
+		$this->params = array();
+		$this->method = (string) $method;
+		$this->route  = (string) $route;
+	}
+	public function get_method() {
+		return $this->method;
+	}
+	public function get_route() {
+		return $this->route;
+	}
+	public function get_params() {
+		return $this->params;
 	}
 	public function get_param( $key ) {
 		return $this->params[ $key ] ?? null;
@@ -734,8 +763,29 @@ class Fake_Wpdb extends wpdb {
 
 		return array();
 	}
+	/**
+	 * Scalars to hand back, keyed by a fragment of the query that asks for them.
+	 *
+	 * Every COUNT(*) in this plugin comes back through get_var, and this stub
+	 * used to answer null to all of them -- so an attempt cap, a queue depth or
+	 * any other "how many" was permanently zero and the code that acts on a
+	 * non-zero answer could not be reached by any test. The same family of
+	 * fault as the missing insert() and get_col(): the suite stayed green
+	 * because the branch was never entered.
+	 *
+	 * @var array<string,mixed>
+	 */
+	public $vars = array();
+
 	public function get_var( $sql ) {
 		$this->queries[] = $sql;
+
+		foreach ( $this->vars as $fragment => $value ) {
+			if ( false !== strpos( (string) $sql, (string) $fragment ) ) {
+				return $value;
+			}
+		}
+
 		return null;
 	}
 	/*

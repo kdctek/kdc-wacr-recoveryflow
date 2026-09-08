@@ -238,6 +238,17 @@ final class Attempt {
 	}
 
 	/**
+	 * How many times one workflow step may be attempted before it gives up.
+	 *
+	 * Kept here rather than in each action because the two dispatch actions
+	 * both enforce it and something outside them now has to ask: retrying a
+	 * failed recovery is pointless once the step is at its cap, and answering
+	 * "queued" to somebody whose retry will fail again the moment a pass picks
+	 * it up is worse than refusing.
+	 */
+	public const MAX_PER_STEP = 3;
+
+	/**
 	 * The uniqueness key for a given step and try.
 	 *
 	 * @param string $journey_uid Journey identifier.

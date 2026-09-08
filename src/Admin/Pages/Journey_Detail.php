@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Admin\Pages;
 
+use WAcr\RecoveryFlow\Admin\Journey_Actions;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
@@ -141,9 +142,12 @@ final class Journey_Detail {
 			esc_html__( 'Back to all recoveries', 'kdc-wacr-recoveryflow' )
 		);
 
+		Journey_Actions::notice();
+
 		$this->summary_card( $journey );
 		$this->customer_card( $journey );
 		$this->messages_card( $journey );
+		Journey_Actions::buttons( $journey );
 
 		echo '</div>';
 	}

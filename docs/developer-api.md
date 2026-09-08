@@ -77,7 +77,7 @@ A logged-out request gets `401`, a logged-in request without the capability gets
 | --- | --- | --- | --- |
 | `GET` | `/journeys` | `recoveryflow_view_journeys` | `page`, `per_page` (max 200), `status` (enum), `source`, `orderby` (`id`, `created_at`, `updated_at`, `next_action_at`, `status`), `order` (`asc`/`desc`), `search`, `reveal`. Totals are in the `X-WP-Total` and `X-WP-TotalPages` headers |
 | `GET` | `/journeys/{uid}` | `recoveryflow_view_journeys` | Includes the attempt history. `reveal=1` needs `recoveryflow_reveal_pii`; without it the response is masked rather than refused |
-| `POST` | `/journeys/{uid}` | `recoveryflow_manage_journeys` | `action=cancel`. `409` if the journey has already finished, or if a background pass moved it between your read and your write |
+| `POST` | `/journeys/{uid}` | `recoveryflow_manage_journeys` | `action=cancel`, `retry`, `revoke_links` or `opt_out`. `409` if the journey has already finished, if a background pass moved it between your read and your write, or if a retry has nothing left to try |
 | `GET` | `/status` | `recoveryflow_view_status` | Every health check with a severity, a sentence and a deeplink, plus what each background pass last did. Never the key |
 | `POST` | `/connection/test` | `recoveryflow_manage_settings` | Asks WA.cr whether the saved credential works. Tests what is stored; it does not accept a key to try |
 | `GET` | `/settings` | `recoveryflow_manage_settings` | The settings, plus what is currently blocking the email channel. The API key is not included in any form |
@@ -91,13 +91,23 @@ A logged-out request gets `401`, a logged-in request without the capability gets
 
 **A refusal from `/templates` is not an empty list.** No API key, a plan below Scale, an unreachable network and a workspace with genuinely no approved templates are four situations needing four different responses, and all four look identical as `[]`. The response always carries `ok`, and when it is false the reason in WA.cr's own words.
 
+**None of the four writes sends anything.** `retry` puts a failed recovery back in the queue and the dispatch pass sends it, after the send gate has asked about consent, opt-outs and quiet hours -- so a customer who opted out between the failure and the retry is still not messaged. There is deliberately no "send now": an endpoint that fires a message costs money and reaches a real person, and is a much larger thing to get right than one that can only queue.
+
+**Only a `failed` recovery can be retried, and the state machine is what enforces it.** `failed` is the one terminal state meaning "the machinery could not" rather than "do not message this person"; `recovered`, `expired`, `cancelled`, `opted_out` and `invalid` each carry a decision about the customer and stay closed for good. The only transition out of `failed` is to `scheduled` -- never straight to `message_sent`, which would skip the send gate -- and only a person may make it, because a fault that failed a thousand recoveries must not retry all thousand by itself.
+
+**A retry on a step that has used its attempts is refused, not queued.** The dispatch action gives up at three attempts per step, so re-queueing an exhausted step produces a recovery that fails again the moment a pass reaches it; answering `200` to that would be a lie with a delay on it. The refusal names the count and the cap.
+
+**`revoke_links` stops the links without stopping the recovery** -- for a link that has been forwarded, posted publicly or caught in a shared inbox. A later step may send a new one, which is the whole difference between it and `cancel`. Revoking when there is nothing to revoke reports zero rather than success.
+
+**`opt_out` is the same act as the unsubscribe link**, through the same implementation, for the customer who telephones the shop instead of clicking. It suppresses every identity the customer has -- not merely the phone number -- and stops every open recovery of theirs, not merely this one. Only the recorded source differs.
+
 **A missing journey and an erased one return the same `404`**, for the same reason: two different answers would let anyone with the view capability confirm that a particular reference used to be real.
 
 Errors follow WordPress conventions: `WP_Error` with a `recoveryflow_*` code and an HTTP status.
 
 ### Not built yet
 
-The plan also describes routes for retrying and revoking links on a journey, an admin opt-out action, and the `/webhooks/wacr` receiver. None of those exist yet. Cancelling is the only write the API offers, and that is a deliberate ordering rather than an accident of scheduling: cancelling can only ever stop work, whereas anything that could cause a message to be sent costs money and reaches a real person, and is a much larger thing to get right.
+The `/webhooks/wacr` receiver does not exist yet.
 
 ## A minimal custom source
 

@@ -38,6 +38,7 @@ use WAcr\RecoveryFlow\Privacy\Anonymizer;
 use WAcr\RecoveryFlow\Privacy\Eraser;
 use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\Privacy\Redactor;
+use WAcr\RecoveryFlow\Recovery\Attempt;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
@@ -71,6 +72,7 @@ use WAcr\RecoveryFlow\Database\Schema;
 use WAcr\RecoveryFlow\Database\Table_Names;
 use WAcr\RecoveryFlow\REST\Abstract_Controller;
 use WAcr\RecoveryFlow\REST\Routes;
+use WAcr\RecoveryFlow\REST\Journeys_Controller;
 use WAcr\RecoveryFlow\REST\Settings_Controller;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Security\Crypto;
@@ -81,6 +83,7 @@ use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Admin\Journey_Actions;
 use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
@@ -487,9 +490,28 @@ ok( 'an expired journey cannot be revived', ! Journey_State::can_transition( Jou
 ok( 'a cancelled journey cannot be revived', ! Journey_State::can_transition( Journey_State::CANCELLED, Journey_State::SCHEDULED ) );
 ok( 'an unknown state transitions nowhere', ! Journey_State::can_transition( 'wat', Journey_State::SCHEDULED ) );
 
+/*
+ * Every terminal state is a dead end EXCEPT failed, and the exception is the
+ * whole of what "retry" is allowed to mean. Recovered, expired, cancelled,
+ * opted-out and invalid each carry a decision about the customer; failed
+ * carries only "the machinery could not", which a person may reverse once they
+ * have fixed the cause. Nothing else may follow failed either -- least of all a
+ * jump straight back to message_sent, which would skip the send gate.
+ */
 foreach ( Journey_State::terminal() as $terminal_state ) {
+	if ( Journey_State::FAILED === $terminal_state ) {
+		check( 'a failed journey may be retried, and only into scheduled', Journey_State::transitions()[ $terminal_state ], array( Journey_State::SCHEDULED ) );
+
+		continue;
+	}
+
 	check( "nothing follows {$terminal_state}", Journey_State::transitions()[ $terminal_state ], array() );
 }
+
+ok( 'a failed journey can be put back in the queue', Journey_State::can_transition( Journey_State::FAILED, Journey_State::SCHEDULED ) );
+ok( 'but not straight back to sent, which would skip the send gate', ! Journey_State::can_transition( Journey_State::FAILED, Journey_State::MESSAGE_SENT ) );
+ok( 'and an opted-out journey is still never retryable', ! Journey_State::can_transition( Journey_State::OPTED_OUT, Journey_State::SCHEDULED ) );
+ok( 'nor an invalid one', ! Journey_State::can_transition( Journey_State::INVALID, Journey_State::SCHEDULED ) );
 foreach ( Journey_State::active() as $active_state ) {
 	foreach ( Journey_State::terminal() as $terminal_state ) {
 		ok( "{$active_state} can always stop at {$terminal_state}", Journey_State::can_transition( $active_state, $terminal_state ) );
@@ -1238,9 +1260,21 @@ foreach ( array( Email_Compliance::NO_POSTAL_ADDRESS, Email_Compliance::NO_POSTA
  * untouched -- and for a shopper who only ever gave an address, it would record
  * nothing at all while the page told them the reminders had stopped.
  */
-$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' );
+$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Suppressor.php', 'suppress' );
 
 ok( 'the opt-out routine can be read', strlen( $recoveryflow_suppress ) > 50 );
+
+// There must be exactly one of these. Three callers now say "stop messaging
+// me" -- the unsubscribe link, a shopkeeper acting on a phone call, and the
+// same act over REST -- and a second implementation is a second chance to
+// forget one of the identities, which is the bug this code already shipped.
+ok(
+	'and the link handler delegates to it rather than keeping a copy',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' ),
+		'suppressor->suppress('
+	)
+);
 ok( 'an opt-out silences the phone number', false !== strpos( $recoveryflow_suppress, 'Identity::E164' ) );
 ok( 'an opt-out silences the email address too, or an email-only shopper unsubscribes into a void', false !== strpos( $recoveryflow_suppress, 'Identity::EMAIL' ) );
 
@@ -3064,12 +3098,24 @@ check( 'a job that runs after the setting was switched off does nothing', count(
  * whether it also reaches WA.cr is a setting and a network call, and neither
  * may stand between a customer and being left alone.
  */
-$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' );
+$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Suppressor.php', 'suppress' );
 
 ok( 'the opt-out path queues the sync', false !== strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' ) );
+
+/*
+ * Both halves have to be PRESENT before their order means anything. strpos()
+ * answers false for "not found", and false < 40 is true in PHP -- so this
+ * assertion used to pass when the local suppression had been deleted outright,
+ * which is the one arrangement it exists to forbid. A mutation survived and
+ * said so.
+ */
+$recoveryflow_local_at = strpos( $recoveryflow_suppress, '$this->consent->suppress(' );
+$recoveryflow_sync_at  = strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' );
+
+ok( 'the local suppression is recorded at all', false !== $recoveryflow_local_at );
 ok(
 	'and only after the local suppression is already recorded',
-	strpos( $recoveryflow_suppress, '$this->consent->suppress(' ) < strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' )
+	false !== $recoveryflow_local_at && false !== $recoveryflow_sync_at && $recoveryflow_local_at < $recoveryflow_sync_at
 );
 
 update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_sync );
@@ -4168,6 +4214,189 @@ $recoveryflow_sql = array_values(
 
 ok( 'closing stale events is addressed by primary key too', false !== stripos( $recoveryflow_sql[0], 'id IN (7)' ) );
 ok( 'and re-checks that they are still open and unclaimed', false !== stripos( $recoveryflow_sql[0], 'journey_id IS NULL' ) );
+
+$GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// Working a recovery: retry, revoke links, and an opt-out taken by telephone.
+//
+// Three of these could not be done from wp-admin at all, and cancelling had a
+// REST route with no control anywhere -- the same shape as the health check
+// that told merchants to press a button which did not exist.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_JOURNEYS, Capabilities::VIEW_JOURNEYS );
+
+$recoveryflow_journey_row = array(
+	'id'             => 900,
+	'journey_uid'    => 'rec-900-abcdef',
+	'status'         => Journey_State::FAILED,
+	'customer_id'    => 55,
+	'event_id'       => 0,
+	'current_step'   => 0,
+	'attempts_count' => 1,
+	'source_id'      => 'woocommerce',
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array( $recoveryflow_journey_row );
+$GLOBALS['wpdb']->rows['recoveryflow_attempts'] = array();
+
+$recoveryflow_act = static function ( string $uid, string $action ) use ( $plugin ) {
+	$request = new WP_REST_Request( 'POST', '' );
+	$request->set_param( 'uid', $uid );
+	$request->set_param( 'action', $action );
+
+	return $plugin->rest_journeys()->act( $request );
+};
+
+// Retry. It re-queues; it must never send, and must never be mistaken for
+// sending by whoever is watching the bill.
+$recoveryflow_retry = $recoveryflow_act( 'rec-900-abcdef', 'retry' );
+
+ok( 'a failed recovery can be retried', $recoveryflow_retry instanceof WP_REST_Response );
+check(
+	'and goes back to scheduled rather than straight to sent',
+	$recoveryflow_retry instanceof WP_REST_Response ? $recoveryflow_retry->get_data()['status'] : '',
+	Journey_State::SCHEDULED
+);
+ok(
+	'and says it was queued rather than sent',
+	$recoveryflow_retry instanceof WP_REST_Response && true === ( $recoveryflow_retry->get_data()['queued'] ?? false )
+);
+
+// The state machine is what enforces this, not the handler's own opinion.
+ok( 'retrying cannot skip the send gate', ! Journey_State::can_transition( Journey_State::FAILED, Journey_State::MESSAGE_SENT ) );
+
+// A recovery that did not fail is refused, and told what it actually is.
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array(
+	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::RECOVERED ) )
+);
+
+$recoveryflow_refused = $recoveryflow_act( 'rec-900-abcdef', 'retry' );
+
+ok( 'a recovery that did not fail cannot be retried', $recoveryflow_refused instanceof WP_Error );
+check( 'and is refused as a conflict rather than a not-found', $recoveryflow_refused instanceof WP_Error ? $recoveryflow_refused->get_status() : 0, 409 );
+ok(
+	'and the refusal says what the recovery actually is, not merely that it is not failed',
+	$recoveryflow_refused instanceof WP_Error
+		&& false !== strpos( $recoveryflow_refused->get_error_message(), Journey_State::label( Journey_State::RECOVERED ) )
+);
+
+// An opted-out customer must never be retried back into the queue. This is the
+// one that would put a message in front of somebody who said stop.
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array(
+	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::OPTED_OUT ) )
+);
+
+ok( 'an opted-out recovery cannot be retried', $recoveryflow_act( 'rec-900-abcdef', 'retry' ) instanceof WP_Error );
+
+// A step already at its attempt cap fails again the moment a pass reaches it,
+// so answering "queued" would be a lie with a delay on it.
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array( $recoveryflow_journey_row );
+$GLOBALS['wpdb']->vars['COUNT(*)'] = Attempt::MAX_PER_STEP;
+
+$recoveryflow_spent = $recoveryflow_act( 'rec-900-abcdef', 'retry' );
+
+ok( 'a step at its attempt cap is refused rather than queued to fail again', $recoveryflow_spent instanceof WP_Error );
+ok(
+	'and the refusal names the cap rather than saying only "no"',
+	$recoveryflow_spent instanceof WP_Error
+		&& false !== strpos( $recoveryflow_spent->get_error_message(), (string) Attempt::MAX_PER_STEP )
+);
+ok(
+	'and says what to do instead',
+	$recoveryflow_spent instanceof WP_Error
+		&& false !== strpos( $recoveryflow_spent->get_error_message(), 'Edit the workflow' )
+);
+
+$GLOBALS['wpdb']->vars = array();
+
+// Revoking links stops the links without stopping the recovery -- that is the
+// whole difference between it and cancelling.
+$recoveryflow_revoked = $recoveryflow_act( 'rec-900-abcdef', 'revoke_links' );
+
+ok( 'the links can be killed on their own', $recoveryflow_revoked instanceof WP_REST_Response );
+check(
+	'and the recovery itself is left running',
+	$recoveryflow_revoked instanceof WP_REST_Response ? $recoveryflow_revoked->get_data()['status'] : '',
+	Journey_State::FAILED
+);
+
+// Revoking nothing is an outcome, not a success. Saying "done" would leave
+// somebody believing a link they are worried about had just been killed.
+check(
+	'revoking no links says so rather than reporting a job done',
+	Journey_Actions::outcome( 'revoke_links', array( 'revoked' => 0 ) ),
+	__( 'There were no working links on this recovery, so nothing changed. Any link already sent for it had expired or been revoked already.', 'kdc-wacr-recoveryflow' )
+);
+
+// Which buttons are offered. Offering one that will certainly be refused
+// teaches somebody the screen is broken.
+$recoveryflow_failed_journey = Recovery_Journey::from_row( $recoveryflow_journey_row );
+
+ok( 'a failed recovery offers a retry', isset( Journey_Actions::available( $recoveryflow_failed_journey )['retry'] ) );
+ok( 'and no longer offers to stop something already stopped', ! isset( Journey_Actions::available( $recoveryflow_failed_journey )['cancel'] ) );
+
+$recoveryflow_live_journey = Recovery_Journey::from_row(
+	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::SCHEDULED ) )
+);
+
+ok( 'a running recovery offers to stop it', isset( Journey_Actions::available( $recoveryflow_live_journey )['cancel'] ) );
+ok( 'and does not offer to retry something that has not failed', ! isset( Journey_Actions::available( $recoveryflow_live_journey )['retry'] ) );
+ok( 'the opt-out is offered whatever state the recovery is in, because the customer is not the recovery', isset( Journey_Actions::available( $recoveryflow_live_journey )['opt_out'] ) );
+
+// The admin buttons run the REST handler rather than a second implementation.
+ok(
+	'the admin buttons call the endpoint\'s own handler rather than repeating its rules',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Journey_Actions.php', 'run' ),
+		'controller->act('
+	)
+);
+check(
+	'and can only ask for something the endpoint accepts',
+	Journeys_Controller::ACTIONS,
+	array( 'cancel', 'retry', 'revoke_links', 'opt_out' )
+);
+
+$recoveryflow_bogus = $plugin->admin_journey_acts()->run( 'rec-900-abcdef', 'send_now' );
+
+ok( 'a hand-posted action the endpoint does not offer is refused', false === $recoveryflow_bogus['ok'] );
+
+// Row actions must not change anything: an anchor that cancels a recovery is
+// fetched by whatever follows links.
+$recoveryflow_row_body = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys_Table.php', 'column_reference' );
+
+ok( 'the row-action column can be read', strlen( $recoveryflow_row_body ) > 50 );
+
+foreach ( Journeys_Controller::ACTIONS as $recoveryflow_verb ) {
+	ok(
+		"no row action performs {$recoveryflow_verb} from a link",
+		false === strpos( $recoveryflow_row_body, "'" . $recoveryflow_verb . "'" )
+	);
+}
+
+ok( 'the row action only opens the recovery', false !== strpos( $recoveryflow_row_body, 'Screen::journey_url' ) );
+
+// And the things that DO change a recovery are posts carrying a nonce.
+$recoveryflow_buttons_html = recoveryflow_render_screen(
+	static function () use ( $recoveryflow_failed_journey ): void {
+		Journey_Actions::buttons( $recoveryflow_failed_journey );
+	}
+);
+
+ok( 'acting on a recovery is a form, not a link', false !== strpos( $recoveryflow_buttons_html, 'method="post"' ) );
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_buttons_html, 'name="_wpnonce"' ) );
+ok(
+	'and the irreversible ones say so before they are pressed',
+	false !== strpos( $recoveryflow_buttons_html, esc_html__( 'Nothing further is sent for it and its links stop working. This cannot be undone.', 'kdc-wacr-recoveryflow' ) )
+		|| false !== strpos( $recoveryflow_buttons_html, 'cannot be undone' )
+);
+ok(
+	'and the retry says plainly that it does not send',
+	false !== strpos( $recoveryflow_buttons_html, 'It does not send anything now' )
+);
 
 $GLOBALS['wpdb']->rows = array();
 
