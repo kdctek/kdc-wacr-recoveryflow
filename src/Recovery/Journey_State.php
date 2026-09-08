@@ -178,20 +178,27 @@ final class Journey_State {
 	 * @return string
 	 */
 	public static function label( string $state ): string {
+		/*
+		 * Every label carries a context. On their own "New", "Replied",
+		 * "Expired" and "Failed" are one word each and could be a noun, a verb
+		 * or an adjective; languages that inflect for gender or number cannot
+		 * translate them correctly without knowing they describe the state of a
+		 * recovery journey.
+		 */
 		$labels = array(
-			self::NEW             => __( 'New', 'kdc-wacr-recoveryflow' ),
-			self::IDENTIFIED      => __( 'Identified', 'kdc-wacr-recoveryflow' ),
-			self::ELIGIBLE        => __( 'Eligible', 'kdc-wacr-recoveryflow' ),
-			self::SCHEDULED       => __( 'Scheduled', 'kdc-wacr-recoveryflow' ),
-			self::MESSAGE_SENT    => __( 'Message sent', 'kdc-wacr-recoveryflow' ),
-			self::ENGAGED         => __( 'Replied', 'kdc-wacr-recoveryflow' ),
-			self::PENDING_PAYMENT => __( 'Awaiting payment', 'kdc-wacr-recoveryflow' ),
-			self::RECOVERED       => __( 'Recovered', 'kdc-wacr-recoveryflow' ),
-			self::EXPIRED         => __( 'Expired', 'kdc-wacr-recoveryflow' ),
-			self::CANCELLED       => __( 'Cancelled', 'kdc-wacr-recoveryflow' ),
-			self::OPTED_OUT       => __( 'Opted out', 'kdc-wacr-recoveryflow' ),
-			self::INVALID         => __( 'Not recoverable', 'kdc-wacr-recoveryflow' ),
-			self::FAILED          => __( 'Failed', 'kdc-wacr-recoveryflow' ),
+			self::NEW             => _x( 'New', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::IDENTIFIED      => _x( 'Identified', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::ELIGIBLE        => _x( 'Eligible', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::SCHEDULED       => _x( 'Scheduled', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::MESSAGE_SENT    => _x( 'Message sent', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::ENGAGED         => _x( 'Replied', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::PENDING_PAYMENT => _x( 'Awaiting payment', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::RECOVERED       => _x( 'Recovered', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::EXPIRED         => _x( 'Expired', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::CANCELLED       => _x( 'Cancelled', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::OPTED_OUT       => _x( 'Opted out', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::INVALID         => _x( 'Not recoverable', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
+			self::FAILED          => _x( 'Failed', 'recovery journey state', 'kdc-wacr-recoveryflow' ),
 		);
 
 		return $labels[ $state ] ?? $state;

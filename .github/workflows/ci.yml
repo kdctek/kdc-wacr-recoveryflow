@@ -39,6 +39,24 @@ jobs:
       - name: PHPStan
         run: composer analyse
 
+  i18n:
+    name: Translation readiness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      # Catches a string that reaches a person untranslated. Nothing at runtime
+      # ever surfaces one, so this is the only place it can be caught.
+      - name: Audit every shipped string
+        run: php tests/i18n-audit.php
+      # A .pot that has drifted from the source is a set of strings no
+      # translator has been given the chance to translate.
+      - name: Check the .pot is current
+        run: bin/i18n.sh --check
+
   unit:
     name: Unit tests
     runs-on: ubuntu-latest

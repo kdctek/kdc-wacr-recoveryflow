@@ -31,10 +31,35 @@ final class Credentials {
 	 * @return array<string,string>
 	 */
 	public static function environments(): array {
+		/*
+		 * The hostname is a value, not part of the sentence: baking it into the
+		 * translatable string invites a translator to "translate" a domain
+		 * name, and means every host change reopens every locale.
+		 */
 		return array(
-			'production' => __( 'Production (api.wa.cr)', 'kdc-wacr-recoveryflow' ),
-			'staging'    => __( 'Staging (api.wacart.dev)', 'kdc-wacr-recoveryflow' ),
+			'production' => sprintf(
+				/* translators: %s: the WA.cr API hostname, which is not translated. */
+				_x( 'Production (%s)', 'WA.cr API environment', 'kdc-wacr-recoveryflow' ),
+				self::host_of( self::HOST_PRODUCTION )
+			),
+			'staging'    => sprintf(
+				/* translators: %s: the WA.cr API hostname, which is not translated. */
+				_x( 'Staging (%s)', 'WA.cr API environment', 'kdc-wacr-recoveryflow' ),
+				self::host_of( self::HOST_STAGING )
+			),
 		);
+	}
+
+	/**
+	 * The hostname part of one of the environment base URLs.
+	 *
+	 * @param string $url Base URL.
+	 * @return string
+	 */
+	private static function host_of( string $url ): string {
+		$host = wp_parse_url( $url, PHP_URL_HOST );
+
+		return is_string( $host ) ? $host : $url;
 	}
 
 	/**

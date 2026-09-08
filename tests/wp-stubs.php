@@ -83,6 +83,30 @@ function __( $text, $domain = null ) {
 function _x( $text, $context, $domain = null ) {
 	return $text;
 }
+function _n( $single, $plural, $number, $domain = null ) {
+	return 1 === (int) $number ? $single : $plural;
+}
+function _nx( $single, $plural, $number, $context, $domain = null ) {
+	return 1 === (int) $number ? $single : $plural;
+}
+function _e( $text, $domain = null ) {
+	echo $text;
+}
+function _ex( $text, $context, $domain = null ) {
+	echo $text;
+}
+function translate( $text, $domain = null ) {
+	return $text;
+}
+function number_format_i18n( $number, $decimals = 0 ) {
+	return number_format( (float) $number, (int) $decimals );
+}
+function date_i18n( $format, $timestamp = null ) {
+	return gmdate( $format, null === $timestamp ? time() : (int) $timestamp );
+}
+function wp_date( $format, $timestamp = null, $timezone = null ) {
+	return gmdate( $format, null === $timestamp ? time() : (int) $timestamp );
+}
 function esc_html( $text ) {
 	return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
 }
@@ -91,6 +115,21 @@ function esc_html__( $text, $domain = null ) {
 }
 function esc_attr( $text ) {
 	return esc_html( $text );
+}
+function esc_attr__( $text, $domain = null ) {
+	return esc_attr( $text );
+}
+function esc_html_x( $text, $context, $domain = null ) {
+	return esc_html( $text );
+}
+function esc_attr_x( $text, $context, $domain = null ) {
+	return esc_attr( $text );
+}
+function esc_html_e( $text, $domain = null ) {
+	echo esc_html( $text );
+}
+function esc_attr_e( $text, $domain = null ) {
+	echo esc_attr( $text );
 }
 function esc_url( $url ) {
 	return $url;

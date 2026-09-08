@@ -46,6 +46,7 @@ use WAcr\RecoveryFlow\WAcr\Transport;
 ( new Autoloader( dirname( __DIR__ ) . '/src/' ) )->register();
 
 require_once __DIR__ . '/probes.php';
+require_once __DIR__ . '/i18n-audit.php';
 
 
 $passed = 0;
@@ -673,6 +674,24 @@ ok( 'and is encrypted at rest', 0 === strpos( (string) get_option( Options::HOOK
 $credentials->set_api_key( '' );
 ok( 'clearing the key removes it', ! $credentials->is_configured() );
 ok( 'and forgets what the connection reported', array() === Feature_Gate::snapshot() );
+
+// ---------------------------------------------------------------------- i18n.
+
+/*
+ * Not a test of behaviour but of every shipped string, and the one check that
+ * has to keep passing as the plugin grows: a string that reaches a person and
+ * is not translatable is a bug a merchant in another language pays for, and
+ * nothing at runtime will ever surface it.
+ */
+$i18n_problems = kdc_wacr_recoveryflow_i18n_problems( dirname( __DIR__ ) );
+
+ok( 'every shipped string is translatable and correctly domained', array() === $i18n_problems );
+
+foreach ( $i18n_problems as $i18n_problem ) {
+	echo "    {$i18n_problem}\n";
+}
+
+ok( 'the scan actually looked at the source', count( kdc_wacr_recoveryflow_shipped_php( dirname( __DIR__ ) ) ) > 10 );
 
 // -------------------------------------------------------------------- Result.
 

@@ -6,6 +6,7 @@
 .wp-env.json
 .phpunit.result.cache
 .phpcs-cache
+.cache
 composer.json
 composer.lock
 package.json
@@ -17,6 +18,7 @@ node_modules
 vendor
 tests
 docs
+bin
 CHANGELOG.md
 LOCAL-DEV.md
 README.md
