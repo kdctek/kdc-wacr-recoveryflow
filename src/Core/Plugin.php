@@ -59,7 +59,9 @@ use WAcr\RecoveryFlow\Privacy\Anonymizer;
 use WAcr\RecoveryFlow\Privacy\Eraser;
 use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\REST\Journeys_Controller;
+use WAcr\RecoveryFlow\REST\Integrations_Controller;
 use WAcr\RecoveryFlow\REST\Settings_Controller;
+use WAcr\RecoveryFlow\REST\Templates_Controller;
 use WAcr\RecoveryFlow\REST\Status_Controller;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Conversion_Tracker;
@@ -239,6 +241,8 @@ final class Plugin {
 			),
 			'rest_status'         => static fn ( Plugin $c ): Status_Controller => new Status_Controller( $c->credentials(), $c->wacr(), $c->health() ),
 			'rest_settings'       => static fn (): Settings_Controller => new Settings_Controller(),
+			'rest_integrations'   => static fn ( Plugin $c ): Integrations_Controller => new Integrations_Controller( $c->sources() ),
+			'rest_templates'      => static fn ( Plugin $c ): Templates_Controller => new Templates_Controller( $c->template_catalog() ),
 
 			// Privacy. The anonymiser is shared: WordPress's eraser and the
 			// daily retention clear-out must not drift into two ideas of what
@@ -793,6 +797,24 @@ final class Plugin {
 	}
 
 	/**
+	 * The integrations REST collection.
+	 *
+	 * @return Integrations_Controller
+	 */
+	public function rest_integrations(): Integrations_Controller {
+		return $this->typed( 'rest_integrations', Integrations_Controller::class );
+	}
+
+	/**
+	 * The approved-templates REST collection.
+	 *
+	 * @return Templates_Controller
+	 */
+	public function rest_templates(): Templates_Controller {
+		return $this->typed( 'rest_templates', Templates_Controller::class );
+	}
+
+	/**
 	 * The anonymizer service.
 	 *
 	 * @return Anonymizer
@@ -1038,6 +1060,8 @@ final class Plugin {
 		$this->rest_journeys()->hooks();
 		$this->rest_status()->hooks();
 		$this->rest_settings()->hooks();
+		$this->rest_integrations()->hooks();
+		$this->rest_templates()->hooks();
 
 		// The privacy tools. Registered on every request, not only in wp-admin:
 		// a privacy request is fulfilled by a background job, and an exporter

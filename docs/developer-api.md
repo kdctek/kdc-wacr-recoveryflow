@@ -82,8 +82,14 @@ A logged-out request gets `401`, a logged-in request without the capability gets
 | `POST` | `/connection/test` | `recoveryflow_manage_settings` | Asks WA.cr whether the saved credential works. Tests what is stored; it does not accept a key to try |
 | `GET` | `/settings` | `recoveryflow_manage_settings` | The settings, plus what is currently blocking the email channel. The API key is not included in any form |
 | `POST` | `/ui-state` | `recoveryflow_view_status` | Remembers whether one expandable panel was left open, per user |
+| `GET` | `/integrations` | `recoveryflow_manage_settings` | Every registered integration with the registry's own verdict (`active`, `switched_off`, `not_included`, `unavailable`), the sentence that explains it, and a deeplink to its switch. Read-only |
+| `GET` | `/templates` | `recoveryflow_manage_workflows` | The approved WhatsApp templates, each with its fillable slots and whether RecoveryFlow can send it. `refresh=1` bypasses the cache |
 
 **`search` matches the journey's own reference only** — not a phone number, an email address or a name. That is deliberate rather than unfinished: identities are stored as keyed hashes, so searching a phone number would mean either scanning a plaintext column or hashing the search term, and hashing it would turn the search box into an oracle that confirms whether a given number belongs to a customer of this shop, for anyone who can reach the endpoint.
+
+**`/integrations` and `/templates` are read-only, and neither works its answer out for itself.** The verdict on an integration comes from `Source_Registry::status()` and its sentence from `Source_Registry::status_message()` -- the same two the Integrations screen prints -- because a screen that derived its verdict from neighbouring facts has been wrong here four times, most memorably calling an integration active when its hooks had never been attached. `/templates` reads the same `Template_Catalog` the workflow editor's picker reads, including its judgement on which templates this plugin can actually send; a template needing an image header or a carousel is listed and marked rather than hidden, because a merchant who cannot find the template they approved last week concludes the connection is broken. Switching an integration off is a settings write and goes through the settings tree, for the same reason `/settings` is read-only: a second way to write a setting is a second set of rules about what a valid setting is, and the one nobody exercised is the one that disagrees.
+
+**A refusal from `/templates` is not an empty list.** No API key, a plan below Scale, an unreachable network and a workspace with genuinely no approved templates are four situations needing four different responses, and all four look identical as `[]`. The response always carries `ok`, and when it is false the reason in WA.cr's own words.
 
 **A missing journey and an erased one return the same `404`**, for the same reason: two different answers would let anyone with the view capability confirm that a particular reference used to be real.
 
@@ -91,7 +97,7 @@ Errors follow WordPress conventions: `WP_Error` with a `recoveryflow_*` code and
 
 ### Not built yet
 
-The plan also describes routes for retrying and revoking links on a journey, an admin opt-out action, `/integrations`, `/templates`, and the `/webhooks/wacr` receiver. None of those exist yet. Cancelling is the only write the API offers, and that is a deliberate ordering rather than an accident of scheduling: cancelling can only ever stop work, whereas anything that could cause a message to be sent costs money and reaches a real person, and is a much larger thing to get right.
+The plan also describes routes for retrying and revoking links on a journey, an admin opt-out action, and the `/webhooks/wacr` receiver. None of those exist yet. Cancelling is the only write the API offers, and that is a deliberate ordering rather than an accident of scheduling: cancelling can only ever stop work, whereas anything that could cause a message to be sent costs money and reaches a real person, and is a much larger thing to get right.
 
 ## A minimal custom source
 

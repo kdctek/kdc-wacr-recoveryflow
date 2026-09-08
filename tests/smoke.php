@@ -1776,6 +1776,8 @@ $GLOBALS['recoveryflow_routes'] = array();
 $plugin->rest_journeys()->register_routes();
 $plugin->rest_status()->register_routes();
 $plugin->rest_settings()->register_routes();
+$plugin->rest_integrations()->register_routes();
+$plugin->rest_templates()->register_routes();
 
 $recoveryflow_routes = $GLOBALS['recoveryflow_routes'];
 
@@ -4168,6 +4170,148 @@ ok( 'closing stale events is addressed by primary key too', false !== stripos( $
 ok( 'and re-checks that they are still open and unclaimed', false !== stripos( $recoveryflow_sql[0], 'journey_id IS NULL' ) );
 
 $GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// The /integrations and /templates collections.
+//
+// Both shipped as documented-but-absent for three slices. The security matrix
+// above already walks them; what is asserted here is that neither works its
+// answer out a second time -- the fault this plugin has shipped four times.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_SETTINGS, Capabilities::MANAGE_WORKFLOWS );
+
+$recoveryflow_integrations = $plugin->rest_integrations()->index()->get_data();
+
+ok( 'the integrations collection lists what is registered', count( $recoveryflow_integrations['integrations'] ) > 0 );
+check(
+	'and lists exactly the registry\'s sources, not a hand-kept list of its own',
+	count( $recoveryflow_integrations['integrations'] ),
+	count( $plugin->sources()->all() )
+);
+
+// Switch one source OFF first. Available-and-switched-off is the state where a
+// verdict derived from "is it installed" and the registry's real verdict
+// disagree -- so without it, an endpoint that worked the answer out for itself
+// would agree with the registry by luck and the assertion below would be
+// vacuous. It was, until a mutation survived and said so.
+$recoveryflow_first_source = '';
+
+foreach ( $plugin->sources()->all() as $recoveryflow_candidate ) {
+	if ( '' === $recoveryflow_first_source && $recoveryflow_candidate->is_available() ) {
+		$recoveryflow_first_source = $recoveryflow_candidate->get_id();
+	}
+}
+
+ok( 'there is an available source to switch off, so the assertions below are not vacuous', '' !== $recoveryflow_first_source );
+
+$plugin->sources()->set_enabled( $recoveryflow_first_source, false );
+
+$recoveryflow_integrations = $plugin->rest_integrations()->index()->get_data();
+
+$recoveryflow_row = array();
+
+foreach ( $recoveryflow_integrations['integrations'] as $recoveryflow_candidate ) {
+	if ( (string) $recoveryflow_candidate['id'] === $recoveryflow_first_source ) {
+		$recoveryflow_row = $recoveryflow_candidate;
+	}
+}
+
+check(
+	'a source that is installed but switched off is reported as switched off',
+	$recoveryflow_row['status'],
+	Source_Registry::SWITCHED_OFF
+);
+ok( 'and is still reported as available, because it is', true === $recoveryflow_row['available'] );
+ok( 'and as switched off', false === $recoveryflow_row['enabled'] );
+
+foreach ( array( 'id', 'name', 'status', 'message', 'available', 'enabled', 'built_in', 'settings' ) as $recoveryflow_key ) {
+	ok( "an integration row carries {$recoveryflow_key}", array_key_exists( $recoveryflow_key, $recoveryflow_row ) );
+}
+
+// The endpoint must not re-derive the verdict. Asked of the registry directly,
+// the two answers have to be the same object of truth.
+check(
+	'the verdict comes from the registry rather than being worked out again',
+	$recoveryflow_row['status'],
+	$plugin->sources()->status( (string) $recoveryflow_row['id'] )
+);
+check(
+	'and so does the sentence, so the API and the screen cannot disagree',
+	$recoveryflow_row['message'],
+	Source_Registry::status_message( (string) $recoveryflow_row['status'] )
+);
+ok(
+	'a machine code is never sent without the sentence that explains it',
+	'' !== (string) $recoveryflow_row['message']
+);
+ok(
+	'and every row links to the control that switches it',
+	false !== strpos( (string) $recoveryflow_row['settings'], Source_Registry::enabled_key( (string) $recoveryflow_row['id'] ) )
+);
+
+// Read-only, for the same reason the settings endpoint is: a second way to
+// write a setting is a second set of rules about what a valid setting is.
+$GLOBALS['recoveryflow_routes'] = array();
+$plugin->rest_integrations()->register_routes();
+
+$recoveryflow_methods = array();
+
+foreach ( $GLOBALS['recoveryflow_routes'] as $recoveryflow_route ) {
+	foreach ( $recoveryflow_route['endpoints'] as $recoveryflow_endpoint ) {
+		$recoveryflow_methods[] = (string) ( $recoveryflow_endpoint['methods'] ?? '' );
+	}
+}
+
+check( 'the integrations collection offers reading and nothing else', $recoveryflow_methods, array( 'GET' ) );
+
+// Templates. A refusal is not an empty list: no key, a plan below Scale, a dead
+// network and a workspace with no approved templates are four situations that
+// need four responses, and all four look identical as [].
+delete_transient( 'recoveryflow_wacr_templates' );
+
+set_transient(
+	'recoveryflow_wacr_templates',
+	array(
+		'waba'  => '',
+		'value' => array(
+			'ok'        => true,
+			'templates' => array(
+				array(
+					'name'      => 'usable_one',
+					'language'  => 'en',
+					'variables' => array( array( 'id' => 'body_1', 'required' => true ) ),
+				),
+				array(
+					'name'      => 'needs_an_image',
+					'language'  => 'en',
+					'variables' => array( array( 'id' => 'header_media_image', 'required' => true ) ),
+				),
+			),
+		),
+	),
+	900
+);
+
+$recoveryflow_tpl = $plugin->rest_templates()->index( new WP_REST_Request( array() ) )->get_data();
+
+ok( 'the templates collection reports success', true === $recoveryflow_tpl['ok'] );
+check( 'and lists every approved template, usable or not', count( $recoveryflow_tpl['templates'] ), 2 );
+check( 'while saying how many can actually be sent', $recoveryflow_tpl['usable'], 1 );
+ok(
+	'a template this plugin cannot fill is listed rather than hidden from whoever approved it',
+	in_array( 'needs_an_image', array_column( $recoveryflow_tpl['templates'], 'name' ), true )
+);
+
+// The same verdict the picker uses, not a second opinion.
+check(
+	'and the endpoint agrees with the catalogue the workflow editor reads',
+	array_column( $recoveryflow_tpl['templates'], 'usable' ),
+	array_column( $plugin->template_catalog()->all()['templates'], 'usable' )
+);
+
+$plugin->sources()->set_enabled( $recoveryflow_first_source, true );
 
 
 // ---------------------------------------------------------------------------

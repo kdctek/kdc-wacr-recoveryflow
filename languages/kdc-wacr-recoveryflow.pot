@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T09:49:31+00:00\n"
+"POT-Creation-Date: 2026-09-08T09:55:22+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -256,22 +256,6 @@ msgstr ""
 #: src/Admin/Pages/Integrations.php:138
 #, php-format
 msgid "Settings for %s"
-msgstr ""
-
-#: src/Admin/Pages/Integrations.php:156
-msgid "Not available. Whatever this integration needs is not installed or not active on this site."
-msgstr ""
-
-#: src/Admin/Pages/Integrations.php:159
-msgid "Available, but switched off here. Nothing from this integration is being recorded."
-msgstr ""
-
-#: src/Admin/Pages/Integrations.php:162
-msgid "Installed and switched on, but not included in this WA.cr plan, so nothing from it is being recorded. Integrations beyond WooCommerce are included with the WA.cr Scale plan and above."
-msgstr ""
-
-#: src/Admin/Pages/Integrations.php:165
-msgid "Active. Abandoned baskets from here are being recorded."
 msgstr ""
 
 #: src/Admin/Pages/Journeys.php:70
@@ -2325,6 +2309,22 @@ msgstr ""
 
 #: src/Integration/GravityForms/Source.php:310
 msgid "A form"
+msgstr ""
+
+#: src/Integration/Source_Registry.php:289
+msgid "Not available. Whatever this integration needs is not installed or not active on this site."
+msgstr ""
+
+#: src/Integration/Source_Registry.php:292
+msgid "Available, but switched off here. Nothing from this integration is being recorded."
+msgstr ""
+
+#: src/Integration/Source_Registry.php:295
+msgid "Installed and switched on, but not included in this WA.cr plan, so nothing from it is being recorded. Integrations beyond WooCommerce are included with the WA.cr Scale plan and above."
+msgstr ""
+
+#: src/Integration/Source_Registry.php:298
+msgid "Active. Abandoned baskets from here are being recorded."
 msgstr ""
 
 #: src/Integration/WooCommerce/Cart_Restorer.php:97
