@@ -195,7 +195,7 @@ final class Plugin {
 			),
 
 			// Integrations.
-			'sources'             => static fn (): Source_Registry => new Source_Registry(),
+			'sources'             => static fn ( Plugin $c ): Source_Registry => new Source_Registry( $c->ingest() ),
 			'source_cursors'      => static fn (): Source_Cursors => new Source_Cursors(),
 			'wc_session'          => static fn (): Wc_Session => new Wc_Session(),
 

@@ -46,6 +46,8 @@ use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Integration\Abstract_Source;
+use WAcr\RecoveryFlow\Integration\Custom\Example_Source;
+use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
 use WAcr\RecoveryFlow\Integration\GravityForms\Field_Map as Gf_Field_Map;
 use WAcr\RecoveryFlow\Integration\GravityForms\Settings as Gf_Settings;
 use WAcr\RecoveryFlow\Integration\GravityForms\Source as Gf_Source;
@@ -4010,6 +4012,82 @@ $recoveryflow_lost = Recovery_Event::from_row(
 ok( 'an event with no link left shows the generic page rather than guessing', $recoveryflow_gf->restore( new Recovery_Journey(), $recoveryflow_lost ) instanceof WP_Error );
 
 update_option( Options::SETTINGS, Options::defaults() );
+
+
+/*
+ * ---------------------------------------------------------------------------
+ * The documented custom source.
+ *
+ * The example in docs/developer-api.md called a constructor with the wrong
+ * signature and two methods that had never existed, and said so confidently
+ * for three slices, because an example in a Markdown file is checked by
+ * nothing. It is now a real file that phpcs lints, PHPStan type-checks and
+ * these assertions instantiate -- and the document quotes it.
+ * ---------------------------------------------------------------------------
+ */
+
+$recoveryflow_example = new Example_Source( $plugin->ingest() );
+
+ok( 'the documented example is a source', $recoveryflow_example instanceof Recovery_Source_Interface );
+ok( 'and it is never registered, because it recovers a plugin that does not exist', null === $plugin->sources()->get( $recoveryflow_example->get_id() ) );
+ok( 'and it is unavailable on any real site', ! $recoveryflow_example->is_available() );
+
+// Fail closed: an adapter that cannot tell whether somebody has paid must not
+// be the reason they are asked to pay twice.
+ok(
+	'an example that cannot reach its own plugin reports the thing as finished',
+	$recoveryflow_example->is_conversion_complete(
+		Recovery_Event::from_row(
+			array(
+				'id'          => 9,
+				'source_id'   => 'mybookings',
+				'external_id' => '1',
+				'status'      => Recovery_Event::OPEN,
+			)
+		)
+	)
+);
+
+ok(
+	'and refuses to guess at a link rather than sending somebody somewhere wrong',
+	$recoveryflow_example->restore(
+		new Recovery_Journey(),
+		Recovery_Event::from_row(
+			array(
+				'id'          => 9,
+				'external_id' => '1',
+			)
+		)
+	) instanceof WP_Error
+);
+
+// The gate that stops the document rotting again: every method the printed
+// example calls on itself must actually exist. This is what nothing was
+// checking before.
+$recoveryflow_doc = (string) file_get_contents( dirname( __DIR__ ) . '/docs/developer-api.md' );
+
+preg_match_all( '/\$this->([a-z_]+)\(/', $recoveryflow_doc, $recoveryflow_calls );
+
+$recoveryflow_missing = array();
+
+foreach ( array_unique( $recoveryflow_calls[1] ) as $recoveryflow_method ) {
+	if ( ! method_exists( Example_Source::class, $recoveryflow_method ) ) {
+		$recoveryflow_missing[] = $recoveryflow_method;
+	}
+}
+
+sort( $recoveryflow_missing );
+
+check( 'every method the developer documentation calls exists', $recoveryflow_missing, array() );
+ok( 'and the documentation is calling some, so the check is not vacuous', count( $recoveryflow_calls[1] ) > 2 );
+
+// The two helpers the example leans on, which is the whole reason an adapter
+// author never touches Event_Ingest directly.
+foreach ( array( 'report', 'report_completed' ) as $recoveryflow_helper ) {
+	ok( "Abstract_Source gives an adapter {$recoveryflow_helper}()", method_exists( Abstract_Source::class, $recoveryflow_helper ) );
+}
+
+ok( 'and an adapter can be built inside the registration hook without the container', $plugin->sources()->ingest() instanceof Event_Ingest );
 
 
 echo "\n";

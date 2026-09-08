@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Integration;
 
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Core\Hooks;
+use WAcr\RecoveryFlow\Recovery\Event_Ingest;
 use WAcr\RecoveryFlow\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
@@ -57,6 +58,18 @@ final class Source_Registry {
 	private const BUILT_IN = array( 'woocommerce' );
 
 	/**
+	 * The one route any adapter has for reporting what it saw.
+	 *
+	 * Held here so that a third-party source can be constructed inside the
+	 * registration hook without reaching for the container singleton. An
+	 * extension point that requires knowledge of the plugin's internals is one
+	 * that only its authors can use.
+	 *
+	 * @var Event_Ingest|null
+	 */
+	private ?Event_Ingest $ingest;
+
+	/**
 	 * Registered sources, by id.
 	 *
 	 * @var array<string,Recovery_Source_Interface>
@@ -76,6 +89,32 @@ final class Source_Registry {
 	 * @var bool
 	 */
 	private bool $registered = false;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Event_Ingest|null $ingest Event ingestion.
+	 */
+	public function __construct( ?Event_Ingest $ingest = null ) {
+		$this->ingest = $ingest;
+	}
+
+	/**
+	 * The event ingest, for building a source inside the registration hook.
+	 *
+	 * An extension point that requires a third party to reach for the container
+	 * singleton is one only this plugin's own authors can use comfortably, so
+	 * the registry carries what an adapter's constructor needs:
+	 *
+	 *     add_action( 'recoveryflow_register_sources', function ( $registry ) {
+	 *         $registry->add( new My_Source( $registry->ingest() ) );
+	 *     } );
+	 *
+	 * @return Event_Ingest|null
+	 */
+	public function ingest(): ?Event_Ingest {
+		return $this->ingest;
+	}
 
 	/**
 	 * Add a source.

@@ -52,6 +52,10 @@ Registries are passed by object; return the registry from your callback.
 | `recoveryflow_feature_enabled` | `bool $enabled, string $feature` | Override the plan gate for `workflow_editor`, `direct_send`, `engagement_polling` or `extra_sources`. WA.cr still enforces its own plan rules server-side |
 | `recoveryflow_optout_keywords` | `string[] $keywords` | Whole-message keywords that count as an opt-out when read from the conversation. Default `STOP`, `UNSUBSCRIBE`, `CANCEL`, `END`, `QUIT` |
 | `recoveryflow_wacr_allowed_hosts` | `string[] $hosts` | Hostnames the client and the Auto Flow hook URL may target. Default `api.wa.cr` and `api.wacart.dev`. A custom host is only honoured for white-label keys and must be HTTPS |
+| `recoveryflow_pre_ingest_event` | `Event_Draft|null $draft` | Every event any adapter reports, immediately before it is written. Return `null` to drop it |
+| `recoveryflow_gf_paid_statuses` | `string[] $statuses` | Gravity Forms `payment_status` values that count as a completed sale. Default `Paid`, `Active`, `Approved`, `Authorized` |
+| `recoveryflow_gf_field_overrides` | `array $overrides, array $form` | Pins which Gravity Forms field holds a contact detail, keyed by field type (`email`, `phone`, `name`, `address`). Default: the first field of each type |
+| `recoveryflow_gf_first_look_days` | `int $days` | How far back the first Gravity Forms backfill reads. Default 30 |
 | `recoveryflow_wc_restore_cart_item_data` | `string[] $allowed_keys, array $line, Recovery_Journey $journey` | Keys of WooCommerce `cart_item_data` that the restorer may copy back from the snapshot. Default none, because that array is where other plugins keep arbitrary data |
 
 Example: allow a gift-message key to survive a restore.
@@ -91,68 +95,144 @@ The plan also describes routes for retrying and revoking links on a journey, an 
 
 ## A minimal custom source
 
-This example recovers unpaid bookings from a fictional booking plugin that fires `mybookings_booking_created` and `mybookings_booking_paid`. Around forty lines is all a source needs. The `Event_Draft` field names mirror `Recovery_Event`; the identity hints mirror `Identity_Hints`. The final shape of the draft builder is fixed together with the Gravity Forms adapter in slice 3, so treat this as the intended shape rather than a frozen signature.
+**The example below is a real file**, `src/Integration/Custom/Example_Source.php`, shipped in the plugin and never registered. Read that rather than this: it is linted, type-checked and instantiated by the test suite against the real interfaces, so it cannot describe an API the plugin does not have. The version that used to be printed here could, and did -- it called a constructor with the wrong signature and two methods that had never existed, and said so confidently for three releases, because nothing anywhere could tell.
+
+Copy the file, rename it, and change the four places that say `mybookings`.
 
 ```php
-<?php
-namespace My_Plugin\RecoveryFlow;
-
+use WAcr\RecoveryFlow\Customer\Identity_Hints;
 use WAcr\RecoveryFlow\Integration\Abstract_Source;
 use WAcr\RecoveryFlow\Recovery\Event_Draft;
 use WAcr\RecoveryFlow\Recovery\Recovery_Event;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 
-final class Bookings_Source extends Abstract_Source {
+final class My_Bookings_Source extends Abstract_Source {
+
     public function get_id(): string          { return 'mybookings'; }
     public function get_name(): string        { return __( 'My Bookings', 'my-plugin' ); }
-    public function get_description(): string { return __( 'Recovers unpaid bookings.', 'my-plugin' ); }
+    public function get_description(): string { return __( 'Recovers bookings that were reserved and never paid for.', 'my-plugin' ); }
     public function is_available(): bool      { return function_exists( 'mybookings_get_booking' ); }
     public function get_event_types(): array  { return [ 'booking' ]; }
     public function get_default_rules(): array { return [ 'inactivity_minutes' => 60, 'max_age_days' => 3 ]; }
 
     public function register(): void {
-        add_action( 'mybookings_booking_created', [ $this, 'on_created' ] );
-        add_action( 'mybookings_booking_paid',    [ $this, 'on_paid' ] );
+        add_action( 'mybookings_booking_reserved', [ $this, 'on_reserved' ] );
+        add_action( 'mybookings_booking_paid',     [ $this, 'on_paid' ] );
     }
 
-    public function on_created( object $booking ): void {
-        $draft = new Event_Draft( [
-            'source_type' => 'booking',
-            'dedupe_key'  => 'booking:' . $booking->id,
-            'external_id' => (string) $booking->id,
-            'currency'    => $booking->currency,
-            'amount'      => (string) $booking->total,
-            'items'       => [ [ 'sku' => $booking->slot, 'name' => $booking->service_name, 'qty' => 1,
-                                 'unit_amount' => (string) $booking->total, 'line_amount' => (string) $booking->total ] ],
-            'identity'    => [ 'phone' => $booking->phone, 'email' => $booking->email,
-                               'first_name' => $booking->first_name, 'country' => $booking->country ],
-        ] );
-        $this->ingest( $draft ); // upsert; never throws into the request
+    public function on_reserved( $booking ): void {
+        $draft = new Event_Draft( $this->get_id(), 'booking', 'booking:' . (int) $booking->id );
+
+        $draft->external_id = (string) $booking->id;
+        $draft->session_key = 'booking:' . (int) $booking->id;
+        $draft->with_value( (string) $booking->total, (string) $booking->currency );
+        $draft->with_items( [ [ 'name' => $booking->service_name, 'ref' => $booking->slot, 'qty' => 1 ] ] );
+
+        $hints             = new Identity_Hints();
+        $hints->phone_raw  = (string) $booking->phone;
+        $hints->email      = (string) $booking->email;
+        $hints->first_name = (string) $booking->first_name;
+        $hints->country    = (string) $booking->country;
+
+        $draft->with_identity( $hints );
+
+        $this->report( $draft );          // upsert; never throws into the request
     }
 
-    public function on_paid( object $booking ): void {
-        $this->report_completed( (string) $booking->id, (string) $booking->total ); // journey → RECOVERED
+    public function on_paid( $booking ): void {
+        $this->report_completed( 'booking:' . (int) $booking->id, 'paid' );
     }
 
     public function is_conversion_complete( Recovery_Event $event ): bool {
+        if ( ! function_exists( 'mybookings_get_booking' ) ) {
+            return true;                   // cannot tell ⇒ fail closed, send nothing
+        }
+
         $booking = mybookings_get_booking( (int) $event->external_id );
-        return ! $booking || 'paid' === $booking->status; // unknown ⇒ treat as complete: fail closed
+
+        return ! is_object( $booking ) || 'paid' === $booking->status;
     }
 
-    public function restore( Recovery_Journey $journey, Recovery_Event $event ): string|\WP_Error {
-        return mybookings_get_payment_url( (int) $event->external_id ) ?: new \WP_Error( 'gone', 'Booking no longer exists.' );
+    public function restore( Recovery_Journey $journey, Recovery_Event $event ) {
+        $url = (string) mybookings_get_payment_url( (int) $event->external_id );
+
+        return '' === $url ? new \WP_Error( 'gone', 'Booking no longer exists.' ) : $url;
     }
 }
 ```
 
-Register it:
+Register it on the action, taking the ingest from the registry rather than from the container:
 
 ```php
-add_filter( 'recoveryflow_register_sources', function ( $registry ) {
-    $registry->add( new \My_Plugin\RecoveryFlow\Bookings_Source() );
-    return $registry;
+add_action( 'recoveryflow_register_sources', function ( \WAcr\RecoveryFlow\Integration\Source_Registry $registry ) {
+    $registry->add( new My_Bookings_Source( $registry->ingest() ) );
 } );
 ```
+
+### The five things to get right
+
+| | |
+| --- | --- |
+| **`is_available()` runs on every page load** | One `class_exists` or `function_exists`, nothing else. A version check, an option read or a query here is a cost every request on the site pays whether or not anybody is booking anything |
+| **`dedupe_key` is one key per thing-in-progress**, reused as it changes | It is UNIQUE with your source id, so reporting the same booking twice updates one row instead of making a second. Getting this wrong is how somebody receives three reminders about one booking |
+| **Never put personal data in `metadata` or `items`** | Contact details go in `Identity_Hints`, the one field the exporter, the eraser and the redactor know to look at. A phone number tucked into metadata to save a lookup is a phone number that survives an erasure request |
+| **`is_conversion_complete()` answers from live state, every time** | It is asked again immediately before every send, not only when the event was detected: the person may have paid in another tab an hour later. If you cannot tell, return `true` -- the cost of a missed reminder is a reminder; the cost of a wrong one is asking somebody to pay twice |
+| **`restore()` merges, and touches only the clicker's own session** | Somebody following a recovery link may have started again already, and replacing that with an older snapshot destroys the very conversion being recovered |
+
+`Abstract_Source` gives you `report()` and `report_completed()`, plus a `build_recovery_url()` that returns the plugin's own `/recovery/{token}` endpoint and an empty `get_settings_fields()`. Override the last two only if you need to.
+
+### Settings of your own
+
+`get_settings_fields()` returns field definitions in the same shape as the plugin's settings schema. They are folded into the one settings tree, so they are rendered, validated and deeplinked by exactly the same code as the plugin's own -- you cannot ship a field that saves without being cleaned. Each is stored as `source_{your id}_{your key}`:
+
+```php
+public function get_settings_fields(): array {
+    return [
+        'include_free' => [
+            'type'    => 'checkbox',
+            'label'   => __( 'Also chase bookings that cost nothing', 'my-plugin' ),
+            'help'    => __( 'A free booking cannot be paid for.', 'my-plugin' ),
+            'default' => false,
+        ],
+    ];
+}
+
+// Reading it back:
+Options::get( Source_Registry::setting_key( $this->get_id(), 'include_free' ), false );
+```
+
+Every registered source also gets a switch at `source_{your id}_enabled`, on by default.
+
+### Sources with no hooks to push from
+
+If the system you are integrating with fires no hooks -- it writes straight to its own tables, or lives behind an API -- implement `Pollable_Source_Interface` as well. The Evaluate pass will ask you for a bounded page on every tick:
+
+```php
+public function detect_recovery_events( int $limit, ?string $cursor ): Event_Batch {
+    $rows   = my_api_unpaid_since( $cursor, $limit );   // never scan unboundedly
+    $drafts = [];
+    $last   = $cursor;
+
+    foreach ( $rows as $row ) {
+        $last = (string) $row->created_at;              // wherever you got to
+
+        $draft = new Event_Draft( $this->get_id(), 'booking', 'booking:' . (int) $row->id );
+        $draft->external_id = (string) $row->id;
+        $draft->with_value( (string) $row->total, (string) $row->currency );
+
+        $drafts[] = $draft;
+    }
+
+    // A full page means there is more behind it; the tick will come back.
+    return new Event_Batch( $drafts, $last, count( $rows ) >= $limit );
+}
+```
+
+The cursor is opaque to the core -- a row id, a timestamp, an API page token -- and is stored in the `recoveryflow_source_cursors` option, capped at 500 characters. Return `null` for it when there is nothing more to read; the stored position is dropped and the next poll starts from the beginning. Set `has_more` when you returned a full page, and the tick will come back for the rest.
+
+Three rules the core enforces around you: the cursor is advanced only after your batch has been ingested, so a fatal mid-page cannot silently skip rows a poll would never see again; a source that throws is dropped for that run and keeps its stored position, so one broken integration neither stops the others nor loses its place; and every draft must carry your own `source_id`, because `(source_id, dedupe_key)` is UNIQUE and a draft filed under somebody else's id would upsert onto their row.
+
+Gravity Forms is a worked example of a source that is both hooked and pollable, and [`integrations.md`](integrations.md#why-it-polls) explains why it needs to be both.
 
 ## Workflow definition
 

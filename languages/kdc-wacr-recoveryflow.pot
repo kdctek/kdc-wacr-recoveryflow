@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T09:05:46+00:00\n"
+"POT-Creation-Date: 2026-09-08T09:13:21+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -2186,6 +2186,27 @@ msgstr ""
 #, php-format
 msgctxt "customer name shortened to a first name and a last initial"
 msgid "%1$s %2$s."
+msgstr ""
+
+#: src/Integration/Custom/Example_Source.php:96
+msgid "My Bookings"
+msgstr ""
+
+#: src/Integration/Custom/Example_Source.php:105
+msgid "Recovers bookings that were reserved and never paid for."
+msgstr ""
+
+#: src/Integration/Custom/Example_Source.php:251
+#: src/Integration/Custom/Example_Source.php:257
+msgid "That booking is no longer available."
+msgstr ""
+
+#: src/Integration/Custom/Example_Source.php:277
+msgid "Also chase bookings that cost nothing"
+msgstr ""
+
+#: src/Integration/Custom/Example_Source.php:278
+msgid "A free booking cannot be paid for, so there is nothing to recover unless your site treats confirming one as the conversion."
 msgstr ""
 
 #: src/Integration/GravityForms/Settings.php:147
