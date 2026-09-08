@@ -2,7 +2,7 @@
 
 Everything a developer needs to extend RecoveryFlow by WA.cr: the hooks it fires and the filters it applies, its REST routes, how to register a custom Recovery Source, the workflow definition format and the variables a workflow may use.
 
-Namespace `WAcr\RecoveryFlow`. Hook prefix `recoveryflow_`. REST namespace `recoveryflow/v1`. Text domain `kdc-wacr-recoveryflow`. PHP 8.0 and WordPress 6.5 or later.
+Namespace `WAcr\RecoveryFlow`. Hook prefix `recoveryflow_`. REST namespace `kdc/v1`, routes under `wacr/recoveryflow/`. Text domain `kdc-wacr-recoveryflow`. PHP 8.0 and WordPress 6.5 or later.
 
 Argument types below refer to the value objects in [`architecture.md`](architecture.md#domain-model): `Recovery_Event`, `Recovery_Journey`, `Attempt`, `Customer`. Objects passed to actions are read-only snapshots; changing them has no effect on the database.
 
@@ -23,7 +23,7 @@ Actions are fired after the database write that they describe has succeeded. The
 | `recoveryflow_journey_cancelled` | `Recovery_Journey $journey, string $reason` | Rules, a merchant action or a second payment failure ended the journey |
 | `recoveryflow_journey_opted_out` | `Recovery_Journey $journey, string $source` | An opt-out ended the journey. `$source` is a consent source: `link`, `keyword`, `wacr`, `admin` or `webhook` |
 | `recoveryflow_before_message` | `Recovery_Journey $journey, Attempt $attempt, array $context` | Immediately before the HTTP call to WA.cr, after the attempt row is reserved. `$context` is the rendered variable context (see the allow-list below). This is an observation point; it cannot change the message. To change what is sent, register your own action through `recoveryflow_register_workflow_actions` |
-| `recoveryflow_after_message` | `Recovery_Journey $journey, Attempt $attempt, \WAcr\RecoveryFlow\WAcr\Result $result` | Immediately after the HTTP call, whatever the outcome. `$result->ok`, `$result->http_status` and `$result->error` (category, code, message, retryable) are available; the API key and message body are not |
+| `recoveryflow_after_message` | `Recovery_Journey $journey, Attempt $attempt, \WAcr\RecoveryFlow\WAcr\Result $result` | Immediately after the HTTP call, whatever the outcome. `$result->ok`, `$result->status` and `$result->error` (category, code, message, retryable, send_state) are available; the API key and message body are not. `$result->status` is the HTTP status where there was one and `0` where the request never completed, so judge failures by `$result->error->category`, never by the status |
 
 Example: post to your own analytics when a journey is recovered.
 
@@ -65,7 +65,7 @@ add_filter( 'recoveryflow_wc_restore_cart_item_data', function ( array $keys ) {
 
 ## REST routes
 
-Base: `/wp-json/recoveryflow/v1`. Every route except the webhook receiver requires cookie authentication with a REST nonce (or an application password) **and** the capability in the table. Responses are DTOs; personal data is masked unless `reveal=1` is passed by a user with `recoveryflow_reveal_pii`, and every reveal writes an audit receipt.
+Base: `/wp-json/kdc/v1/wacr/recoveryflow`. Every route except the webhook receiver requires cookie authentication with a REST nonce (or an application password) **and** the capability in the table. Responses are DTOs; personal data is masked unless `reveal=1` is passed by a user with `recoveryflow_reveal_pii`, and every reveal writes an audit receipt.
 
 | Method | Path | Capability | Notes |
 | --- | --- | --- | --- |

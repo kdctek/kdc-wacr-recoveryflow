@@ -36,7 +36,7 @@ Both are workflow actions and both go through the same client. A workflow uses o
 | Who decides timing and content | WA.cr's Auto Flow: delays, branches, stop-on-reply, quiet hours, 24-hour frequency cap | The WordPress workflow: waits, conditions, template per step |
 | What the plugin sends | One signed `recovery.journey_eligible` event to the flow's hook URL | One `POST /v1/messages` per touch with an approved template and mapped variables |
 | WA.cr requirement | Auto Flows on the workspace. No API key needed | Developer API access: WA.cr Scale and above |
-| Engagement back in WordPress | Optional: an Auto Flow webhook step to `/wp-json/recoveryflow/v1/webhooks/wacr` | Automatic polling of the conversation (`messages:read`), plus the webhook if configured |
+| Engagement back in WordPress | Optional: an Auto Flow webhook step to `/wp-json/kdc/v1/wacr/recoveryflow/webhooks/wacr` | Automatic polling of the conversation (`messages:read`), plus the webhook if configured |
 | Best for | Merchants who want the conversation designed and run in WA.cr | Merchants who want timing and content controlled inside WordPress |
 
 ## Template variable mapping
@@ -65,7 +65,7 @@ This is the path that works on any workspace with Auto Flows.
 2. In WordPress, go to Settings › WA.cr › Auto Flow hand-off, paste the hook URL and the signing secret. The URL must be HTTPS on `api.wa.cr` or `api.wacart.dev`.
 3. In Workflows, make the "Hand off to WA.cr Auto Flow" workflow the default for your source.
 4. Optionally, add a second Auto Flow (or a second trigger) for `recovery.journey_recovered` and `recovery.journey_expired`, and paste its URL as the secondary hook, so a running flow can stop the moment the customer buys.
-5. Optionally, add a **Webhook** step to the flow that posts `reply` and `opt_out` events back to `https://example.com/wp-json/recoveryflow/v1/webhooks/wacr` with the header `X-RecoveryFlow-Secret` set to the secret minted in Settings › WA.cr. This is how a hand-off journey becomes `ENGAGED` or `OPTED_OUT` in WordPress without the `messages:read` scope.
+5. Optionally, add a **Webhook** step to the flow that posts `reply` and `opt_out` events back to `https://example.com/wp-json/kdc/v1/wacr/recoveryflow/webhooks/wacr` with the header `X-RecoveryFlow-Secret` set to the secret minted in Settings › WA.cr. This is how a hand-off journey becomes `ENGAGED` or `OPTED_OUT` in WordPress without the `messages:read` scope.
 
 A "Send test event" button for the hook is planned for slice 2.
 

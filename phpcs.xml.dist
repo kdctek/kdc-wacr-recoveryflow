@@ -109,8 +109,14 @@
 		<!--
 		The plugin owns dedicated tables for high-volume recovery data; every
 		query against them is direct by design and prepared by hand.
+
+		SQL is confined to classes named *_Repository (plus the schema and the
+		job runner, which own the tables themselves). Nothing else in the plugin
+		may touch $wpdb, so this pattern list doubles as the architectural rule:
+		if a file needs to be added here, the query is in the wrong class.
 		-->
 		<exclude-pattern>/src/Database/*</exclude-pattern>
 		<exclude-pattern>/src/Jobs/*</exclude-pattern>
+		<exclude-pattern>/src/*/*_Repository\.php</exclude-pattern>
 	</rule>
 </ruleset>

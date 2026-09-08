@@ -1,5 +1,7 @@
 vendor/
 node_modules/
+/vendor
+/node_modules
 *.zip
 *.log
 .DS_Store
