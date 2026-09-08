@@ -234,6 +234,19 @@ Three rules the core enforces around you: the cursor is advanced only after your
 
 Gravity Forms is a worked example of a source that is both hooked and pollable, and [`integrations.md`](integrations.md#why-it-polls) explains why it needs to be both.
 
+## WP-CLI
+
+`wp recoveryflow` runs the same code the scheduler runs, not a copy of it, so what happens in a terminal is what happens at three in the morning.
+
+| Command | Does |
+| --- | --- |
+| `wp recoveryflow status` | Every health check and what each background pass last did. The same checks the status screen and `/status` read, so the three cannot give different diagnoses. Exits non-zero if any check is at error severity |
+| `wp recoveryflow tick [--stage=<stage>] [--until-clear]` | Runs the background passes now, in the foreground, under the real locks and the real time budget. A pass another process already holds is skipped rather than run twice |
+| `wp recoveryflow journeys [--status=] [--source=] [--search=] [--page=] [--per-page=] [--format=]` | The recovery queue. `--format=count` prints the total alone |
+| `wp recoveryflow sources` | The registered integrations and whether each is watching. The status column is `Source_Registry::status()`, the same answer that decides whether a source's hooks are attached |
+
+**Contact details are masked, always, and there is no flag to unmask them.** Anybody who can run WP-CLI can already read the database, so an unmasked column would protect nothing; it would only add a route to customers' phone numbers that appears in shell history, in CI logs and over somebody's shoulder, and that no audit trail covers. The reveal that *is* audited is on the REST route and the single-journey screen, where a person holding a named capability asks for it.
+
 ## Workflow definition
 
 Workflows are JSON documents stored with an immutable snapshot per version. `Workflow_Definition::schema()` validates them on save. A journey pins the version it started under, so editing a workflow never changes a running journey.

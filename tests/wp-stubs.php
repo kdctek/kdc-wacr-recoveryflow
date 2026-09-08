@@ -714,6 +714,17 @@ class Fake_Wpdb extends wpdb {
 
 		return $this->primed( $sql );
 	}
+	public function get_col( $sql, $column = 0 ) {
+		$this->queries[] = $sql;
+
+		// The first value of each primed row, which is what real wpdb returns.
+		// Its absence made every repository path that reads a list of ids fatal
+		// -- and the fatal, not the assertion, was what a test would have seen.
+		return array_map(
+			static fn( $row ) => is_array( $row ) ? array_values( $row )[ $column ] ?? null : null,
+			$this->primed( $sql )
+		);
+	}
 	private function primed( $sql ) {
 		foreach ( $this->rows as $fragment => $rows ) {
 			if ( false !== strpos( (string) $sql, (string) $fragment ) ) {

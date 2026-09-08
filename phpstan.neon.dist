@@ -28,6 +28,11 @@ parameters:
 		- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
 		- vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
 		- tests/fixtures/gravity-forms.php
+		# WP-CLI is present only when the command line is. Scanning its stubs
+		# means a misspelled utility or a wrong argument count in a command is
+		# caught here rather than by the person running it.
+		- vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php
+		- vendor/php-stubs/wp-cli-stubs/wp-cli-commands-stubs.php
 	excludePaths:
 		- vendor
 	ignoreErrors:

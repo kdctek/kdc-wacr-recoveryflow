@@ -33,6 +33,7 @@ use WAcr\RecoveryFlow\Integration\GravityForms\Entry_Poller as Gf_Entry_Poller;
 use WAcr\RecoveryFlow\Integration\GravityForms\Entry_Watcher as Gf_Entry_Watcher;
 use WAcr\RecoveryFlow\Integration\GravityForms\Field_Map as Gf_Field_Map;
 use WAcr\RecoveryFlow\Integration\GravityForms\Source as Gf_Source;
+use WAcr\RecoveryFlow\CLI\Command as CLI_Command;
 use WAcr\RecoveryFlow\Integration\Source_Cursors;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Restorer;
@@ -1042,6 +1043,13 @@ final class Plugin {
 			if ( method_exists( $service, 'hooks' ) ) {
 				$service->hooks();
 			}
+		}
+
+		// WP-CLI, which needs the container fully built and so goes last. The
+		// commands run the scheduler's own code rather than a copy of it, so
+		// what happens in a terminal is what happens at three in the morning.
+		if ( defined( 'WP_CLI' ) && constant( 'WP_CLI' ) ) {
+			CLI_Command::register( $this );
 		}
 
 		/**

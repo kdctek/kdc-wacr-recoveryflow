@@ -4090,6 +4090,83 @@ foreach ( array( 'report', 'report_completed' ) as $recoveryflow_helper ) {
 ok( 'and an adapter can be built inside the registration hook without the container', $plugin->sources()->ingest() instanceof Event_Ingest );
 
 
+/*
+ * ---------------------------------------------------------------------------
+ * Claiming a batch, in two statements.
+ *
+ * Splitting one UPDATE ... ORDER BY ... LIMIT into a SELECT and an UPDATE is
+ * only safe because the UPDATE re-checks the lease: two runs may select the
+ * same rows, and the second must then claim none of them. Losing that re-check
+ * would leave a plan that looks better, a suite that stays green, and two
+ * background runs sending the same customer the same reminder.
+ * ---------------------------------------------------------------------------
+ */
+
+$GLOBALS['wpdb']->queries    = array();
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array( array( 'id' => 41 ), array( 'id' => 42 ) );
+
+$plugin->journeys()->claim_due( 'token-abc', 50 );
+
+$recoveryflow_sql = array_values(
+	array_filter(
+		$GLOBALS['wpdb']->queries,
+		static fn ( $q ): bool => false !== stripos( (string) $q, 'recoveryflow_journeys' )
+	)
+);
+
+ok( 'claiming a batch reads first and writes second', count( $recoveryflow_sql ) >= 2 );
+ok( 'the read is ordered by when the work is due', false !== stripos( $recoveryflow_sql[0], 'ORDER BY next_action_at ASC' ) );
+ok( 'and the write is addressed by primary key', false !== stripos( $recoveryflow_sql[1], 'id IN (41,42)' ) );
+ok( 'and it re-checks the lease, so a second run claims nothing', false !== stripos( $recoveryflow_sql[1], 'claimed_until IS NULL OR claimed_until <' ) );
+ok( 'and there is no UPDATE ... LIMIT left to be unsafe under replication', false === stripos( $recoveryflow_sql[1], 'LIMIT' ) );
+
+$GLOBALS['wpdb']->queries = array();
+$plugin->journeys()->claim_pollable( 'token-abc', 50 );
+
+$recoveryflow_sql = array_values(
+	array_filter(
+		$GLOBALS['wpdb']->queries,
+		static fn ( $q ): bool => false !== stripos( (string) $q, 'recoveryflow_journeys' )
+	)
+);
+
+ok( 'the polling claim reads by its own due column', false !== stripos( $recoveryflow_sql[0], 'ORDER BY poll_at ASC' ) );
+
+// A page with nothing on it must not run an UPDATE with an empty IN () clause,
+// which is a syntax error rather than a no-op.
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array();
+$GLOBALS['wpdb']->queries                       = array();
+
+check( 'nothing due claims nothing', $plugin->journeys()->claim_due( 'token-abc', 50 ), 0 );
+check(
+	'and issues no write at all',
+	count(
+		array_filter(
+			$GLOBALS['wpdb']->queries,
+			static fn ( $q ): bool => 0 === stripos( ltrim( (string) $q ), 'UPDATE' )
+		)
+	),
+	0
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_events'] = array( array( 'id' => 7 ) );
+$GLOBALS['wpdb']->queries                     = array();
+
+$plugin->events()->expire_unidentified( '2026-01-01 00:00:00', 500 );
+
+$recoveryflow_sql = array_values(
+	array_filter(
+		$GLOBALS['wpdb']->queries,
+		static fn ( $q ): bool => 0 === stripos( ltrim( (string) $q ), 'UPDATE' )
+	)
+);
+
+ok( 'closing stale events is addressed by primary key too', false !== stripos( $recoveryflow_sql[0], 'id IN (7)' ) );
+ok( 'and re-checks that they are still open and unclaimed', false !== stripos( $recoveryflow_sql[0], 'journey_id IS NULL' ) );
+
+$GLOBALS['wpdb']->rows = array();
+
+
 echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";

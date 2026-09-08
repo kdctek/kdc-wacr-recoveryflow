@@ -14,6 +14,44 @@ RecoveryFlow by WA.cr moves money-adjacent state (a merchant's messaging wallet,
 
 Static checks run alongside: `composer lint` (`php -l` plus PHPCS with WordPress, WordPress-Extra, WordPress.Security and PHPCompatibilityWP for PHP 8.0 and above) and `composer analyse` (PHPStan level 5 with the WordPress extension).
 
+## Performance
+
+`tests/perf/seed.php` is a WP-CLI harness for finding out what a large site costs. It is excluded from the distributed plugin: a command that writes a hundred thousand rows of invented customers is a benchmarking tool, not a feature, and there is no version of it that belongs on a merchant's server.
+
+```bash
+wp --require=tests/perf/seed.php recoveryflow-perf seed --events=100000
+wp --require=tests/perf/seed.php recoveryflow-perf explain
+wp --require=tests/perf/seed.php recoveryflow-perf time
+wp --require=tests/perf/seed.php recoveryflow-perf clear --yes
+```
+
+Everything it writes is obviously fake and obviously ours: numbers come from Ofcom's reserved drama range, which can never be allocated to a real person; emails are on `example.test`; and every row is tagged so `clear` finds them again rather than guessing.
+
+`explain` captures each statement on its way to MySQL through the `query` filter and EXPLAINs it, inside a transaction that is rolled back. It does not contain a copy of any query. That is the point: a benchmark that EXPLAINs a hand-copied approximation reports the plan of a statement the plugin never runs, and reports it confidently. The first version of this command did exactly that, and described the queue screen as a covering index read when the statement it had covered was a different one.
+
+### Measured, 2026-09-08
+
+wp-env, MySQL 8, one container, cold. Two runs: 100,000 events / 20,000 journeys, then 357,000 events / 130,000 journeys.
+
+| Pass | 100k events | 357k events |
+| --- | --- | --- |
+| evaluate | 3.9 s (closed 33,195 stale events) | 2.9 s (closed 101,844) |
+| dispatch | 33 ms (claimed 50, more waiting) | 153 ms (claimed 24) |
+| poll | 1 ms | 1 ms |
+| expire | 2 ms | 816 ms |
+| retention | 763 ms (51,098 rows) | 4.2 s (150,054 rows) |
+
+Every background query reads an index; none is a full table scan.
+
+**What the pass changed.** Two statements were rewritten as a SELECT that reads the index built for it followed by an UPDATE addressed by primary key, because as single `UPDATE … ORDER BY … LIMIT` statements MySQL was free to choose a different index and a sort, and did:
+
+- **Closing stale events** used `retention (status, updated_at)`, which answers only the first of its three conditions, and examined ~74,000 rows every pass to close 500. It now reads `evaluate (status, journey_id, last_activity_at)` as a covering index. Measured on the same data: **no difference at 100k (10.8 ms against 10.5 ms) and 3.2× faster at 357k (54.5 ms against 17.3 ms)** — the cost is in rows examined, and that only begins to bite once the table is large enough for the wrong index to matter. It also removes an `UPDATE … LIMIT` with no `ORDER BY`, which MySQL treats as unsafe for statement-based replication.
+- **Claiming a batch** sorted the matching rows in memory to take fifty, because the status is an `IN` of several values and no index can deliver those already ordered by the due column. The UPDATE is now by primary key.
+
+Splitting a claim in two is only safe because the UPDATE re-checks the lease: two runs may select the same rows, and the second then claims none of them, so the caller reads back only what carries its own token. That re-check is asserted, and removing it turns the suite red.
+
+**Known and left alone.** The claim's SELECT still sorts (`Using filesort`) for the reason above; measured, it costs 33 ms at 100k journeys and 153 ms at 357k, which does not justify a second index on a hot table. The queue screen's total is an unfiltered `COUNT(*)`, which InnoDB can only answer by scanning an index — 129,059 entries at 357k journeys. Both are recorded here so the next person measures rather than rediscovers them.
+
 ## How to run each
 
 ```bash
