@@ -265,6 +265,23 @@
 	margin-bottom: 0;
 }
 
+.recoveryflow-step > summary {
+	font-weight: 400;
+}
+
+/*
+ * The controls that reorder a step. They are submit buttons rather than script,
+ * so they are real targets with real labels ("Move step 2 up") that mean
+ * something read out of context, which 2.4.9 asks for at AAA.
+ */
+.recoveryflow-step-controls {
+	margin-bottom: 0;
+}
+
+.recoveryflow-step-controls .button {
+	margin-right: 0.3em;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.recoveryflow-settings * {
 		transition: none !important;

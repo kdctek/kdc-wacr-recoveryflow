@@ -12,6 +12,7 @@ use WAcr\RecoveryFlow\Admin\Step_Describer;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Workflow\Workflow;
+use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
 defined( 'ABSPATH' ) || exit;
@@ -148,8 +149,7 @@ final class Workflows {
 		$steps    = isset( $workflow->definition['steps'] ) && is_array( $workflow->definition['steps'] )
 			? $workflow->definition['steps']
 			: array();
-		$handoff  = $this->is_handoff( $steps );
-		$can_edit = $editable || $handoff;
+		$can_edit = $editable || ! Workflow_Definition::needs_developer_api( $workflow->definition );
 		$edit_url = Screen::workflow_url( $workflow->id );
 
 		echo '<div class="card recoveryflow-card recoveryflow-workflow-card">';
@@ -209,34 +209,6 @@ final class Workflows {
 
 		echo '</p>';
 		echo '</div>';
-	}
-
-	/**
-	 * Whether a workflow only hands off to WA.cr.
-	 *
-	 * A hand-off workflow needs no developer API and works on every plan, so it
-	 * stays editable on a workspace where everything else is read-only. The
-	 * test is on what the steps DO rather than on the seeded slug: a merchant
-	 * who builds their own hand-off workflow should get the same treatment as
-	 * the one that shipped with the plugin.
-	 *
-	 * @param array<int,mixed> $steps The steps.
-	 * @return bool
-	 */
-	private function is_handoff( array $steps ): bool {
-		$sends = false;
-
-		foreach ( $steps as $step ) {
-			if ( ! is_array( $step ) || 'action' !== ( $step['type'] ?? '' ) ) {
-				continue;
-			}
-
-			if ( 'wacr.start_flow' !== ( $step['do'] ?? '' ) ) {
-				$sends = true;
-			}
-		}
-
-		return ! $sends;
 	}
 
 	/**

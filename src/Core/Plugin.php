@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Core;
 
 use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
+use WAcr\RecoveryFlow\Admin\Workflow_Form;
 use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Admin\Menu as Admin_Menu;
 use WAcr\RecoveryFlow\Admin\Pages\Integrations as Integrations_Page;
@@ -16,6 +17,7 @@ use WAcr\RecoveryFlow\Admin\Pages\Journey_Detail;
 use WAcr\RecoveryFlow\Admin\Pages\Journeys as Journeys_Page;
 use WAcr\RecoveryFlow\Admin\Pages\Overview as Overview_Page;
 use WAcr\RecoveryFlow\Admin\Pages\System_Status;
+use WAcr\RecoveryFlow\Admin\Pages\Workflow_Edit;
 use WAcr\RecoveryFlow\Admin\Pages\Workflows as Workflows_Page;
 use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
@@ -261,6 +263,8 @@ final class Plugin {
 			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
 			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health() ),
 			'admin_workflows'     => static fn ( Plugin $c ): Workflows_Page => new Workflows_Page( $c->workflows() ),
+			'admin_workflow'      => static fn ( Plugin $c ): Workflow_Edit => new Workflow_Edit( $c->workflows(), $c->steps() ),
+			'admin_workflow_form' => static fn ( Plugin $c ): Workflow_Form => new Workflow_Form( $c->workflows() ),
 			'admin_setup'         => static fn ( Plugin $c ): Setup => new Setup( $c->wacr(), $c->credentials() ),
 			'admin_menu'          => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
 				$c->admin_overview(),
@@ -269,6 +273,7 @@ final class Plugin {
 				$c->admin_integrations(),
 				$c->admin_status(),
 				$c->admin_workflows(),
+				$c->admin_workflow(),
 				$c->admin_setup()
 			),
 			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
@@ -831,6 +836,24 @@ final class Plugin {
 	}
 
 	/**
+	 * One workflow's editor.
+	 *
+	 * @return Workflow_Edit
+	 */
+	public function admin_workflow(): Workflow_Edit {
+		return $this->typed( 'admin_workflow', Workflow_Edit::class );
+	}
+
+	/**
+	 * The editor's form handler.
+	 *
+	 * @return Workflow_Form
+	 */
+	public function admin_workflow_form(): Workflow_Form {
+		return $this->typed( 'admin_workflow_form', Workflow_Form::class );
+	}
+
+	/**
 	 * The admin menu service.
 	 *
 	 * @return Admin_Menu
@@ -922,6 +945,7 @@ final class Plugin {
 			$this->admin_menu()->hooks();
 			$this->admin_assets()->hooks();
 			$this->admin_connection()->hooks();
+			$this->admin_workflow_form()->hooks();
 			$this->admin_setup()->hooks();
 		}
 

@@ -65,6 +65,9 @@ use WAcr\RecoveryFlow\WAcr\Result;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 use WAcr\RecoveryFlow\WAcr\Send_Request;
 use WAcr\RecoveryFlow\WAcr\Transport;
+use WAcr\RecoveryFlow\Admin\Step_Describer;
+use WAcr\RecoveryFlow\Admin\Workflow_Form;
+use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
 
@@ -1993,6 +1996,7 @@ $recoveryflow_screens = array(
 	'integrations' => array( $plugin->admin_integrations(), 'render' ),
 	'status'       => array( $plugin->admin_status(), 'render' ),
 	'workflows'    => array( $plugin->admin_workflows(), 'render' ),
+	'workflow'     => array( $plugin->admin_workflow(), 'render' ),
 );
 
 foreach ( $recoveryflow_screens as $recoveryflow_name => $recoveryflow_render ) {
@@ -2165,6 +2169,307 @@ ok(
 	)
 );
 ok( 'and is told why that one is closed', false !== strpos( $recoveryflow_html, esc_html__( 'This workflow sends from WordPress, which this workspace\'s plan does not include, so it cannot be edited or run here.', 'kdc-wacr-recoveryflow' ) ) );
+
+update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_before );
+$GLOBALS['wpdb']->rows = array();
+
+/*
+ * The editor. The property that matters is the round trip: what the screen
+ * draws, posted back unchanged, must be a definition the validator accepts.
+ * A screen that offers a choice its own validator refuses is a screen that
+ * tells a merchant they did something wrong when they did exactly as asked,
+ * so this is asserted rather than left to the fact that both were written on
+ * the same afternoon.
+ */
+$recoveryflow_posted = array(
+	'workflow_id'     => 0,
+	'workflow_name'   => 'Two touches',
+	'workflow_active' => '1',
+	'step'            => array(
+		array(
+			'type' => 'condition',
+			'if'   => 'journey.not_completed',
+			'else' => 'stop:recovered',
+		),
+		array(
+			'type'        => 'wait',
+			'wait_amount' => '2',
+			'wait_unit'   => 'hours',
+		),
+		array(
+			'type'     => 'action',
+			'do'       => 'wacr.send_template',
+			'channel'  => 'whatsapp',
+			'template' => 'cart_reminder_1',
+		),
+	),
+);
+
+$recoveryflow_definition = Workflow_Form::read( $recoveryflow_posted );
+
+check( 'the form reads the name a merchant typed', $recoveryflow_definition['name'], 'Two touches' );
+check( 'and keeps the steps in the order they were posted', count( $recoveryflow_definition['steps'] ), 3 );
+ok( 'and what the form builds is a definition the validator accepts', true === Workflow_Definition::validate( $recoveryflow_definition ) );
+
+// A number and a unit, not an ISO duration typed by hand.
+check( 'two hours becomes an ISO duration', Workflow_Form::duration( 2, 'hours' ), 'PT2H' );
+check( 'and a day is stored as a day', Workflow_Form::duration( 1, 'days' ), 'P1D' );
+check( 'and an unknown unit falls back to hours rather than to nothing', Workflow_Form::duration( 3, 'fortnights' ), 'PT3H' );
+
+// The way back must be the way in, or a merchant reopening the screen finds
+// their "1 day" has become "1440 minutes" and edits something they did not write.
+$recoveryflow_split = Workflow_Form::split_duration( 'P1D' );
+check( 'a day comes back as a day', $recoveryflow_split['unit'], 'days' );
+check( 'and as one of them', $recoveryflow_split['amount'], 1 );
+
+$recoveryflow_split = Workflow_Form::split_duration( 'PT90M' );
+check( 'ninety minutes stays in minutes, because no larger unit divides it', $recoveryflow_split['unit'], 'minutes' );
+check( 'and keeps its value', $recoveryflow_split['amount'], 90 );
+
+// Arguments belong to the action that understands them. Changing a step from a
+// send to a hand-off and submitting must not carry a template onto a step that
+// has no use for one -- the validator would refuse it, naming a field the
+// merchant can no longer see.
+$recoveryflow_switched                     = $recoveryflow_posted;
+$recoveryflow_switched['step'][2]['do']    = 'wacr.start_flow';
+$recoveryflow_handoff                      = Workflow_Form::read( $recoveryflow_switched );
+
+ok( 'switching an action drops the old action\'s arguments', ! isset( $recoveryflow_handoff['steps'][2]['with']['template'] ) );
+ok( 'and supplies the new one\'s default', 'primary' === $recoveryflow_handoff['steps'][2]['with']['hook'] );
+ok( 'so the switched definition still validates', true === Workflow_Definition::validate( $recoveryflow_handoff ) );
+
+// A step type nobody registered is dropped rather than written through.
+$recoveryflow_junk                  = $recoveryflow_posted;
+$recoveryflow_junk['step'][]        = array(
+	'type' => 'exec',
+	'do'   => 'rm -rf',
+);
+$recoveryflow_read                  = Workflow_Form::read( $recoveryflow_junk );
+
+check( 'a step type the plugin does not know is dropped, not stored', count( $recoveryflow_read['steps'] ), 3 );
+
+// A channel nobody offers falls back rather than being written through.
+$recoveryflow_junk                          = $recoveryflow_posted;
+$recoveryflow_junk['step'][2]['channel']    = 'carrier-pigeon';
+$recoveryflow_read                          = Workflow_Form::read( $recoveryflow_junk );
+
+check( 'an unknown channel falls back to WhatsApp', $recoveryflow_read['steps'][2]['channel'], 'whatsapp' );
+
+// Add, remove and move are submit buttons, so each is exercised as one.
+check( 'no button pressed means save', Workflow_Form::command( array() )['name'], 'save' );
+check( 'and a pressed button is read with the step it names', Workflow_Form::command( array( 'move_up' => '2' ) )['index'], 2 );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'move_up',
+		'index' => 1,
+	)
+);
+
+check( 'moving a step up puts it above the one that was there', $recoveryflow_moved['steps'][0]['type'], 'wait' );
+check( 'and puts that one below it', $recoveryflow_moved['steps'][1]['type'], 'condition' );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'move_up',
+		'index' => 0,
+	)
+);
+check( 'moving the first step up does nothing rather than falling off the top', $recoveryflow_moved['steps'][0]['type'], 'condition' );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'move_down',
+		'index' => 2,
+	)
+);
+check( 'and moving the last step down does nothing either', $recoveryflow_moved['steps'][2]['type'], 'action' );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'remove_step',
+		'index' => 1,
+	)
+);
+check( 'removing a step removes exactly one', count( $recoveryflow_moved['steps'] ), 2 );
+ok( 'and what is left still validates', true === Workflow_Definition::validate( $recoveryflow_moved ) );
+
+$recoveryflow_moved = Workflow_Form::rearrange(
+	$recoveryflow_definition,
+	array(
+		'name'  => 'add_step',
+		'index' => -1,
+	)
+);
+check( 'adding a step adds exactly one', count( $recoveryflow_moved['steps'] ), 4 );
+ok( 'and the step it adds is one the validator accepts', true === Workflow_Definition::validate( $recoveryflow_moved ) );
+
+/*
+ * The rule that decides whether a workflow may be edited and stored on a plan
+ * below Scale. It lives on the definition because two screens ask it, and a
+ * list that offers an edit the save then refuses would be worse than either
+ * answer on its own -- so both are asserted against the same function.
+ */
+ok( 'a workflow that sends from WordPress needs the developer API', Workflow_Definition::needs_developer_api( $recoveryflow_definition ) );
+ok( 'and one that only hands off does not', ! Workflow_Definition::needs_developer_api( $recoveryflow_handoff ) );
+ok( 'a workflow with no steps at all does not either', ! Workflow_Definition::needs_developer_api( array( 'steps' => array() ) ) );
+
+$recoveryflow_snapshot_before = get_option( Options::ME_SNAPSHOT, array() );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => false,
+		'reason' => 'plan_upgrade_required',
+	)
+);
+
+ok( 'below Scale a sending workflow is refused before it reaches the store', ! Workflow_Form::may_write( $recoveryflow_definition ) );
+ok( 'but a hand-off workflow is still allowed, which is the whole Lite path', Workflow_Form::may_write( $recoveryflow_handoff ) );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send' ),
+	)
+);
+
+ok( 'and on Scale both are allowed', Workflow_Form::may_write( $recoveryflow_definition ) && Workflow_Form::may_write( $recoveryflow_handoff ) );
+
+/*
+ * The editor's own round trip, asserted on the rendered HTML rather than on
+ * the form reader alone: every value the screen offers in a select must be one
+ * the validator accepts. A screen that offers a choice its own validator
+ * refuses tells a merchant they got it wrong when they did exactly as asked.
+ */
+$GLOBALS['wpdb']->rows['recoveryflow_workflows'] = array(
+	$recoveryflow_row( 1, Workflow_Repository::SLUG_DIRECT, $recoveryflow_seeded( 'direct_definition' ), true ),
+);
+
+$_GET['workflow']  = 1;
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'the editor opens a stored workflow', false !== strpos( $recoveryflow_html, esc_html__( 'Edit workflow', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and draws its name into the field', false !== strpos( $recoveryflow_html, 'name="workflow_name"' ) );
+ok( 'and numbers each step where a support call can refer to it', false !== strpos( $recoveryflow_html, esc_html( sprintf( __( 'Step %1$d. %2$s', 'kdc-wacr-recoveryflow' ), 1, Step_Describer::describe( $recoveryflow_seeded( 'direct_definition' )['steps'][0] ) ) ) ) );
+ok( 'and posts to admin-post rather than to an endpoint of its own', false !== strpos( $recoveryflow_html, 'admin-post.php' ) );
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_html, '_wpnonce' ) );
+
+// Add, remove and move must be real submit buttons, or the editor stops working
+// the moment a script is blocked -- which is the entire reason it is built this way.
+foreach ( array( 'add_step', 'remove_step', 'move_down' ) as $recoveryflow_button ) {
+	ok( "the editor's {$recoveryflow_button} control is a submit button, not a script", false !== strpos( $recoveryflow_html, 'name="' . $recoveryflow_button . '"' ) );
+}
+
+ok( 'the editor ships no inline script at all', false === stripos( $recoveryflow_html, '<script' ) );
+
+// Every option in every select, checked against what the validator will accept.
+$recoveryflow_offered = array();
+preg_match_all( '/<select name="step\[(\d+)\]\[(\w+)\]".*?<\/select>/s', $recoveryflow_html, $recoveryflow_selects, PREG_SET_ORDER );
+
+ok( 'the editor renders selects for its steps', count( $recoveryflow_selects ) > 0 );
+
+foreach ( $recoveryflow_selects as $recoveryflow_select ) {
+	preg_match_all( '/value="([^"]*)"/', $recoveryflow_select[0], $recoveryflow_values );
+	$recoveryflow_offered[ $recoveryflow_select[2] ] = array_unique(
+		array_merge( $recoveryflow_offered[ $recoveryflow_select[2] ] ?? array(), $recoveryflow_values[1] )
+	);
+}
+
+/*
+ * Each group is counted before it is walked. A foreach over an empty array
+ * passes every assertion inside it and asserts nothing, so a regex that stops
+ * matching -- or a field that stops being rendered -- would turn this whole
+ * block green while checking nothing at all.
+ */
+foreach ( array( 'type', 'if', 'do', 'else', 'channel' ) as $recoveryflow_group ) {
+	ok( "the editor offers at least one {$recoveryflow_group} to choose from", count( $recoveryflow_offered[ $recoveryflow_group ] ?? array() ) > 0 );
+}
+
+foreach ( ( $recoveryflow_offered['type'] ?? array() ) as $recoveryflow_value ) {
+	ok( "the type select only offers {$recoveryflow_value}, which the validator knows", in_array( $recoveryflow_value, array( 'condition', 'wait', 'action' ), true ) );
+}
+
+foreach ( ( $recoveryflow_offered['if'] ?? array() ) as $recoveryflow_value ) {
+	ok( "the check select only offers {$recoveryflow_value}, which is registered", null !== $plugin->steps()->condition( $recoveryflow_value ) );
+}
+
+foreach ( ( $recoveryflow_offered['do'] ?? array() ) as $recoveryflow_value ) {
+	ok( "the send select only offers {$recoveryflow_value}, which is registered", null !== $plugin->steps()->action( $recoveryflow_value ) );
+}
+
+foreach ( ( $recoveryflow_offered['else'] ?? array() ) as $recoveryflow_value ) {
+	ok(
+		"the stop select only offers {$recoveryflow_value}, which is a state a journey can end in",
+		'' === $recoveryflow_value || '' !== Workflow_Definition::stop_state( $recoveryflow_value )
+	);
+}
+
+foreach ( ( $recoveryflow_offered['channel'] ?? array() ) as $recoveryflow_value ) {
+	ok( "the channel select only offers {$recoveryflow_value}, which is a real channel", in_array( $recoveryflow_value, Workflow_Definition::CHANNELS, true ) );
+}
+
+// Every wait unit the screen offers must be one the form can actually build.
+// The unit select is the one place a value goes to the form reader rather than
+// to the validator, so the "only offers what the validator accepts" property
+// above does not reach it: an added unit would silently become hours.
+foreach ( ( $recoveryflow_offered['wait_unit'] ?? array() ) as $recoveryflow_value ) {
+	ok(
+		"the wait unit select only offers {$recoveryflow_value}, which the form can build",
+		Workflow_Form::duration( 3, $recoveryflow_value ) !== Workflow_Form::duration( 3, 'a unit that does not exist' )
+			|| 'hours' === $recoveryflow_value
+	);
+}
+
+/*
+ * The editor must carry the id of what it is editing. Without it every save
+ * makes a NEW workflow and leaves the original untouched, which looks like a
+ * save that worked and is discovered weeks later as a list of near-duplicates
+ * with the original still running. Nothing else on the screen would look wrong.
+ */
+ok( 'the editor carries the id of the workflow it is editing', 1 === preg_match( '/name="workflow_id" value="1"/', $recoveryflow_html ) );
+
+$_GET['workflow']       = 0;
+$recoveryflow_new_html  = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'and a new workflow carries a zero rather than somebody else\'s id', 1 === preg_match( '/name="workflow_id" value="0"/', $recoveryflow_new_html ) );
+ok( 'and is headed as an addition, not an edit', false !== strpos( $recoveryflow_new_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
+
+/*
+ * A refused save must hand the work back, not the stored version. Sending
+ * somebody to the last-saved workflow after telling them their edit was wrong
+ * discards everything they had typed AND makes the refusal about something
+ * they can no longer see -- the two worst halves of the same page load.
+ */
+set_transient(
+	'recoveryflow_workflow_draft_' . get_current_user_id(),
+	array(
+		'name'  => 'A name only in the unsaved edit',
+		'steps' => array(
+			array(
+				'type' => 'wait',
+				'for'  => 'PT45M',
+			),
+		),
+	),
+	60
+);
+
+$_GET['workflow']        = 1;
+$recoveryflow_draft_html = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'a refused edit is shown back rather than replaced by the stored one', false !== strpos( $recoveryflow_draft_html, esc_attr( 'A name only in the unsaved edit' ) ) );
+ok( 'and keeps the steps as they were being edited', false !== strpos( $recoveryflow_draft_html, 'value="45"' ) );
+ok( 'and the draft is consumed, so it does not reappear on the next visit', null === Workflow_Form::draft() );
+
 
 update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_before );
 $GLOBALS['wpdb']->rows = array();

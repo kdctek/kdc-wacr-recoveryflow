@@ -130,6 +130,49 @@ final class Step_Describer {
 	}
 
 	/**
+	 * The label a condition is offered under, in a select.
+	 *
+	 * The same words as the sentence on the list screen, without the leading
+	 * "the": a merchant choosing "the order has still not been placed" from a
+	 * list headed "Check that" should recognise it as the line they will read
+	 * back on the workflow list afterwards.
+	 *
+	 * @param string $name A registered condition name.
+	 * @return string
+	 */
+	public static function condition_label( string $name ): string {
+		return self::condition_phrase( $name );
+	}
+
+	/**
+	 * The label an action is offered under, in a select.
+	 *
+	 * @param string $name A registered action name.
+	 * @return string
+	 */
+	public static function action_label( string $name ): string {
+		switch ( $name ) {
+			case 'wacr.send_template':
+				return __( 'Sending a message template from WordPress', 'kdc-wacr-recoveryflow' );
+
+			case 'wacr.start_flow':
+				return __( 'Handing the recovery to a WA.cr Auto Flow', 'kdc-wacr-recoveryflow' );
+		}
+
+		return $name;
+	}
+
+	/**
+	 * The label a stop branch is offered under, in a select.
+	 *
+	 * @param string $state A terminal journey state.
+	 * @return string
+	 */
+	public static function stop_label( string $state ): string {
+		return self::branch_phrase( 'stop:' . $state );
+	}
+
+	/**
 	 * Describe a wait step.
 	 *
 	 * @param array<string,mixed> $step The step.
