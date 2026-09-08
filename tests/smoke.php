@@ -46,6 +46,10 @@ use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Integration\Abstract_Source;
+use WAcr\RecoveryFlow\Integration\GravityForms\Field_Map as Gf_Field_Map;
+use WAcr\RecoveryFlow\Integration\GravityForms\Settings as Gf_Settings;
+use WAcr\RecoveryFlow\Integration\GravityForms\Source as Gf_Source;
+use WAcr\RecoveryFlow\Integration\GravityForms\Unpaid_Entry as Gf_Unpaid_Entry;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\Event_Batch;
 use WAcr\RecoveryFlow\Integration\Pollable_Source_Interface;
@@ -3671,6 +3675,341 @@ $recoveryflow_stats = $recoveryflow_evaluate->run( $recoveryflow_spent );
 check( 'a run with no time left asks nobody', $recoveryflow_pollable->asked, array() );
 check( 'not even the source after it', $recoveryflow_second->asked, array() );
 ok( 'and it says there is more to do, so the next tick comes back for them', $recoveryflow_stats->backlog > 0 );
+
+
+/*
+ * ---------------------------------------------------------------------------
+ * Gravity Forms: the adapter that has to prove the abstraction was one.
+ *
+ * WooCommerce came first, so every seam in the core was cut where WooCommerce
+ * needed one. What is under test here is whether those seams were general: a
+ * second adapter recovering two things that are nothing like a basket, through
+ * a plugin with no session, no cart and no orders.
+ *
+ * Loading the fixture is what makes class_exists( '\GFAPI' ) true, so from here
+ * on this site has Gravity Forms installed.
+ * ---------------------------------------------------------------------------
+ */
+
+require_once __DIR__ . '/fixtures/gravity-forms.php';
+
+$recoveryflow_gf     = $plugin->sources()->get( Gf_Source::ID );
+$recoveryflow_fields = new Gf_Field_Map();
+
+ok( 'the Gravity Forms source ships registered', $recoveryflow_gf instanceof Gf_Source );
+ok( 'and is available now that Gravity Forms is', $recoveryflow_gf->is_available() );
+ok( 'and it is pollable, because hooks only ever tell you about the future', $recoveryflow_gf instanceof Pollable_Source_Interface );
+check( 'and it produces two kinds of thing, neither of them a basket', $recoveryflow_gf->get_event_types(), array( 'form', 'payment' ) );
+
+// The core must not have learned anything about forms. If a second adapter
+// needed the engine changed, the abstraction was a description of WooCommerce.
+$recoveryflow_leaks = array();
+$recoveryflow_walk  = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( dirname( __DIR__ ) . '/src' ) );
+
+foreach ( $recoveryflow_walk as $recoveryflow_file ) {
+	$recoveryflow_path = str_replace( dirname( __DIR__ ) . '/', '', (string) $recoveryflow_file );
+
+	if ( 'php' !== pathinfo( $recoveryflow_path, PATHINFO_EXTENSION ) ) {
+		continue;
+	}
+
+	// The adapter itself, obviously, and the container that registers it.
+	if ( 0 === strpos( $recoveryflow_path, 'src/Integration/' ) || 'src/Core/Plugin.php' === $recoveryflow_path ) {
+		continue;
+	}
+
+	if ( false !== stripos( (string) file_get_contents( (string) $recoveryflow_file ), 'gravity' ) ) {
+		$recoveryflow_leaks[] = $recoveryflow_path;
+	}
+}
+
+sort( $recoveryflow_leaks );
+
+check( 'nothing outside the adapter has heard of Gravity Forms', $recoveryflow_leaks, array() );
+
+/*
+ * Identity. WooCommerce has one billing phone field with one name for ever;
+ * Gravity Forms has whatever the merchant dragged onto the canvas, so the
+ * form's own field TYPES are what is read.
+ */
+$recoveryflow_form = array(
+	'id'     => 7,
+	'title'  => 'Membership application',
+	'fields' => array(
+		(object) array(
+			'id'   => 1,
+			'type' => 'text',
+		),
+		(object) array(
+			'id'   => 2,
+			'type' => 'name',
+		),
+		(object) array(
+			'id'   => 3,
+			'type' => 'email',
+		),
+		(object) array(
+			'id'   => 4,
+			'type' => 'phone',
+		),
+		(object) array(
+			'id'   => 9,
+			'type' => 'phone',
+		),
+	),
+);
+
+$recoveryflow_entry = array(
+	'id'             => 55,
+	'form_id'        => 7,
+	'date_created'   => '2026-09-01 10:00:00',
+	'status'         => 'active',
+	'payment_status' => 'Failed',
+	'payment_amount' => '49.00',
+	'currency'       => 'GBP',
+	'source_url'     => 'https://shop.test/join/?first_name=Ada&email=ada%40example.test',
+	'2.3'            => 'Ada',
+	'2.6'            => 'Lovelace',
+	'3'              => 'ada@example.test',
+	'4'              => '07700 900123',
+	'9'              => '02079460000',
+);
+
+$recoveryflow_hints = $recoveryflow_fields->hints( $recoveryflow_form, $recoveryflow_entry );
+
+check( 'the first field of a type wins, so a work number does not beat the mobile', $recoveryflow_hints->phone_raw, '07700 900123' );
+check( 'the email comes off the email field, whatever it is labelled', $recoveryflow_hints->email, 'ada@example.test' );
+check( 'a name field is read as its two halves', $recoveryflow_hints->first_name . '/' . $recoveryflow_hints->last_name, 'Ada/Lovelace' );
+
+// A merchant with two phone fields knows which one is the mobile; nobody else
+// does, so it is a filter rather than a screen.
+add_filter( 'recoveryflow_gf_field_overrides', static fn (): array => array( 'phone' => '9' ) );
+check( 'and a pinned field overrides that', $recoveryflow_fields->hints( $recoveryflow_form, $recoveryflow_entry, Gf_Settings::field_overrides( $recoveryflow_form ) )->phone_raw, '02079460000' );
+$GLOBALS['__filters']['recoveryflow_gf_field_overrides'] = array();
+
+// Gravity Forms hands fields over as objects in most contexts and as plain
+// arrays in a few. Reading them one way works until the day it does not.
+$recoveryflow_array_form = array(
+	'id'     => 8,
+	'fields' => array(
+		array(
+			'id'   => 3,
+			'type' => 'email',
+		),
+	),
+);
+check( 'a form whose fields are arrays reads the same as one of objects', $recoveryflow_fields->hints( $recoveryflow_array_form, array( '3' => 'grace@example.test' ) )->email, 'grace@example.test' );
+
+// A form nobody could be messaged from is not an integration failure; it is a
+// row the eligibility rules would spend the rest of their life refusing.
+$recoveryflow_mute_form = array(
+	'id'     => 9,
+	'fields' => array(
+		array(
+			'id'   => 1,
+			'type' => 'text',
+		),
+	),
+);
+ok( 'a form with a phone or an email field can produce somebody to message', $recoveryflow_fields->is_messageable( $recoveryflow_form ) );
+ok( 'a form with neither cannot, and is refused before anything is written', ! $recoveryflow_fields->is_messageable( $recoveryflow_mute_form ) );
+
+/*
+ * Which payment statuses mean the money is in. Getting this wrong is expensive
+ * in both directions, so it is a list rather than "anything that is not
+ * Failed" -- a negative rule would call every status a future add-on invents a
+ * completed sale, and the recovery would never happen.
+ */
+foreach ( array( 'Paid', 'Active', 'Approved', 'Authorized' ) as $recoveryflow_status ) {
+	ok( "{$recoveryflow_status} counts as paid", Gf_Unpaid_Entry::is_paid( $recoveryflow_status ) );
+}
+
+foreach ( array( 'Failed', 'Cancelled', 'Pending', 'Processing', 'Refunded', 'Voided', 'Expired', 'Something_New' ) as $recoveryflow_status ) {
+	ok( "{$recoveryflow_status} does not", ! Gf_Unpaid_Entry::is_paid( $recoveryflow_status ) );
+}
+
+/*
+ * One rule, one home. The submission hook and the backfill both ask
+ * Unpaid_Entry, because written twice they would differ -- and the way they
+ * would differ is a backfill chasing exactly the people the live path had
+ * decided to leave alone.
+ */
+$recoveryflow_draft = Gf_Unpaid_Entry::draft( $recoveryflow_entry, $recoveryflow_form, $recoveryflow_fields, 'hook' );
+
+ok( 'an unpaid entry is worth recovering', $recoveryflow_draft instanceof Event_Draft );
+check( 'and it is filed under this adapter', $recoveryflow_draft->source_id, Gf_Source::ID );
+check( 'with one row per entry', $recoveryflow_draft->dedupe_key, 'entry:55' );
+check( 'carrying what it was worth', $recoveryflow_draft->amount . ' ' . $recoveryflow_draft->currency, '49.00 GBP' );
+
+// The privacy rule this adapter could most easily have broken: a form's prefill
+// parameters are exactly where somebody's name and email address end up, and
+// metadata is contractually free of personal data.
+check( 'and a link with the query string stripped off it', $recoveryflow_draft->metadata['resume_url'], 'https://shop.test/join/' );
+ok( 'so no personal data reaches the metadata', false === stripos( (string) wp_json_encode( $recoveryflow_draft->metadata ), 'ada' ) );
+
+foreach ( array(
+	'a paid entry'             => array( 'payment_status' => 'Paid' ),
+	'an entry asking no money' => array( 'payment_status' => '' ),
+	'a spam entry'             => array( 'status' => 'spam' ),
+	'a trashed entry'          => array( 'status' => 'trash' ),
+) as $recoveryflow_label => $recoveryflow_patch ) {
+	ok(
+		"{$recoveryflow_label} is not chased",
+		null === Gf_Unpaid_Entry::draft( array_merge( $recoveryflow_entry, $recoveryflow_patch ), $recoveryflow_form, $recoveryflow_fields, 'hook' )
+	);
+}
+
+ok(
+	'and neither is an entry on a form nobody could be messaged from',
+	null === Gf_Unpaid_Entry::draft( array_merge( $recoveryflow_entry, array( 'form_id' => 9 ) ), $recoveryflow_mute_form, $recoveryflow_fields, 'hook' )
+);
+
+// Only these forms.
+$plugin->sources()->set_enabled( Gf_Source::ID, true );
+Options::set( Source_Registry::setting_key( Gf_Source::ID, Gf_Settings::FORMS ), '3, 12' );
+ok( 'a form the merchant did not list is left alone', null === Gf_Unpaid_Entry::draft( $recoveryflow_entry, $recoveryflow_form, $recoveryflow_fields, 'hook' ) );
+Options::set( Source_Registry::setting_key( Gf_Source::ID, Gf_Settings::FORMS ), '3, 7, 12' );
+ok( 'and one they did is not', null !== Gf_Unpaid_Entry::draft( $recoveryflow_entry, $recoveryflow_form, $recoveryflow_fields, 'hook' ) );
+Options::set( Source_Registry::setting_key( Gf_Source::ID, Gf_Settings::FORMS ), '' );
+
+Options::set( Source_Registry::setting_key( Gf_Source::ID, Gf_Settings::UNPAID ), false );
+ok( 'and switching unpaid entries off stops all of it', null === Gf_Unpaid_Entry::draft( $recoveryflow_entry, $recoveryflow_form, $recoveryflow_fields, 'hook' ) );
+Options::set( Source_Registry::setting_key( Gf_Source::ID, Gf_Settings::UNPAID ), true );
+
+/*
+ * Completion, re-asked from live state immediately before every send. Both
+ * kinds fail closed, and they have to: the alternative is guessing about
+ * whether to message somebody.
+ */
+GFAPI::$entries    = array( 55 => $recoveryflow_entry );
+GFAPI::$forms      = array( 7 => $recoveryflow_form );
+GFFormsModel::$drafts = array( 'tok123' => array( 'partial_entry' => array() ) );
+
+$recoveryflow_open_entry = Recovery_Event::from_row(
+	array(
+		'id'          => 1,
+		'source_id'   => Gf_Source::ID,
+		'source_type' => 'payment',
+		'external_id' => '55',
+		'status'      => Recovery_Event::OPEN,
+	)
+);
+
+ok( 'an entry still waiting for money is not complete', ! $recoveryflow_gf->is_conversion_complete( $recoveryflow_open_entry ) );
+
+GFAPI::$entries[55]['payment_status'] = 'Paid';
+ok( 'and once it is paid, it is', $recoveryflow_gf->is_conversion_complete( $recoveryflow_open_entry ) );
+
+GFAPI::$entries[55]['payment_status'] = 'Failed';
+GFAPI::$entries[55]['status']         = 'trash';
+ok( 'an entry the shop trashed is treated as finished rather than chased', $recoveryflow_gf->is_conversion_complete( $recoveryflow_open_entry ) );
+
+GFAPI::$entries = array();
+ok( 'an entry that has been deleted is finished, not retried for ever', $recoveryflow_gf->is_conversion_complete( $recoveryflow_open_entry ) );
+
+$recoveryflow_open_draft = Recovery_Event::from_row(
+	array(
+		'id'          => 2,
+		'source_id'   => Gf_Source::ID,
+		'source_type' => 'form',
+		'external_id' => 'tok123',
+		'status'      => Recovery_Event::OPEN,
+	)
+);
+
+ok( 'a draft that is still there is not complete', ! $recoveryflow_gf->is_conversion_complete( $recoveryflow_open_draft ) );
+
+GFFormsModel::$drafts = array();
+ok( 'and one Gravity Forms has purged or consumed is', $recoveryflow_gf->is_conversion_complete( $recoveryflow_open_draft ) );
+
+/*
+ * The backfill, which is the reason this adapter is pollable at all. A merchant
+ * installing RecoveryFlow onto a site with four hundred unpaid entries gets
+ * nothing from any of them: the submissions happened and nothing was listening.
+ */
+GFAPI::$entries = array(
+	55 => $recoveryflow_entry,
+	56 => array_merge(
+		$recoveryflow_entry,
+		array(
+			'id'             => 56,
+			'date_created'   => '2026-09-02 10:00:00',
+			'payment_status' => 'Paid',
+		)
+	),
+	57 => array_merge(
+		$recoveryflow_entry,
+		array(
+			'id'           => 57,
+			'date_created' => '2026-09-03 10:00:00',
+		)
+	),
+);
+GFAPI::$asked = array();
+
+$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, null );
+
+check( 'the backfill finds the unpaid entries', count( $recoveryflow_batch->drafts ), 2 );
+check( 'and skips the paid one, exactly as the live path would', array_map( static fn ( Event_Draft $d ): string => $d->dedupe_key, $recoveryflow_batch->drafts ), array( 'entry:55', 'entry:57' ) );
+check( 'and stops at the newest row it read', $recoveryflow_batch->cursor, '2026-09-03 10:00:00' );
+ok( 'and does not claim there is more when it read a short page', ! $recoveryflow_batch->has_more );
+check( 'and it asked only for active entries', GFAPI::$asked[0]['search']['status'], 'active' );
+check( 'oldest first, or a cursor would step over rows for ever', GFAPI::$asked[0]['sort']['direction'], 'ASC' );
+
+$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 1, null );
+ok( 'a full page says there is more to read', $recoveryflow_batch->has_more );
+
+$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, '2026-09-03 00:00:00' );
+check( 'and a cursor resumes rather than starting again', count( $recoveryflow_batch->drafts ), 1 );
+
+// Nothing new must not clear the cursor, or the next run reads the whole window
+// a second time, for ever.
+$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, '2027-01-01 00:00:00' );
+check( 'an empty page keeps its place', $recoveryflow_batch->cursor, '2027-01-01 00:00:00' );
+
+GFAPI::$fail        = true;
+$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, '2026-09-01 00:00:00' );
+check( 'and Gravity Forms refusing to answer costs nothing but the run', count( $recoveryflow_batch->drafts ), 0 );
+GFAPI::$fail = false;
+
+/*
+ * Restore. Nothing is rebuilt: Gravity Forms holds the half-finished form
+ * itself and hands it back on its own resume link, which is a far better
+ * arrangement than this plugin reconstructing somebody's answers from a
+ * snapshot it took.
+ */
+check(
+	'a draft is sent back on Gravity Forms\' own resume link',
+	Gf_Source::resume_url( array( 'source_url' => 'https://shop.test/join/?utm_source=email' ), 'tok123' ),
+	'https://shop.test/join/?gf_token=tok123'
+);
+
+$recoveryflow_restored = Recovery_Event::from_row(
+	array(
+		'id'            => 3,
+		'source_id'     => Gf_Source::ID,
+		'source_type'   => 'form',
+		'external_id'   => 'tok123',
+		'status'        => Recovery_Event::OPEN,
+		'metadata_json' => (string) wp_json_encode( array( 'resume_url' => 'https://shop.test/join/?gf_token=tok123' ) ),
+	)
+);
+
+check( 'and the link stored on the event is where they land', $recoveryflow_gf->restore( new Recovery_Journey(), $recoveryflow_restored ), 'https://shop.test/join/?gf_token=tok123' );
+
+$recoveryflow_lost = Recovery_Event::from_row(
+	array(
+		'id'          => 4,
+		'source_id'   => Gf_Source::ID,
+		'source_type' => 'form',
+		'external_id' => 'tok999',
+		'status'      => Recovery_Event::OPEN,
+	)
+);
+
+ok( 'an event with no link left shows the generic page rather than guessing', $recoveryflow_gf->restore( new Recovery_Journey(), $recoveryflow_lost ) instanceof WP_Error );
+
+update_option( Options::SETTINGS, Options::defaults() );
 
 
 echo "\n";

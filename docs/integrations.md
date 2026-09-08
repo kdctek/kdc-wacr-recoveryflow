@@ -110,17 +110,58 @@ Requires WooCommerce 8.0 or later. The plugin declares compatibility with High-P
 | Restore | For each snapshot line, load the variation or product, skip missing, non-purchasable or out-of-stock items, clamp to the maximum purchase quantity, skip lines already in the cart, and add with WooCommerce's own notices. `cart_item_data` is restored only for keys allow-listed by `recoveryflow_wc_restore_cart_item_data` (default none). Coupons are re-applied from metadata. Guest billing name, email, phone and country are prefilled (setting, default on), never for a logged-in user. The restore refuses if the logged-in user differs from the journey's user. Only the clicker's own session is touched |
 | Rules | Inactivity 30 minutes, maximum age 7 days, minimum amount 0. Global settings override |
 
+## Gravity Forms
+
+Requires Gravity Forms 2.4 or later, and a WA.cr plan that includes integrations beyond WooCommerce. It recovers two things, deliberately unalike, because a second adapter that recovered another kind of basket would prove nothing about the abstraction.
+
+| Question | Gravity Forms |
+| --- | --- |
+| **1. What is recoverable?** | A **save-and-continue draft** (`source_type` `form`), from the moment it is saved until it is resumed and submitted or Gravity Forms purges it; and an **entry whose payment never arrived** (`source_type` `payment`) -- `payment_status` present and not one of `Paid`, `Active`, `Approved`, `Authorized`. Entries marked spam or trash are excluded, as are forms with neither a phone nor an email field |
+| **2. How is the customer identified?** | By field **type**, read off the form's own definition: the first `email`, `phone`, `name` and `address` field. Gravity Forms has no fixed key for any of them and the merchant may rename every label, so the type -- which Gravity Forms owns -- is the only stable thing to read. A logged-in submitter's `created_by` is used when there is one. Pin a specific field with `recoveryflow_gf_field_overrides` |
+| **3. When is it abandoned?** | A draft the moment it is saved: unlike a quiet basket, the person has said out loud that they are coming back later. An unpaid entry after the site's inactivity threshold. Maximum age defaults to **7 days**, because Gravity Forms purges drafts after 30 by default and the resume token dies with the row |
+| **4. How is completion detected?** | A draft, by the submission that consumes its resume token (`gform_post_submission`, reading `gform_resume_token` from the request -- which is how Gravity Forms finds the draft to delete). An entry, by `gform_post_payment_completed` or any `gform_post_payment_action` reporting a paid status, each claiming a receipt first so a redelivered gateway callback cannot be counted twice. Both re-checked from live state before every send |
+| **5. Where do we send the customer?** | Nothing is restored. Gravity Forms holds the half-finished form itself and hands it back on its own resume link, which is far better than this plugin rebuilding somebody's answers from a snapshot. A draft goes to its form page with `gf_token` on it; an entry goes back to the page it was submitted from |
+| **6. What value information exists?** | `payment_amount` and `currency` where the form takes money, and the form's title as the single line item. A draft usually has no amount at all, which is why the minimum-amount rule defaults to nothing here |
+| **7. What consent constraints apply?** | The same as everywhere else, with one difference that matters: **Gravity Forms has no checkout and RecoveryFlow adds no consent field to it.** In `explicit_consent` mode a form must carry the merchant's own consent question. Until it does, this source identifies people it is not allowed to message -- which is the correct failure, and is stated on the Integrations screen rather than left to be discovered |
+
+### Its own settings
+
+On **Settings &rsaquo; Integrations &rsaquo; Gravity Forms**:
+
+| Setting | Default | Means |
+| --- | --- | --- |
+| Remind people who saved a form to finish later | On | Watch save-and-continue drafts |
+| Remind people whose payment never went through | On | Watch unpaid entries, live and by backfill |
+| Only these forms | Empty | Form numbers separated by commas. Empty means every form |
+
+### Why it polls
+
+It is the first source to implement `Pollable_Source_Interface`, and the reason is not a demonstration. Hooks only ever tell you about the future: a merchant installing RecoveryFlow onto a site with four hundred unpaid entries would get nothing from any of them, and the same hole opens every time the integration is switched off and on again. So the Evaluate pass also reads entries created since a stored cursor -- `date_created`, ascending, active only -- and applies the identical rule the submission hook applies, from the same class. A backfill that applied a looser rule would chase exactly the people the live path had decided to leave alone.
+
+The first poll of a site looks back 30 days (`recoveryflow_gf_first_look_days`). Reading the whole history would pay to load every row so that the maximum-age rule could refuse nearly all of it.
+
+### Filters
+
+| Filter | Purpose |
+| --- | --- |
+| `recoveryflow_gf_paid_statuses` | The `payment_status` values that count as a completed sale. Stated as a list rather than "anything that is not Failed", because a negative rule would call every status a future add-on invents money received |
+| `recoveryflow_gf_field_overrides` | Pins which field holds a contact detail, keyed by Gravity Forms field type. For a form with a work number and a mobile |
+| `recoveryflow_gf_first_look_days` | How far back the first poll of a site reads |
+
+### Deliberately not done
+
+A **refund does not restart a recovery**. `gform_post_payment_refunded` is not handled: a journey that reached `RECOVERED` is finished, and reopening it would message somebody who has just been given their money back.
+
 ## Planned adapters
 
-Nothing below exists yet. Each will be built on the interface above with zero changes to the core, which is the test that the abstraction holds.
+Nothing below exists yet. Each will be built on the interface above with zero changes to the core, which is the test Gravity Forms has already passed: nothing outside `src/Integration/` mentions Gravity Forms, and the test suite asserts it.
 
 | Source | Journey type | Status |
 | --- | --- | --- |
-| **Gravity Forms** | Partially completed or unpaid form submissions (`form`, `payment`) | Planned for slice 3. This is the adapter that proves the abstraction, so it lands together with the final custom-source example and WP-CLI |
 | **Tickera** | Unpaid ticket orders (`ticket`) | Planned |
 | **Event Tickets** | Unpaid ticket orders and RSVPs (`ticket`) | Planned |
 | **Easy Digital Downloads** | Abandoned checkouts (`checkout`) | Planned |
-| **Custom** | Anything with a hook or a table to poll | Available now through `recoveryflow_register_sources`; the documented example class ships with slice 3 |
+| **Custom** | Anything with a hook or a table to poll | Available now through `recoveryflow_register_sources`. A worked example is in [`developer-api.md`](developer-api.md#a-minimal-custom-source) |
 
 ## Sources with nothing to push from
 

@@ -28,6 +28,11 @@ use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Identity_Resolver;
 use WAcr\RecoveryFlow\Database\Lock_Repository;
 use WAcr\RecoveryFlow\Database\Receipt_Repository;
+use WAcr\RecoveryFlow\Integration\GravityForms\Draft_Watcher as Gf_Draft_Watcher;
+use WAcr\RecoveryFlow\Integration\GravityForms\Entry_Poller as Gf_Entry_Poller;
+use WAcr\RecoveryFlow\Integration\GravityForms\Entry_Watcher as Gf_Entry_Watcher;
+use WAcr\RecoveryFlow\Integration\GravityForms\Field_Map as Gf_Field_Map;
+use WAcr\RecoveryFlow\Integration\GravityForms\Source as Gf_Source;
 use WAcr\RecoveryFlow\Integration\Source_Cursors;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Restorer;
@@ -403,6 +408,17 @@ final class Plugin {
 				new Order_Observer( $this->conversions(), $this->ingest(), $this->receipts(), $this->customers(), $session, $logger ),
 				new Cart_Restorer( $session, $this->customers(), $logger ),
 				new Checkout_Script()
+			)
+		);
+
+		$gf_fields = new Gf_Field_Map();
+
+		$registry->add(
+			new Gf_Source(
+				$this->ingest(),
+				new Gf_Draft_Watcher( $this->ingest(), $gf_fields, $logger ),
+				new Gf_Entry_Watcher( $this->ingest(), $this->conversions(), $this->receipts(), $gf_fields, $logger ),
+				new Gf_Entry_Poller( $gf_fields, $logger )
 			)
 		);
 

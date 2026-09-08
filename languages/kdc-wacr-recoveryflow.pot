@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T08:51:05+00:00\n"
+"POT-Creation-Date: 2026-09-08T09:05:46+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -2186,6 +2186,46 @@ msgstr ""
 #, php-format
 msgctxt "customer name shortened to a first name and a last initial"
 msgid "%1$s %2$s."
+msgstr ""
+
+#: src/Integration/GravityForms/Settings.php:147
+msgid "Remind people who saved a form to finish later"
+msgstr ""
+
+#: src/Integration/GravityForms/Settings.php:148
+msgid "Gravity Forms' \"Save and continue\" gives somebody a link back to a half-finished form and then never mentions it again. Gravity Forms deletes those drafts after thirty days by default, and the link dies with them, so a reminder is worth little after about a week."
+msgstr ""
+
+#: src/Integration/GravityForms/Settings.php:153
+msgid "Remind people whose payment never went through"
+msgstr ""
+
+#: src/Integration/GravityForms/Settings.php:154
+msgid "An entry that was submitted but never paid for. A refused card is not a lost customer, and this is the case where a reminder is most often what completes the sale."
+msgstr ""
+
+#: src/Integration/GravityForms/Settings.php:159
+msgid "Only these forms"
+msgstr ""
+
+#: src/Integration/GravityForms/Settings.php:160
+msgid "Form numbers, separated by commas, for example 3, 7, 12. Leave this empty to watch every form. A form with no phone field and no email field is skipped either way, because nobody on it could be messaged."
+msgstr ""
+
+#: src/Integration/GravityForms/Source.php:138
+msgid "Gravity Forms"
+msgstr ""
+
+#: src/Integration/GravityForms/Source.php:147
+msgid "Recovers half-finished forms somebody saved to come back to, and entries whose payment never went through."
+msgstr ""
+
+#: src/Integration/GravityForms/Source.php:265
+msgid "That form is no longer available."
+msgstr ""
+
+#: src/Integration/GravityForms/Source.php:310
+msgid "A form"
 msgstr ""
 
 #: src/Integration/WooCommerce/Cart_Restorer.php:97

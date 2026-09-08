@@ -222,9 +222,21 @@ function untrailingslashit( $value ) {
 function home_url( $path = '' ) {
 	return 'https://example.test' . $path;
 }
-function add_query_arg( $args, $url = '' ) {
+function add_query_arg( ...$args ) {
+	// WordPress accepts both add_query_arg( array, url ) and
+	// add_query_arg( key, value, url ). The stub only ever knew the first, so
+	// the second fataled -- which says nothing about the code being tested.
+	if ( count( $args ) >= 3 ) {
+		$pairs = array( $args[0] => $args[1] );
+		$url   = (string) $args[2];
+	} else {
+		$pairs = (array) ( $args[0] ?? array() );
+		$url   = (string) ( $args[1] ?? '' );
+	}
+
 	$separator = false === strpos( $url, '?' ) ? '?' : '&';
-	return $url . $separator . http_build_query( $args );
+
+	return $url . $separator . http_build_query( $pairs );
 }
 function add_rewrite_rule( $regex, $query, $after = 'bottom' ) {
 	$GLOBALS['__rewrites'][ $regex ] = $query;
