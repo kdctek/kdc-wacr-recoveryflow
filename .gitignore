@@ -1,0 +1,11 @@
+vendor/
+node_modules/
+*.zip
+*.log
+.DS_Store
+.idea/
+.vscode/
+.phpunit.result.cache
+.phpcs-cache
+coverage/
+.env

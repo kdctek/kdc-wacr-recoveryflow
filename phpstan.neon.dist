@@ -1,0 +1,20 @@
+includes:
+	- vendor/szepeviktor/phpstan-wordpress/extension.neon
+
+parameters:
+	level: 5
+	# WooCommerce and Action Scheduler are optional at runtime, so their ignore
+	# patterns match nothing until the integration lands.
+	reportUnmatchedIgnoredErrors: false
+	paths:
+		- src
+		- kdc-wacr-recoveryflow.php
+		- uninstall.php
+	bootstrapFiles:
+		- tests/phpstan-bootstrap.php
+	excludePaths:
+		- vendor
+	ignoreErrors:
+		# WooCommerce and Action Scheduler are optional dependencies.
+		- '#Function as_[a-z_]+ not found#'
+		- '#Call to method [a-zA-Z_]+\(\) on an unknown class WC_#'

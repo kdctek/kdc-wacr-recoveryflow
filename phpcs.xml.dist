@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+<ruleset name="RecoveryFlow">
+	<description>WordPress Coding Standards for RecoveryFlow by WA.cr.</description>
+
+	<file>.</file>
+
+	<exclude-pattern>/vendor/*</exclude-pattern>
+	<exclude-pattern>/node_modules/*</exclude-pattern>
+	<exclude-pattern>/tests/fixtures/*</exclude-pattern>
+	<!--
+	A hand-written stand-in for WordPress itself: it declares the core functions
+	the pure classes call so they can be exercised with nothing but PHP. Holding
+	it to the plugin's own naming and file-layout rules would mean renaming the
+	very functions it exists to impersonate. It never ships (see .distignore).
+	-->
+	<exclude-pattern>/tests/wp-stubs.php</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="colors"/>
+	<arg name="basepath" value="."/>
+	<arg name="parallel" value="8"/>
+	<arg value="ps"/>
+
+	<rule ref="WordPress">
+		<!--
+		Class names follow the WordPress underscore convention while files are
+		named for PSR-4 autoloading, so the file-name sniff cannot be satisfied
+		by both. The autoloader is the contract here.
+		-->
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+		<exclude name="WordPress.Files.FileName.NotHyphenatedLowercase"/>
+	</rule>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="kdc-wacr-recoveryflow"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="recoveryflow"/>
+				<element value="kdc_wacr_recoveryflow"/>
+				<element value="KDC_WACR_RECOVERYFLOW"/>
+				<element value="WAcr\RecoveryFlow"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="PHPCompatibilityWP"/>
+	<config name="testVersion" value="8.0-"/>
+	<config name="minimum_wp_version" value="6.5"/>
+
+
+	<!--
+	Hook names are declared as constants on WAcr\RecoveryFlow\Core\Hooks so
+	that a rename is a compile-time problem rather than a silent breakage in
+	somebody else's integration. Every value is prefixed "recoveryflow_", which
+	a smoke test asserts, but the sniff can only read literals.
+	-->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.DynamicHooknameFound">
+		<severity>0</severity>
+	</rule>
+
+	<!--
+	The test harness deliberately declares stand-ins for WordPress functions so
+	the pure classes can be exercised with nothing but PHP. Naming, escaping and
+	global-prefix rules do not apply to code that never ships: .distignore keeps
+	tests/ out of the distributed plugin.
+	-->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.GlobalVariablesOverride">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.Security">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.PHP.DevelopmentFunctions">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.PHP.DiscouragedPHPFunctions">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.AlternativeFunctions">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Squiz.Commenting">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Generic.Commenting">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Universal.NamingConventions.NoReservedKeywordParameterNames">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.WP.I18n">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Generic.Formatting.MultipleStatementAlignment">
+		<exclude-pattern>/tests/*</exclude-pattern>
+	</rule>
+
+	<rule ref="WordPress.DB.DirectDatabaseQuery">
+		<!--
+		The plugin owns dedicated tables for high-volume recovery data; every
+		query against them is direct by design and prepared by hand.
+		-->
+		<exclude-pattern>/src/Database/*</exclude-pattern>
+		<exclude-pattern>/src/Jobs/*</exclude-pattern>
+	</rule>
+</ruleset>

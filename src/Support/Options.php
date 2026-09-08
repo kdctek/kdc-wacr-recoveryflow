@@ -1,0 +1,149 @@
+<?php
+/**
+ * Settings storage.
+ *
+ * @package WAcr\RecoveryFlow
+ */
+
+namespace WAcr\RecoveryFlow\Support;
+
+defined( 'ABSPATH' ) || exit;
+
+/**
+ * Reads and writes the plugin's settings.
+ *
+ * Everything lives in one autoloaded option except the credentials, which are
+ * stored separately with autoload off so they are not read into memory on every
+ * page load of every request.
+ */
+final class Options {
+
+	public const SETTINGS       = 'recoveryflow_settings';
+	public const API_KEY        = 'recoveryflow_api_key';
+	public const HOOK_SECRET    = 'recoveryflow_hook_secret';
+	public const WEBHOOK_SECRET = 'recoveryflow_webhook_secret_hash';
+	public const ME_SNAPSHOT    = 'recoveryflow_wacr_me';
+	public const STAGE_STATS    = 'recoveryflow_stage_stats';
+
+	/**
+	 * Default settings.
+	 *
+	 * Defaults are deliberately conservative: the plugin does nothing until
+	 * somebody switches it on, and it messages nobody who has not agreed to be
+	 * messaged.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public static function defaults(): array {
+		return array(
+			// General.
+			'enabled'                  => false,
+			'logging_level'            => 'warning',
+			'log_retention_days'       => 14,
+
+			// Recovery rules.
+			'inactivity_minutes'       => 30,
+			'max_age_days'             => 7,
+			'min_amount'               => 0,
+			'max_touches'              => 3,
+			'quiet_hours_enabled'      => true,
+			'quiet_hours_start'        => '21:00',
+			'quiet_hours_end'          => '09:00',
+			'frequency_cap_hours'      => 24,
+			'max_journeys_per_month'   => 3,
+			'attribution_window_days'  => 30,
+			'exclude_admins'           => true,
+
+			// WA.cr.
+			'wacr_environment'         => 'production',
+			'wacr_base_url'            => '',
+			'wacr_sender'              => '',
+			'wacr_dispatch'            => 'start_flow',
+			'wacr_hook_url'            => '',
+			'wacr_share_last_name'     => false,
+			'wacr_share_email'         => false,
+			'wacr_sync_optout'         => false,
+
+			// Privacy.
+			'eligibility_mode'         => 'explicit_consent',
+			'consent_label'            => '',
+			'retention_days'           => 90,
+			'delete_data_on_uninstall' => false,
+
+			// Recovery links.
+			'recovery_link_ttl_days'   => 7,
+			'prefill_guest_checkout'   => true,
+		);
+	}
+
+	/**
+	 * All settings, defaults filled in.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public static function all(): array {
+		$stored = get_option( self::SETTINGS, array() );
+
+		return array_merge( self::defaults(), is_array( $stored ) ? $stored : array() );
+	}
+
+	/**
+	 * One setting.
+	 *
+	 * @param string $key      Setting name.
+	 * @param mixed  $fallback Returned when the setting is unknown.
+	 * @return mixed
+	 */
+	public static function get( string $key, $fallback = null ) {
+		$all = self::all();
+
+		return array_key_exists( $key, $all ) ? $all[ $key ] : $fallback;
+	}
+
+	/**
+	 * Write one setting.
+	 *
+	 * @param string $key   Setting name.
+	 * @param mixed  $value Value.
+	 * @return void
+	 */
+	public static function set( string $key, $value ): void {
+		$all         = self::all();
+		$all[ $key ] = $value;
+
+		update_option( self::SETTINGS, $all );
+	}
+
+	/**
+	 * Seed the option so the settings screen has something to read.
+	 *
+	 * @return void
+	 */
+	public static function install(): void {
+		if ( false === get_option( self::SETTINGS, false ) ) {
+			add_option( self::SETTINGS, self::defaults() );
+		}
+	}
+
+	/**
+	 * Every option name the plugin owns, for uninstall.
+	 *
+	 * @return string[]
+	 */
+	public static function all_option_names(): array {
+		return array(
+			self::SETTINGS,
+			self::API_KEY,
+			self::HOOK_SECRET,
+			self::WEBHOOK_SECRET,
+			self::ME_SNAPSHOT,
+			self::STAGE_STATS,
+			\WAcr\RecoveryFlow\Database\Schema::VERSION_OPTION,
+			\WAcr\RecoveryFlow\Security\Capabilities::VERSION_OPTION,
+			\WAcr\RecoveryFlow\Security\Hash_Key::OPTION,
+			'recoveryflow_scheduler_driver',
+			'recoveryflow_lawful_basis_ack',
+			'recoveryflow_ui_state',
+		);
+	}
+}

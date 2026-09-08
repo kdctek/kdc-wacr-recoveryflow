@@ -1,0 +1,10 @@
+{
+	"defaults": {
+		"standard": "WCAG2AAA",
+		"runners": [ "axe", "htmlcs" ],
+		"timeout": 30000,
+		"chromeLaunchConfig": { "args": [ "--no-sandbox" ] },
+		"hideElements": "#wpadminbar, #adminmenuwrap, #wpfooter"
+	},
+	"urls": []
+}
