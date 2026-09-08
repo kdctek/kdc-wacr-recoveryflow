@@ -75,23 +75,34 @@ The postal address is a stored value, not a string of the software. It is never 
 
 ## Exporter, eraser, anonymiser, retention, uninstall
 
-**Exporter.** Registered on `wp_privacy_personal_data_exporters` in group `recoveryflow`. Given an email address it exports the customer record, the consent history and the journeys (states, times, totals, attribution, attempts with template names and delivery status) for that email and for the phone hashes linked to it.
+**Exporter.** Registered on `wp_privacy_personal_data_exporters` in group `recoveryflow`. Given an email address it finds every customer reachable from that address and exports, for each: the recovery record, every contact detail held, the full consent history (channel, decision, when, from where, and the exact wording agreed to) and each unfinished order with the reminders sent about it. One customer per page, because a shared address really can find several people.
 
-**Eraser.** Registered on `wp_privacy_personal_data_erasers`. It calls the anonymiser and reports `items_retained` with the message that a one-way hash is kept so the opt-out continues to be honoured. An erase-by-phone action is also available in the admin for users with `erase_others_personal_data` (with a nonce), for customers who never gave an email.
+Values are exported in full rather than masked. Masking exists to stop a passer-by reading a shop screen; it has no place in a copy of somebody's own data. A phone number is exported even though the request arrived by email, because someone asking what a shop holds about them is entitled to the number too.
 
-**Anonymiser.** Nulls names, email, phone (raw and E.164) and country on the customer row; drops item snapshots from the events; keeps totals, currency, item counts, states and attribution for reporting; revokes every token; and sets `anonymized_at`. The phone hash and the consent ledger remain, which is what keeps a suppression effective after erasure. A journey whose customer is anonymised while it is still active is cancelled.
+**Eraser.** Registered on `wp_privacy_personal_data_erasers`. It calls the anonymiser and always reports `items_retained`, with a message explaining what is kept and why — see `Anonymizer::retained_notice()`.
 
-**Retention.** A daily stage, in small batches:
+**Anonymiser.** One implementation, used by both the eraser and the retention clear-out, so the two cannot drift into different ideas of what "erased" means. It nulls the names and the WA.cr contact id on the customer row and the readable value on every identity row; strips item snapshots, metadata and the session key from the events; revokes every recovery link so one already sitting in a message history stops working; cancels any journey still in flight; detaches the consent rows from the person without deleting them; and stamps `anonymized_at`, which is what makes the customer permanently unmessageable.
+
+**What it keeps, and why.** The keyed hash of each identity stays. The consent ledger is keyed by that hash, so deleting it would delete the record that this person asked not to be messaged — and the next time they typed the same number into a checkout the shop would treat them as new and message them again. Erasing an opt-out is not a privacy improvement; it is the failure the opt-out exists to prevent. The hash is keyed to the site and is not reversible into a phone number. Amounts, dates and journey outcomes stay too: they are the shop's own trading record and say nothing about a person once the person is detached from them.
+
+**Retention.** A daily stage, in batches paged by primary key rather than by offset — an offset walk over a table being deleted from skips rows, which on a clear-out means data quietly outliving its retention period for ever.
 
 | What | When |
 | --- | --- |
-| Terminal journeys and their customers' identifying data | Anonymised after `retention_days` (default 90; `0` means manual, with a warning in System Status) |
+| Item snapshots, metadata and session keys on finished journeys | Stripped after `retention_days` (default 90) |
+| Customers whose every journey is finished | Anonymised after `retention_days` |
 | Events that never identified a customer | Deleted after 7 days |
 | Expired recovery tokens | Purged |
 | Receipts | Deleted after 30 days |
 | Logs | Deleted after `log_retention_days` (default 14) |
 
-**Uninstall.** `uninstall.php` always removes the API key, the signing and webhook secrets, the hash key, capabilities, scheduled actions and transients. Tables and options are dropped only when `delete_data_on_uninstall` is enabled (default off), so a merchant who removes the plugin by mistake does not lose their history. On multisite it iterates every site.
+A customer is only anonymised when *every* journey they have is finished, so somebody who came back after six months is not forgotten in the middle of being messaged. `retention_days` is clamped to a minimum of seven: shorter throws away the evidence needed when somebody asks why they were messaged, and that question always arrives late.
+
+**Uninstall.** `uninstall.php` always removes the API key, the signing and webhook secrets, the hash key, capabilities, scheduled actions and transients. Tables and options are dropped only when `delete_data_on_uninstall` is enabled (default off), so a merchant who removes the plugin by mistake does not lose their history — including the record of who opted out. On multisite it iterates every site.
+
+### Not built yet
+
+The plan also describes an erase-by-phone admin action for customers who never gave an email address. That does not exist yet; erasure today goes through WordPress's own privacy tools, which are keyed by email.
 
 ## Data minimisation rules
 

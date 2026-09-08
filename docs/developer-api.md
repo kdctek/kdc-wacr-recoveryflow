@@ -65,23 +65,29 @@ add_filter( 'recoveryflow_wc_restore_cart_item_data', function ( array $keys ) {
 
 ## REST routes
 
-Base: `/wp-json/kdc/v1/wacr/recoveryflow`. Every route except the webhook receiver requires cookie authentication with a REST nonce (or an application password) **and** the capability in the table. Responses are DTOs; personal data is masked unless `reveal=1` is passed by a user with `recoveryflow_reveal_pii`, and every reveal writes an audit receipt.
+Base: `/wp-json/kdc/v1/wacr/recoveryflow`. Every route requires cookie authentication with a REST nonce (or an application password) **and** the capability in the table. Responses are shaped objects rather than database rows; personal data is masked unless `reveal=1` is passed by a user holding `recoveryflow_reveal_pii`, and every reveal writes an audit receipt.
+
+A logged-out request gets `401`, a logged-in request without the capability gets `403`, and the message names the capability that was missing.
 
 | Method | Path | Capability | Notes |
 | --- | --- | --- | --- |
-| `GET` | `/journeys` | `recoveryflow_view_journeys` | `page`, `per_page` (max 100), `status` (enum), `source` (registered sources), `orderby` (enum), `order` (`asc`/`desc`), `search` (max 64 characters: a phone is hashed and matched exactly, an email is matched exactly, a name uses a LIKE) |
-| `GET` | `/journeys/{uid}` | `recoveryflow_view_journeys` | `reveal=1` requires `recoveryflow_reveal_pii`, otherwise 403 |
-| `POST` | `/journeys/{uid}/cancel` | `recoveryflow_manage_journeys` | Any non-terminal journey |
-| `POST` | `/journeys/{uid}/retry` | `recoveryflow_manage_journeys` | Only from `FAILED` or `EXPIRED`; mints a new attempt and token |
-| `POST` | `/journeys/{uid}/revoke-links` | `recoveryflow_manage_journeys` | Revokes every token on the journey |
-| `POST` | `/journeys/{uid}/opt-out` | `recoveryflow_manage_journeys` | Appends a `suppressed` consent row with source `admin` |
-| `GET` | `/integrations` | `recoveryflow_view_status` | Registered sources with availability and enabled state |
-| `GET` | `/status` | `recoveryflow_view_status` | Connected, mode, workspace name, scopes present and missing, sender ok, cron ok, HTTPS, versions, last tick and poll. Never the key |
-| `POST` | `/settings/test-connection` | `recoveryflow_manage_settings` | Optional `api_key` (`^(wacr\|waht)_(live\|test)_[A-Za-z0-9_-]{16,128}$`) to test before saving; never echoed back |
-| `GET` | `/templates` | `recoveryflow_manage_workflows` | Approved templates with their variables; optional `waba_id` |
-| `POST` | `/webhooks/wacr` | Public, own verification | See [`security.md`](security.md#webhook-receiver) |
+| `GET` | `/journeys` | `recoveryflow_view_journeys` | `page`, `per_page` (max 200), `status` (enum), `source`, `orderby` (`id`, `created_at`, `updated_at`, `next_action_at`, `status`), `order` (`asc`/`desc`), `search`, `reveal`. Totals are in the `X-WP-Total` and `X-WP-TotalPages` headers |
+| `GET` | `/journeys/{uid}` | `recoveryflow_view_journeys` | Includes the attempt history. `reveal=1` needs `recoveryflow_reveal_pii`; without it the response is masked rather than refused |
+| `POST` | `/journeys/{uid}` | `recoveryflow_manage_journeys` | `action=cancel`. `409` if the journey has already finished, or if a background pass moved it between your read and your write |
+| `GET` | `/status` | `recoveryflow_view_status` | Every health check with a severity, a sentence and a deeplink, plus what each background pass last did. Never the key |
+| `POST` | `/connection/test` | `recoveryflow_manage_settings` | Asks WA.cr whether the saved credential works. Tests what is stored; it does not accept a key to try |
+| `GET` | `/settings` | `recoveryflow_manage_settings` | The settings, plus what is currently blocking the email channel. The API key is not included in any form |
+| `POST` | `/ui-state` | `recoveryflow_view_status` | Remembers whether one expandable panel was left open, per user |
 
-Errors follow WordPress conventions: `WP_Error` with `rest_forbidden` (403), `rest_invalid_param` (400) or a `recoveryflow_*` code.
+**`search` matches the journey's own reference only** — not a phone number, an email address or a name. That is deliberate rather than unfinished: identities are stored as keyed hashes, so searching a phone number would mean either scanning a plaintext column or hashing the search term, and hashing it would turn the search box into an oracle that confirms whether a given number belongs to a customer of this shop, for anyone who can reach the endpoint.
+
+**A missing journey and an erased one return the same `404`**, for the same reason: two different answers would let anyone with the view capability confirm that a particular reference used to be real.
+
+Errors follow WordPress conventions: `WP_Error` with a `recoveryflow_*` code and an HTTP status.
+
+### Not built yet
+
+The plan also describes routes for retrying and revoking links on a journey, an admin opt-out action, `/integrations`, `/templates`, and the `/webhooks/wacr` receiver. None of those exist yet. Cancelling is the only write the API offers, and that is a deliberate ordering rather than an accident of scheduling: cancelling can only ever stop work, whereas anything that could cause a message to be sent costs money and reaches a real person, and is a much larger thing to get right.
 
 ## A minimal custom source
 

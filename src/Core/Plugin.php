@@ -7,6 +7,13 @@
 
 namespace WAcr\RecoveryFlow\Core;
 
+use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
+use WAcr\RecoveryFlow\Admin\Menu as Admin_Menu;
+use WAcr\RecoveryFlow\Admin\Pages\Integrations as Integrations_Page;
+use WAcr\RecoveryFlow\Admin\Pages\Journey_Detail;
+use WAcr\RecoveryFlow\Admin\Pages\Journeys as Journeys_Page;
+use WAcr\RecoveryFlow\Admin\Pages\Overview as Overview_Page;
+use WAcr\RecoveryFlow\Admin\Pages\System_Status;
 use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
@@ -33,6 +40,12 @@ use WAcr\RecoveryFlow\Jobs\Stages\Expire;
 use WAcr\RecoveryFlow\Jobs\Stages\Poll;
 use WAcr\RecoveryFlow\Jobs\Stages\Retention;
 use WAcr\RecoveryFlow\Jobs\Wp_Cron_Driver;
+use WAcr\RecoveryFlow\Privacy\Anonymizer;
+use WAcr\RecoveryFlow\Privacy\Eraser;
+use WAcr\RecoveryFlow\Privacy\Exporter;
+use WAcr\RecoveryFlow\REST\Journeys_Controller;
+use WAcr\RecoveryFlow\REST\Settings_Controller;
+use WAcr\RecoveryFlow\REST\Status_Controller;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Conversion_Tracker;
 use WAcr\RecoveryFlow\Recovery\Eligibility_Evaluator;
@@ -192,6 +205,67 @@ final class Plugin {
 			'scheduler'           => static fn (): Scheduler_Factory => new Scheduler_Factory( new Action_Scheduler_Driver(), new Wp_Cron_Driver() ),
 			'runner'              => static fn ( Plugin $c ): Stage_Runner => $c->build_stage_runner(),
 
+			// The health checks, shared by the status screen and the status
+			// endpoint so the two cannot drift into different diagnoses.
+			'health'              => static fn ( Plugin $c ): Health => new Health( $c->credentials(), $c->scheduler() ),
+
+			// REST. Registered on rest_api_init, which fires on its own request
+			// rather than in wp-admin, so these are built on every request the
+			// same way the public endpoint is.
+			'rest_journeys'       => static fn ( Plugin $c ): Journeys_Controller => new Journeys_Controller(
+				$c->journeys(),
+				$c->events(),
+				$c->customers(),
+				$c->attempts(),
+				$c->receipts()
+			),
+			'rest_status'         => static fn ( Plugin $c ): Status_Controller => new Status_Controller( $c->credentials(), $c->wacr(), $c->health() ),
+			'rest_settings'       => static fn (): Settings_Controller => new Settings_Controller(),
+
+			// Privacy. The anonymiser is shared: WordPress's eraser and the
+			// daily retention clear-out must not drift into two ideas of what
+			// "erased" means.
+			'anonymizer'          => static fn ( Plugin $c ): Anonymizer => new Anonymizer(
+				$c->customers(),
+				$c->journeys(),
+				$c->events(),
+				$c->attempts(),
+				$c->consents(),
+				$c->logger()
+			),
+			'privacy_exporter'    => static fn ( Plugin $c ): Exporter => new Exporter(
+				$c->customers(),
+				$c->identities(),
+				$c->consents(),
+				$c->journeys(),
+				$c->events(),
+				$c->attempts()
+			),
+			'privacy_eraser'      => static fn ( Plugin $c ): Eraser => new Eraser( $c->customers(), $c->anonymizer() ),
+
+			// The admin. Built only when a request is actually in wp-admin --
+			// see boot() -- so a shop page never pays for a screen nobody is
+			// looking at.
+			'admin_overview'      => static fn ( Plugin $c ): Overview_Page => new Overview_Page( $c->journeys(), $c->health() ),
+			'admin_journeys'      => static fn ( Plugin $c ): Journeys_Page => new Journeys_Page( $c->journeys(), $c->events(), $c->customers() ),
+			'admin_journey'       => static fn ( Plugin $c ): Journey_Detail => new Journey_Detail(
+				$c->journeys(),
+				$c->events(),
+				$c->customers(),
+				$c->attempts(),
+				$c->receipts()
+			),
+			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
+			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health() ),
+			'admin_menu'          => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
+				$c->admin_overview(),
+				$c->admin_journeys(),
+				$c->admin_journey(),
+				$c->admin_integrations(),
+				$c->admin_status()
+			),
+			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
+
 			// The public endpoint.
 			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
 			'recovery_controller' => static fn ( Plugin $c ): Recovery_Controller => new Recovery_Controller(
@@ -282,7 +356,7 @@ final class Plugin {
 		$runner->add( new Dispatch( $this->journeys(), $this->engine(), $this->rate_budget(), $this->logger() ) );
 		$runner->add( new Poll( $this->journeys(), $this->attempts(), $this->customers(), $this->consent(), $this->wacr(), $this->clock(), $this->logger() ) );
 		$runner->add( new Expire( $this->journeys(), $this->events(), $this->attempts() ) );
-		$runner->add( new Retention( $this->events(), $this->attempts(), $this->receipts(), $this->clock() ) );
+		$runner->add( new Retention( $this->events(), $this->attempts(), $this->receipts(), $this->customers(), $this->anonymizer(), $this->clock() ) );
 
 		return $runner;
 	}
@@ -632,6 +706,132 @@ final class Plugin {
 	}
 
 	/**
+	 * The health checks.
+	 *
+	 * @return Health
+	 */
+	public function health(): Health {
+		return $this->typed( 'health', Health::class );
+	}
+
+	/**
+	 * The journeys REST controller.
+	 *
+	 * @return Journeys_Controller
+	 */
+	public function rest_journeys(): Journeys_Controller {
+		return $this->typed( 'rest_journeys', Journeys_Controller::class );
+	}
+
+	/**
+	 * The status REST controller.
+	 *
+	 * @return Status_Controller
+	 */
+	public function rest_status(): Status_Controller {
+		return $this->typed( 'rest_status', Status_Controller::class );
+	}
+
+	/**
+	 * The settings REST controller.
+	 *
+	 * @return Settings_Controller
+	 */
+	public function rest_settings(): Settings_Controller {
+		return $this->typed( 'rest_settings', Settings_Controller::class );
+	}
+
+	/**
+	 * The anonymizer service.
+	 *
+	 * @return Anonymizer
+	 */
+	public function anonymizer(): Anonymizer {
+		return $this->typed( 'anonymizer', Anonymizer::class );
+	}
+
+	/**
+	 * The privacy exporter service.
+	 *
+	 * @return Exporter
+	 */
+	public function privacy_exporter(): Exporter {
+		return $this->typed( 'privacy_exporter', Exporter::class );
+	}
+
+	/**
+	 * The privacy eraser service.
+	 *
+	 * @return Eraser
+	 */
+	public function privacy_eraser(): Eraser {
+		return $this->typed( 'privacy_eraser', Eraser::class );
+	}
+
+	/**
+	 * The overview screen.
+	 *
+	 * @return Overview_Page
+	 */
+	public function admin_overview(): Overview_Page {
+		return $this->typed( 'admin_overview', Overview_Page::class );
+	}
+
+	/**
+	 * The journeys screen.
+	 *
+	 * @return Journeys_Page
+	 */
+	public function admin_journeys(): Journeys_Page {
+		return $this->typed( 'admin_journeys', Journeys_Page::class );
+	}
+
+	/**
+	 * The journey detail screen.
+	 *
+	 * @return Journey_Detail
+	 */
+	public function admin_journey(): Journey_Detail {
+		return $this->typed( 'admin_journey', Journey_Detail::class );
+	}
+
+	/**
+	 * The integrations screen.
+	 *
+	 * @return Integrations_Page
+	 */
+	public function admin_integrations(): Integrations_Page {
+		return $this->typed( 'admin_integrations', Integrations_Page::class );
+	}
+
+	/**
+	 * The status screen.
+	 *
+	 * @return System_Status
+	 */
+	public function admin_status(): System_Status {
+		return $this->typed( 'admin_status', System_Status::class );
+	}
+
+	/**
+	 * The admin menu service.
+	 *
+	 * @return Admin_Menu
+	 */
+	public function admin_menu(): Admin_Menu {
+		return $this->typed( 'admin_menu', Admin_Menu::class );
+	}
+
+	/**
+	 * The admin assets service.
+	 *
+	 * @return Admin_Assets
+	 */
+	public function admin_assets(): Admin_Assets {
+		return $this->typed( 'admin_assets', Admin_Assets::class );
+	}
+
+	/**
 	 * The rate limiter service.
 	 *
 	 * @return Rate_Limiter
@@ -679,6 +879,25 @@ final class Plugin {
 		// listener registered any later never sees it, and the shopper's cart
 		// becomes a second open event and a second WhatsApp message.
 		$this->register_built_in_sources();
+
+		// The admin screens. Registering them on a front-end request would
+		// build the whole settings schema -- six tabs of translated labels --
+		// to answer a hook that never fires there.
+		if ( is_admin() ) {
+			$this->admin_menu()->hooks();
+			$this->admin_assets()->hooks();
+		}
+
+		// The REST routes.
+		$this->rest_journeys()->hooks();
+		$this->rest_status()->hooks();
+		$this->rest_settings()->hooks();
+
+		// The privacy tools. Registered on every request, not only in wp-admin:
+		// a privacy request is fulfilled by a background job, and an exporter
+		// that only existed on an admin screen would silently export nothing.
+		$this->privacy_exporter()->hooks();
+		$this->privacy_eraser()->hooks();
 
 		// The public recovery endpoint, the stage hooks and the scheduler.
 		$this->recovery_controller()->hooks();

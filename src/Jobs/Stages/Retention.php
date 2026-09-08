@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Jobs\Stages;
 
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Hooks;
+use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Database\Receipt_Repository;
 use WAcr\RecoveryFlow\Database\Table_Names;
 use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
@@ -17,6 +18,7 @@ use WAcr\RecoveryFlow\Jobs\Stage_Runner;
 use WAcr\RecoveryFlow\Jobs\Stage_Stats;
 use WAcr\RecoveryFlow\Jobs\Time_Budget;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
+use WAcr\RecoveryFlow\Privacy\Anonymizer;
 use WAcr\RecoveryFlow\Recovery\Event_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Support\Options;
@@ -85,6 +87,20 @@ final class Retention implements Stage_Interface {
 	private Receipt_Repository $receipts;
 
 	/**
+	 * Customer storage.
+	 *
+	 * @var Customer_Repository
+	 */
+	private Customer_Repository $customers;
+
+	/**
+	 * The erasure.
+	 *
+	 * @var Anonymizer
+	 */
+	private Anonymizer $anonymizer;
+
+	/**
 	 * Clock.
 	 *
 	 * @var Clock
@@ -94,16 +110,27 @@ final class Retention implements Stage_Interface {
 	/**
 	 * Constructor.
 	 *
-	 * @param Event_Repository   $events   Event storage.
-	 * @param Attempt_Repository $attempts Attempt ledger.
-	 * @param Receipt_Repository $receipts Receipt ledger.
-	 * @param Clock              $clock    Clock.
+	 * @param Event_Repository    $events     Event storage.
+	 * @param Attempt_Repository  $attempts   Attempt ledger.
+	 * @param Receipt_Repository  $receipts   Receipt ledger.
+	 * @param Customer_Repository $customers  Customer storage.
+	 * @param Anonymizer          $anonymizer The erasure.
+	 * @param Clock               $clock      Clock.
 	 */
-	public function __construct( Event_Repository $events, Attempt_Repository $attempts, Receipt_Repository $receipts, Clock $clock ) {
-		$this->events   = $events;
-		$this->attempts = $attempts;
-		$this->receipts = $receipts;
-		$this->clock    = $clock;
+	public function __construct(
+		Event_Repository $events,
+		Attempt_Repository $attempts,
+		Receipt_Repository $receipts,
+		Customer_Repository $customers,
+		Anonymizer $anonymizer,
+		Clock $clock
+	) {
+		$this->events     = $events;
+		$this->attempts   = $attempts;
+		$this->receipts   = $receipts;
+		$this->customers  = $customers;
+		$this->anonymizer = $anonymizer;
+		$this->clock      = $clock;
 	}
 
 	/**
@@ -135,6 +162,7 @@ final class Retention implements Stage_Interface {
 		$limit = Stage_Runner::batch_size( $this->key(), self::BATCH );
 
 		$this->strip_finished_baskets( $budget, $stats, $limit );
+		$this->anonymize_finished_customers( $budget, $stats, $limit );
 		$this->prune_unidentified_events( $budget, $stats, $limit );
 		$this->purge_expired_tokens( $budget, $stats, $limit );
 		$this->prune_receipts( $budget, $stats, $limit );
@@ -184,6 +212,51 @@ final class Retention implements Stage_Interface {
 				$after = max( $after, $row['journey_id'] );
 
 				$this->events->strip_items( $row['event_id'] );
+
+				++$stats->processed;
+			}
+
+			if ( count( $ids ) < $limit ) {
+				return;
+			}
+		}
+
+		$stats->backlog = max( $stats->backlog, 1 );
+	}
+
+	/**
+	 * Forget the people whose recovery work finished long ago.
+	 *
+	 * Stripping the basket is not enough on its own: the customer row still
+	 * carries a name, and the identity rows still carry a readable phone number
+	 * and email address. Retention that removed what somebody was buying while
+	 * keeping who they were would be the wrong half.
+	 *
+	 * Only customers whose every journey is finished are touched, so somebody
+	 * who came back after six months is not anonymised in the middle of being
+	 * messaged -- the query enforces that, and it is the condition most easily
+	 * left out of one like it.
+	 *
+	 * @param Time_Budget $budget How long there is.
+	 * @param Stage_Stats $stats  Counters for this run.
+	 * @param int         $limit  Rows per batch.
+	 * @return void
+	 */
+	private function anonymize_finished_customers( Time_Budget $budget, Stage_Stats $stats, int $limit ): void {
+		$before = $this->clock->offset( -$this->retention_days() * DAY_IN_SECONDS );
+		$after  = 0;
+
+		while ( $budget->has_time( 2.0 ) ) {
+			$ids = $this->customers->due_for_anonymization( $before, $after, $limit );
+
+			if ( array() === $ids ) {
+				return;
+			}
+
+			foreach ( $ids as $customer_id ) {
+				$after = max( $after, $customer_id );
+
+				$this->anonymizer->anonymize_customer( $customer_id );
 
 				++$stats->processed;
 			}

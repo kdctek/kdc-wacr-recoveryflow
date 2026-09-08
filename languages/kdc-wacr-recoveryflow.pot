@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T03:31:21+00:00\n"
+"POT-Creation-Date: 2026-09-08T04:24:19+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -39,6 +39,1124 @@ msgstr ""
 msgid "https://kdc.in"
 msgstr ""
 
+#: src/Admin/Assets.php:121
+msgid "Moved to the setting you followed the link for."
+msgstr ""
+
+#: src/Admin/Assets.php:122
+msgid "Link to this section copied."
+msgstr ""
+
+#: src/Admin/Assets.php:123
+msgid "The link could not be copied. Copy it from the address bar instead."
+msgstr ""
+
+#: src/Admin/Menu.php:118
+#: src/Admin/Menu.php:119
+#: src/Admin/Menu.php:167
+#: src/Admin/Pages/Overview.php:70
+msgid "RecoveryFlow"
+msgstr ""
+
+#: src/Admin/Menu.php:150
+#: src/Admin/Menu.php:151
+#: src/Admin/Settings/Schema.php:75
+#: src/Admin/Settings/Schema.php:105
+msgid "Recovery"
+msgstr ""
+
+#: src/Admin/Menu.php:168
+msgid "Overview"
+msgstr ""
+
+#: src/Admin/Menu.php:172
+#: src/Admin/Menu.php:173
+#: src/Admin/Pages/Journeys.php:81
+#: src/Admin/Pages/Overview.php:170
+msgid "Recoveries"
+msgstr ""
+
+#: src/Admin/Menu.php:177
+#: src/Admin/Menu.php:178
+#: src/Admin/Pages/Integrations.php:55
+msgid "Integrations"
+msgstr ""
+
+#: src/Admin/Menu.php:182
+#: src/Admin/Settings/Page.php:178
+msgid "RecoveryFlow settings"
+msgstr ""
+
+#: src/Admin/Menu.php:183
+#: src/Admin/Pages/Overview.php:195
+msgid "Settings"
+msgstr ""
+
+#: src/Admin/Menu.php:187
+#: src/Admin/Pages/System_Status.php:56
+msgid "RecoveryFlow status"
+msgstr ""
+
+#: src/Admin/Menu.php:188
+#: src/Admin/Pages/Journeys_Table.php:88
+#: src/Admin/Pages/Journey_Detail.php:161
+msgid "Status"
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:49
+msgid "You do not have permission to view RecoveryFlow integrations."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:58
+msgid "Where RecoveryFlow looks for something a visitor started and did not finish. Each one works on its own; you do not need all of them."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:64
+msgid "Nothing is registered, so nothing is being watched. WooCommerce provides the integration RecoveryFlow ships with."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:97
+msgid "Status:"
+msgstr ""
+
+#. translators: %s: a comma-separated list of the kinds of thing an integration watches.
+#: src/Admin/Pages/Integrations.php:109
+#, php-format
+msgid "Watches: %s"
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:128
+msgid "Not available. Whatever this integration needs is not installed or not active on this site."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:132
+msgid "Active. Abandoned baskets from here are being recorded."
+msgstr ""
+
+#: src/Admin/Pages/Integrations.php:133
+msgid "Available but switched off."
+msgstr ""
+
+#: src/Admin/Pages/Journeys.php:70
+#: src/Admin/Pages/Journey_Detail.php:109
+msgid "You do not have permission to view recoveries."
+msgstr ""
+
+#: src/Admin/Pages/Journeys.php:84
+msgid "Every basket a shopper left behind, and what has been done about it. Contact details are shortened here; open a recovery to see them in full."
+msgstr ""
+
+#: src/Admin/Pages/Journeys.php:92
+msgid "Search by reference"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:86
+msgid "Reference"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:87
+#: src/Admin/Pages/Journey_Detail.php:193
+#: src/Admin/Pages/Journey_Detail.php:202
+#: src/Admin/Pages/Journey_Detail.php:220
+msgid "Customer"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:89
+msgid "Basket"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:90
+msgid "Reminders"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:91
+msgid "Next step"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:92
+#: src/Admin/Pages/Journey_Detail.php:162
+#: src/Privacy/Exporter.php:291
+msgid "Started"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:160
+msgid "All"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:200
+msgid "No recoveries yet. They appear here once a shopper leaves something behind."
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:226
+#: src/Admin/Pages/Journey_Detail.php:163
+msgid "Nothing scheduled"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:283
+msgid "Not known"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:299
+msgid "Not identified"
+msgstr ""
+
+#: src/Admin/Pages/Journeys_Table.php:303
+#: src/REST/Journeys_Controller.php:347
+msgid "Removed at the customer's request"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:119
+msgid "Recovery not found"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:122
+msgid "No recovery was found with that reference. It may have been removed by the retention clear-out."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:124
+#: src/Admin/Pages/Journey_Detail.php:141
+msgid "Back to all recoveries"
+msgstr ""
+
+#. translators: %s: the public reference of a recovery.
+#: src/Admin/Pages/Journey_Detail.php:136
+#, php-format
+msgid "Recovery %s"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:163
+msgid "Next step due"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:164
+msgid "Expires"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:165
+#: src/Privacy/Exporter.php:293
+msgid "Reminders sent"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:166
+msgid "Link opened"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:167
+msgid "Where it came from"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:171
+msgid "Reason"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:175
+#: src/Privacy/Exporter.php:297
+msgid "Basket value"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:176
+msgid "What was in it"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:176
+msgid "No longer held"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:179
+msgid "This recovery"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:194
+msgid "Identified"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:194
+msgid "Nobody was identified, so nothing was ever sent."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:204
+msgid "Details"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:204
+msgid "Removed at the customer's request, or by the retention period expiring."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:205
+msgid "Removed on"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:215
+msgid "Name"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:216
+msgid "Phone"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:217
+#: src/Admin/Settings/Schema.php:328
+msgid "Email"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:233
+msgid "Not given"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:285
+msgid "Hide contact details"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:286
+msgid "This viewing has been recorded."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:293
+msgid "Show contact details"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:294
+msgid "Who looked and when is recorded."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:307
+msgid "Messages"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:310
+msgid "Nothing has been sent for this recovery."
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:316
+msgid "When"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:317
+#: src/Privacy/Exporter.php:265
+msgid "Channel"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:318
+msgid "Step"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:319
+#: src/Admin/Pages/System_Status.php:74
+msgid "Result"
+msgstr ""
+
+#. translators: 1: what happened to a message. 2: the error code the messaging service gave.
+#: src/Admin/Pages/Journey_Detail.php:333
+#, php-format
+msgid "%1$s (%2$s)"
+msgstr ""
+
+#: src/Admin/Pages/Journey_Detail.php:344
+msgid "Message contents are not stored. What was sent is decided by the workflow and the template at the time it went out."
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:64
+msgid "You do not have permission to view RecoveryFlow."
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:96
+msgid "Needs attention"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:101
+msgid "Everything is set up and running."
+msgstr ""
+
+#. translators: prefixes a problem that stops recovery working.
+#: src/Admin/Pages/Overview.php:116
+msgid "Stopped:"
+msgstr ""
+
+#. translators: prefixes something working but perhaps not as expected.
+#: src/Admin/Pages/Overview.php:118
+msgid "Check:"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:126
+#: src/Admin/Pages/System_Status.php:90
+#: src/Admin/Settings/Page.php:420
+msgid "Go to this setting"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:149
+msgid "Being chased now"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:154
+msgid "Recovered"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:159
+msgid "Expired without an order"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:164
+msgid "Asked not to be messaged"
+msgstr ""
+
+#: src/Admin/Pages/Overview.php:193
+msgid "View all recoveries"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:52
+msgid "You do not have permission to view RecoveryFlow's status."
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:70
+msgid "Checks"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:73
+msgid "Check"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:75
+msgid "What this means"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:104
+msgid "Background jobs"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:107
+msgid "RecoveryFlow works in five small passes rather than one long one, so a busy shop finishes each of them. A backlog means the pass ran out of time and will carry on next run; it is only a problem if it never clears."
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:111
+msgid "Pass"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:112
+msgid "Last run"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:113
+msgid "Handled"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:114
+msgid "Failed"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:115
+msgid "More to do"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:122
+msgid "Not yet"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:125
+msgid "Yes"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:125
+msgid "No"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:144
+msgctxt "the result of a system check"
+msgid "Stopped"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:147
+msgctxt "the result of a system check"
+msgid "Check this"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:150
+msgctxt "the result of a system check"
+msgid "Working"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:163
+msgid "Finding abandoned baskets"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:166
+msgid "Sending reminders"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:169
+msgid "Checking for replies"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:172
+msgid "Closing recoveries that ran out of time"
+msgstr ""
+
+#: src/Admin/Pages/System_Status.php:175
+msgid "Clearing out old data"
+msgstr ""
+
+#: src/Admin/Settings/Field_Renderer.php:323
+msgid "Select a country"
+msgstr ""
+
+#: src/Admin/Settings/Field_Renderer.php:378
+msgid "Leave empty to keep the saved key"
+msgstr ""
+
+#: src/Admin/Settings/Field_Renderer.php:400
+msgid "Not available on this plan."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:168
+msgid "You do not have permission to change RecoveryFlow settings."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:230
+msgid "RecoveryFlow settings sections"
+msgstr ""
+
+#: src/Admin/Settings/Page.php:267
+msgid "Link"
+msgstr ""
+
+#. translators: %s: the name of a settings section.
+#: src/Admin/Settings/Page.php:269
+#, php-format
+msgid "to the section \"%s\""
+msgstr ""
+
+#: src/Admin/Settings/Page.php:323
+msgid "Advanced settings"
+msgstr ""
+
+#: src/Admin/Settings/Page.php:386
+msgid "Settled."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:387
+msgid "Email reminders are permissible from this site. Whether they are actually sent is the switch below."
+msgstr ""
+
+#. translators: %d: how many things are still to be settled.
+#: src/Admin/Settings/Page.php:398
+#, php-format
+msgid "Still to do before email reminders can be sent: %d thing."
+msgid_plural "Still to do before email reminders can be sent: %d things."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/Admin/Settings/Page.php:441
+msgid "The saved key cannot be read."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:442
+msgid "This happens when a site's security keys are rotated. Enter the key again to fix it."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:451
+msgid "No key saved yet."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:452
+msgid "RecoveryFlow records abandoned baskets without one, but cannot send anything."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:463
+msgid "A key is saved."
+msgstr ""
+
+#. translators: %s: the last few characters of the saved API key.
+#: src/Admin/Settings/Page.php:468
+#, php-format
+msgid "Ending %s. It has not been checked against WA.cr yet."
+msgstr ""
+
+#. translators: 1: WA.cr workspace name. 2: the last few characters of the saved API key.
+#: src/Admin/Settings/Page.php:473
+#, php-format
+msgid "Connected to %1$s, ending %2$s."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:495
+msgid "System status -- whether the background jobs are running and the connection works"
+msgstr ""
+
+#: src/Admin/Settings/Page.php:499
+msgid "Journeys -- every basket being chased, and what happened to it"
+msgstr ""
+
+#: src/Admin/Settings/Page.php:503
+msgid "Integrations -- which parts of this site RecoveryFlow watches"
+msgstr ""
+
+#: src/Admin/Settings/Page.php:519
+msgid "Email reminders are on."
+msgstr ""
+
+#: src/Admin/Settings/Page.php:520
+msgid "Email reminders are off. The Channels tab says what would need settling first."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:71
+msgid "General"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:79
+msgid "Channels"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:83
+msgid "WA.cr"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:87
+msgid "Privacy"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:91
+msgid "Advanced"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:106
+msgid "Nothing is recorded and nothing is sent until this is switched on."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:109
+msgid "Run recovery on this site"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:113
+msgid "Recover lost sales"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:114
+msgid "While this is off RecoveryFlow watches nothing, stores nothing and sends nothing. Switching it off later stops new reminders; journeys already under way finish or expire on their own."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:121
+msgid "Who is left alone"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:122
+msgid "People this site never messages, whatever else the rules say."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:125
+msgid "Exclusions"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:129
+msgid "Never message staff accounts"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:130
+msgid "Anyone who can edit the shop is skipped. Leave this on unless you are deliberately testing with a staff account, and remember that a test message still costs what a real one costs."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:137
+msgid "Where things are"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:138
+msgid "Links to the screens that answer the questions this one cannot."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:141
+msgid "Other screens"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:158
+msgid "When a sale counts as lost"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:159
+msgid "A basket nobody has touched for a while is treated as abandoned. These two settings decide how long that is, and how stale is too stale to bother."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:162
+msgid "Abandonment"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:166
+msgid "Wait before treating a basket as abandoned"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:167
+msgid "minutes"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:170
+msgid "Shorter reaches people while they are still deciding. Too short reaches people who went to find their card. Thirty minutes to an hour suits most shops."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:174
+msgid "Stop chasing a basket after"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:175
+#: src/Admin/Settings/Schema.php:264
+#: src/Admin/Settings/Schema.php:292
+#: src/Admin/Settings/Schema.php:514
+#: src/Admin/Settings/Schema.php:572
+msgid "days"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:178
+msgid "A basket older than this is left alone. Messaging somebody about something they looked at a fortnight ago reads as surveillance rather than service."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:185
+msgid "How often anyone hears from you"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:186
+msgid "Caps that apply to a person, not to a basket. They are the difference between a reminder and a nuisance, and on WhatsApp they are the difference between a working sender and a blocked one."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:189
+msgid "Frequency"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:193
+msgid "Messages per lost sale"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:196
+msgid "How many reminders one abandoned basket may produce, however many steps the workflow has."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:200
+msgid "Shortest gap between two messages to one person"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:201
+msgid "hours"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:204
+msgid "Counted across every basket, so somebody who abandons twice in an afternoon hears from you once."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:208
+msgid "Most recovery attempts per person per month"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:211
+msgid "A rolling thirty days, not a calendar month."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:217
+msgid "Ignore baskets worth less than"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:220
+msgid "In the shop currency. Zero chases every basket. Set this above the cost of a message if small baskets are not worth recovering."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:227
+msgid "Quiet hours"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:228
+msgid "Hours when nothing is sent. A message held back waits for the window to open rather than being dropped."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:231
+msgid "Do not disturb"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:235
+msgid "Hold messages overnight"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:236
+msgid "A recovery message that arrives at three in the morning is remembered for the wrong reason."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:240
+msgid "Quiet from"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:242
+msgid "In this site's timezone, not the customer's. RecoveryFlow does not know where a phone number is being read."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:246
+msgid "Quiet until"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:248
+msgid "An end earlier than the start means the quiet window crosses midnight, which is the usual case."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:255
+msgid "Recovery links"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:256
+msgid "The link in a reminder that puts the basket back. The same link is what an unsubscribe uses, which is why its lifetime is a compliance setting as well as a convenience one."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:259
+msgid "Link behaviour"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:263
+msgid "A recovery link works for"
+msgstr ""
+
+#. translators: %d: the number of days an unsubscribe link must keep working.
+#: src/Admin/Settings/Schema.php:269
+#, php-format
+msgid "After this the link stops working and shows a plain \"no longer available\" page. Email reminders need at least %d days, because the unsubscribe link in an email is this same link and it has to outlive the email."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:275
+msgid "Fill the checkout back in for guests"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:276
+msgid "Someone who follows a recovery link gets the details they had already typed put back. It only ever fills in what that same person entered."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:283
+msgid "Crediting a recovery"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:284
+msgid "How long after a reminder an order still counts as recovered by it."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:287
+msgid "Attribution window"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:291
+msgid "Credit an order to a reminder for"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:295
+msgid "This changes the reported figures only. It never causes or prevents a message."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:312
+msgid "WhatsApp"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:313
+msgid "The channel RecoveryFlow is built around. Sending needs a connected WA.cr workspace."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:316
+#: src/Core/Health.php:232
+msgid "WhatsApp reminders"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:320
+msgid "Send reminders over WhatsApp"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:321
+msgid "Workflow steps set to WhatsApp are skipped while this is off. Nothing else changes: baskets are still recorded and journeys still run."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:329
+msgid "A recovery email is commercial mail, and the law asks for two things before one may be sent: a real postal address for the business sending it, and an unsubscribe link that keeps working. RecoveryFlow refuses to send email until both are settled."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:332
+msgid "Before email can be switched on"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:333
+msgid "Settling all of these makes email reminders permissible. It does not switch them on -- that is still a separate decision, on the card below."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:338
+msgid "Postal address of the business"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:341
+msgid "One line per line, exactly as you would write it on an envelope. It is printed at the foot of every recovery email and is never translated or reformatted. A registered office or a post-office box is fine where the law of your country allows one."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:345
+msgid "Country that address is in"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:346
+msgid "Asked separately because an address is laid out according to its own country, and nothing in the text of an address reliably says which country it is in."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:351
+#: src/Core/Health.php:247
+#: src/Core/Health.php:263
+msgid "Email reminders"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:355
+msgid "Send reminders by email"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:356
+msgid "Off by default. Email passes two gates: this switch, and the compliance settings above. Turning this on while anything above is unsettled changes nothing -- no email is sent either way."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:373
+msgid "Connection"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:374
+msgid "The WA.cr workspace this site sends through."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:377
+msgid "API key"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:383
+msgid "WA.cr API key"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:384
+msgid "Created in the WA.cr console. It is stored encrypted and is never shown again after saving; entering a new one replaces it, and clearing the box leaves the saved key alone."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:390
+msgid "Environment"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:392
+msgid "Production"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:393
+msgid "Staging"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:395
+msgid "Staging talks to the WA.cr test service. Messages sent there are not delivered to real phones and are not billed."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:399
+msgid "API address"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:401
+msgid "Leave empty unless WA.cr support has given you a different address. An address that is not a WA.cr host is refused."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:408
+msgid "How messages are sent"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:409
+msgid "RecoveryFlow can hand a journey to a WA.cr Auto Flow and let WA.cr do the messaging, or send each message itself on the schedule in the workflow."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:412
+msgid "Dispatch"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:416
+msgid "Send reminders by"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:418
+msgid "Handing the journey to a WA.cr Auto Flow"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:419
+msgid "Sending each message from WordPress"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:421
+msgid "Handing over works on every WA.cr plan and puts the timing and the wording in WA.cr. Sending from WordPress keeps both here and needs a workspace that can use the WA.cr developer API."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:425
+msgid "Auto Flow hook address"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:427
+msgid "Copied from the Auto Flow in WA.cr that should pick these journeys up. Each request is signed, so a hook address on its own is not enough for anyone else to trigger your flow."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:431
+msgid "Send from"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:433
+msgid "The WhatsApp number in your workspace that reminders come from. Leave empty to use the workspace default."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:440
+msgid "What is shared with WA.cr"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:441
+msgid "A reminder cannot be sent without sending WA.cr the number it goes to. Everything beyond that is optional and off unless you turn it on."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:444
+msgid "Optional details"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:448
+msgid "Share the customer's last name"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:449
+msgid "First names are shared because message templates usually greet somebody by one. Last names are not, unless a template you use needs one."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:453
+msgid "Share the customer's email address"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:454
+msgid "Only needed if your WA.cr workspace matches contacts by email or sends email itself."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:458
+msgid "Honour opt-outs recorded in WA.cr"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:459
+msgid "Somebody who replies STOP in WhatsApp is opted out in WA.cr. With this on, this site checks that before sending and stops messaging them too."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:476
+msgid "Why this site may message somebody"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:477
+msgid "The most consequential setting here. It decides who RecoveryFlow considers reachable, and it is the one a regulator would ask about first."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:480
+msgid "Basis for messaging"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:484
+msgid "Message somebody when"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:486
+msgid "They ticked a box asking for reminders"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:487
+msgid "They gave their details at the checkout"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:488
+msgid "Never -- record baskets but message nobody"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:490
+msgid "Asking first is the safe answer everywhere and the only defensible one in the EU and the UK. Treating a typed phone number as permission may be lawful where you trade; it is your decision and your risk, and RecoveryFlow records which basis each message was sent under either way."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:494
+msgid "Wording of the consent tick-box"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:497
+msgid "Send me a reminder if I do not finish my order"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:498
+msgid "Shown at the checkout. Leave empty for the default wording. What was agreed to is stored with each consent, so changing this does not rewrite what anyone previously agreed to."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:505
+msgid "How long anything is kept"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:506
+msgid "An abandoned basket says what somebody was about to buy. There is no reason to still know that a year later, so finished journeys are stripped of their contents on a schedule."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:509
+msgid "Retention"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:513
+msgid "Keep the contents of a finished journey for"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:517
+msgid "After this the basket contents, the notes and the session are removed and the amounts and dates stay, because those are your trading record rather than anything about a person. A week is the shortest this plugin will honour: shorter throws away the evidence you need when somebody asks why they were messaged, and that question always arrives late."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:524
+msgid "Deleting the plugin"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:525
+msgid "What happens to the data if RecoveryFlow is removed from this site."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:528
+msgid "On uninstall"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:532
+msgid "Delete everything when the plugin is deleted"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:534
+msgid "Off by default, because deactivating a plugin by accident is common and losing every consent record is not recoverable. With this on, deleting the plugin drops its tables -- including the record of who asked not to be messaged."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:535
+msgid "This will delete every recovery record, including who opted out, when the plugin is deleted. Continue?"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:552
+msgid "Logging"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:553
+msgid "RecoveryFlow keeps a short diagnostic log. Contact details, message contents and API keys are stripped out before anything is written, so the log says what happened without saying who it happened to."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:556
+msgid "Diagnostic log"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:560
+msgid "Record"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:562
+msgid "Failures only"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:563
+msgid "Failures and warnings"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:564
+msgid "Everything of note"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:565
+msgid "Everything, for diagnosing a problem"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:567
+msgid "Leave on failures and warnings for normal running. The most detailed setting writes a great deal on a busy shop; turn it back down once you have what you needed."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:571
+msgid "Keep log entries for"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:575
+msgid "Older entries are removed by the daily clear-out."
+msgstr ""
+
 #: src/Core/Feature_Gate.php:118
 msgid "Authoring recovery workflows in WordPress is included with the WA.cr Scale plan and above. Your workspace can still hand recovery journeys to a WA.cr Auto Flow."
 msgstr ""
@@ -57,6 +1175,104 @@ msgstr ""
 
 #: src/Core/Feature_Gate.php:131
 msgid "WA.cr could not confirm this connection. Check the connection on the Settings screen."
+msgstr ""
+
+#: src/Core/Health.php:131
+msgid "Recovery is switched on"
+msgstr ""
+
+#: src/Core/Health.php:134
+msgid "Abandoned baskets are being recorded and worked."
+msgstr ""
+
+#: src/Core/Health.php:135
+msgid "Nothing is being recorded or sent. Switch recovery on to start."
+msgstr ""
+
+#: src/Core/Health.php:140
+msgid "Database tables"
+msgstr ""
+
+#: src/Core/Health.php:143
+msgid "All of the plugin's tables are present."
+msgstr ""
+
+#: src/Core/Health.php:144
+msgid "Some tables are missing. Deactivating and reactivating the plugin creates them."
+msgstr ""
+
+#: src/Core/Health.php:151
+msgid "Staff permissions"
+msgstr ""
+
+#: src/Core/Health.php:154
+msgid "Shop managers can work the recovery queue."
+msgstr ""
+
+#: src/Core/Health.php:155
+msgid "Some roles are missing RecoveryFlow permissions, which is why staff may not be able to see the journeys. Deactivating and reactivating the plugin re-applies them."
+msgstr ""
+
+#: src/Core/Health.php:174
+#: src/Core/Health.php:186
+#: src/Core/Health.php:197
+msgid "WA.cr connection"
+msgstr ""
+
+#: src/Core/Health.php:176
+msgid "The saved API key can no longer be read, which happens when a site's security keys are rotated. Enter the key again."
+msgstr ""
+
+#: src/Core/Health.php:188
+msgid "No API key is saved. Baskets are still recorded, but nothing can be sent."
+msgstr ""
+
+#: src/Core/Health.php:199
+msgid "An API key is saved. Use \"Test connection\" to check it against WA.cr."
+msgstr ""
+
+#: src/Core/Health.php:204
+msgid "WA.cr developer API"
+msgstr ""
+
+#: src/Core/Health.php:207
+msgid "This workspace can author workflows in WordPress and send directly."
+msgstr ""
+
+#: src/Core/Health.php:235
+msgid "Workflow steps set to WhatsApp will be sent."
+msgstr ""
+
+#: src/Core/Health.php:236
+msgid "WhatsApp is switched off, so steps set to it are skipped."
+msgstr ""
+
+#. translators: %s: what is stopping email from being sent.
+#: src/Core/Health.php:251
+#, php-format
+msgid "Email cannot be sent yet. %s"
+msgstr ""
+
+#: src/Core/Health.php:266
+msgid "Workflow steps set to email will be sent."
+msgstr ""
+
+#: src/Core/Health.php:267
+msgid "Everything the law asks for is settled, and email is still switched off. Turning it on is your decision."
+msgstr ""
+
+#: src/Core/Health.php:304
+msgid "Background processing"
+msgstr ""
+
+#. translators: 1: the name of the scheduler in use. 2: a human time difference, e.g. "3 mins".
+#: src/Core/Health.php:309
+#, php-format
+msgid "Running on %1$s. The next check is due in %2$s."
+msgstr ""
+
+#: src/Core/Health.php:313
+msgid "Nothing is scheduled, so no reminders will be sent. Deactivating and reactivating the plugin re-schedules the background jobs."
 msgstr ""
 
 #. translators: 1: required PHP version, 2: the PHP version running now.
@@ -130,6 +1346,137 @@ msgstr ""
 
 #: src/Jobs/Wp_Cron_Driver.php:78
 msgid "Every five minutes (RecoveryFlow)"
+msgstr ""
+
+#: src/Privacy/Anonymizer.php:211
+msgid "Your contact details, name and basket contents have been removed, and any recovery links sent to you no longer work. A one-way code made from your phone number and email address is kept, and cannot be turned back into either: it is how this site continues to recognise that you asked not to be messaged. The value and date of past orders are kept as part of the shop's own accounts."
+msgstr ""
+
+#: src/Privacy/Eraser.php:80
+#: src/Privacy/Exporter.php:139
+msgid "Cart and checkout recovery"
+msgstr ""
+
+#: src/Privacy/Exporter.php:189
+msgid "First name"
+msgstr ""
+
+#: src/Privacy/Exporter.php:190
+msgid "Last name"
+msgstr ""
+
+#: src/Privacy/Exporter.php:191
+msgid "Country"
+msgstr ""
+
+#: src/Privacy/Exporter.php:192
+msgid "First seen"
+msgstr ""
+
+#: src/Privacy/Exporter.php:196
+msgid "Anonymised on"
+msgstr ""
+
+#: src/Privacy/Exporter.php:201
+msgid "Recovery record"
+msgstr ""
+
+#: src/Privacy/Exporter.php:202
+msgid "What this shop recorded in order to remind you about an unfinished order."
+msgstr ""
+
+#: src/Privacy/Exporter.php:224
+msgid "Removed"
+msgstr ""
+
+#: src/Privacy/Exporter.php:229
+msgid "Contact detail"
+msgstr ""
+
+#: src/Privacy/Exporter.php:230
+msgid "A way this shop was able to reach you about an unfinished order."
+msgstr ""
+
+#: src/Privacy/Exporter.php:232
+msgid "Type"
+msgstr ""
+
+#: src/Privacy/Exporter.php:233
+msgid "Value"
+msgstr ""
+
+#: src/Privacy/Exporter.php:234
+msgid "Recorded"
+msgstr ""
+
+#: src/Privacy/Exporter.php:262
+msgid "Messaging permission"
+msgstr ""
+
+#: src/Privacy/Exporter.php:263
+msgid "A record of whether you agreed to be reminded about unfinished orders, and on which channel."
+msgstr ""
+
+#: src/Privacy/Exporter.php:266
+msgid "Decision"
+msgstr ""
+
+#: src/Privacy/Exporter.php:267
+msgid "Recorded at"
+msgstr ""
+
+#: src/Privacy/Exporter.php:268
+msgid "Recorded from"
+msgstr ""
+
+#: src/Privacy/Exporter.php:269
+msgid "Wording agreed to"
+msgstr ""
+
+#: src/Privacy/Exporter.php:292
+msgid "Outcome"
+msgstr ""
+
+#: src/Privacy/Exporter.php:298
+msgid "Items"
+msgstr ""
+
+#: src/Privacy/Exporter.php:303
+msgid "Reminder"
+msgstr ""
+
+#. translators: 1: the channel a reminder was sent on. 2: what happened to it. 3: when it was sent.
+#: src/Privacy/Exporter.php:306
+#, php-format
+msgid "%1$s, %2$s, %3$s"
+msgstr ""
+
+#: src/Privacy/Exporter.php:316
+msgid "Unfinished order"
+msgstr ""
+
+#: src/Privacy/Exporter.php:317
+msgid "An order you started and did not complete, and the reminders this shop sent about it."
+msgstr ""
+
+#: src/Privacy/Exporter.php:338
+msgid "You agreed to be reminded"
+msgstr ""
+
+#: src/Privacy/Exporter.php:341
+msgid "You were asked and did not agree"
+msgstr ""
+
+#: src/Privacy/Exporter.php:344
+msgid "You withdrew your agreement"
+msgstr ""
+
+#: src/Privacy/Exporter.php:347
+msgid "You asked to stop receiving reminders"
+msgstr ""
+
+#: src/Privacy/Exporter.php:350
+msgid "No decision recorded"
 msgstr ""
 
 #: src/Recovery/Channel.php:90
@@ -319,6 +1666,42 @@ msgid "%1$s and %2$d more"
 msgid_plural "%1$s and %2$d more"
 msgstr[0] ""
 msgstr[1] ""
+
+#. translators: %s: the name of a permission, e.g. recoveryflow_view_journeys.
+#: src/REST/Abstract_Controller.php:85
+#, php-format
+msgid "This needs the \"%s\" permission."
+msgstr ""
+
+#: src/REST/Journeys_Controller.php:265
+msgid "This recovery has already finished, so there is nothing to cancel."
+msgstr ""
+
+#: src/REST/Journeys_Controller.php:285
+msgid "This recovery changed while you were looking at it. Reload and try again."
+msgstr ""
+
+#: src/REST/Journeys_Controller.php:376
+msgid "No recovery was found with that reference."
+msgstr ""
+
+#: src/REST/Status_Controller.php:126
+msgid "There is no API key saved to test."
+msgstr ""
+
+#: src/REST/Status_Controller.php:138
+msgid "WA.cr could not be reached."
+msgstr ""
+
+#: src/REST/Status_Controller.php:150
+msgid "Connected to WA.cr."
+msgstr ""
+
+#. translators: %s: the name of the connected WA.cr workspace.
+#: src/REST/Status_Controller.php:153
+#, php-format
+msgid "Connected to %s."
+msgstr ""
 
 #: src/WAcr/Client.php:247
 msgid "No WA.cr API key is saved, so RecoveryFlow cannot send. Add one on the settings screen."

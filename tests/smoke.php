@@ -17,9 +17,14 @@
 require_once __DIR__ . '/wp-stubs.php';
 require_once dirname( __DIR__ ) . '/src/Core/Autoloader.php';
 
+use WAcr\RecoveryFlow\Admin\Screen;
+use WAcr\RecoveryFlow\Admin\Settings\Page as Settings_Page;
+use WAcr\RecoveryFlow\Admin\Settings\Sanitizer as Settings_Sanitizer;
+use WAcr\RecoveryFlow\Admin\Settings\Schema as Settings_Schema;
 use WAcr\RecoveryFlow\Core\Autoloader;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
+use WAcr\RecoveryFlow\Core\Health;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Core\Upgrader;
 use WAcr\RecoveryFlow\Core\Plugin;
@@ -29,6 +34,9 @@ use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Customer\Phone_Normalizer;
+use WAcr\RecoveryFlow\Privacy\Anonymizer;
+use WAcr\RecoveryFlow\Privacy\Eraser;
+use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\Privacy\Redactor;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
@@ -40,6 +48,9 @@ use WAcr\RecoveryFlow\Integration\WooCommerce\Session;
 use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\Database\Schema;
 use WAcr\RecoveryFlow\Database\Table_Names;
+use WAcr\RecoveryFlow\REST\Abstract_Controller;
+use WAcr\RecoveryFlow\REST\Routes;
+use WAcr\RecoveryFlow\REST\Settings_Controller;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Security\Crypto;
 use WAcr\RecoveryFlow\Security\Hash_Key;
@@ -56,6 +67,7 @@ use WAcr\RecoveryFlow\WAcr\Transport;
 ( new Autoloader( dirname( __DIR__ ) . '/src/' ) )->register();
 
 require_once __DIR__ . '/probes.php';
+require_once __DIR__ . '/rest-probes.php';
 require_once __DIR__ . '/i18n-audit.php';
 
 
@@ -1169,6 +1181,780 @@ foreach ( array( 'opt-out-confirm.php', 'opt-out-done.php' ) as $recoveryflow_pa
 
 	ok( "{$recoveryflow_page} names no single channel, because the opt-out stops them all", ! $recoveryflow_named );
 }
+
+
+// --------------------------------------------------- Admin: settings schema.
+
+/*
+ * The settings screen is described as data, so the things that would otherwise
+ * only be caught by clicking every tab are answerable here instead.
+ *
+ * The first of these is the one that matters most and is the easiest to break
+ * by accident: a setting that is stored but has no control anywhere. Nothing
+ * misbehaves when that happens -- the setting simply keeps whatever value it
+ * was born with, for ever, and the merchant has no way to know it exists.
+ */
+check( 'every stored setting has a control on the screen', Settings_Schema::unreachable_settings(), array() );
+
+$recoveryflow_field_homes = array();
+
+foreach ( Settings_Schema::tabs() as $recoveryflow_tab_id => $recoveryflow_tab ) {
+	ok( "the {$recoveryflow_tab_id} tab has a label", '' !== (string) $recoveryflow_tab['label'] );
+
+	foreach ( $recoveryflow_tab['sections'] as $recoveryflow_section_id => $recoveryflow_section ) {
+		ok( "{$recoveryflow_tab_id}/{$recoveryflow_section_id} has a title", '' !== (string) $recoveryflow_section['title'] );
+
+		foreach ( $recoveryflow_section['cards'] as $recoveryflow_card_id => $recoveryflow_card ) {
+			ok( "{$recoveryflow_tab_id}/{$recoveryflow_section_id}/{$recoveryflow_card_id} has a title", '' !== (string) $recoveryflow_card['title'] );
+
+			foreach ( array( 'fields', 'advanced' ) as $recoveryflow_group ) {
+				foreach ( $recoveryflow_card[ $recoveryflow_group ] ?? array() as $recoveryflow_key => $recoveryflow_spec ) {
+					$recoveryflow_field_homes[ $recoveryflow_key ][] = $recoveryflow_tab_id;
+
+					ok( "{$recoveryflow_key} has a label", '' !== (string) ( $recoveryflow_spec['label'] ?? '' ) );
+					ok( "{$recoveryflow_key} declares a type", '' !== (string) ( $recoveryflow_spec['type'] ?? '' ) );
+				}
+			}
+		}
+	}
+}
+
+// A setting on two tabs has an ambiguous deeplink and two labels that will
+// eventually disagree with each other.
+foreach ( $recoveryflow_field_homes as $recoveryflow_key => $recoveryflow_homes ) {
+	check( "{$recoveryflow_key} appears on exactly one tab", count( $recoveryflow_homes ), 1 );
+}
+
+// The address of a control is a public thing: it is quoted in notices, in the
+// status checks and in support replies, so its shape is asserted rather than
+// assumed.
+$recoveryflow_deeplink = Settings_Schema::deeplink( Email_Compliance::SETTING_ADDRESS );
+
+ok( 'a setting deeplink names its tab', false !== strpos( $recoveryflow_deeplink, 'tab=channels' ) );
+ok( 'and its section', false !== strpos( $recoveryflow_deeplink, 'section=email' ) );
+ok( 'and the control itself', false !== strpos( $recoveryflow_deeplink, 'field=merchant_postal_address' ) );
+ok( 'and carries a fragment, so the deeplink still lands without JavaScript', false !== strpos( $recoveryflow_deeplink, '#recoveryflow-field-merchant-postal-address' ) );
+check( 'a setting that is not on the screen has no deeplink', Settings_Schema::deeplink( 'not_a_setting' ), '' );
+
+/*
+ * The two channel switches were added to the stored defaults so the screen has
+ * something to render. They must repeat what Rule_Set already fell back to and
+ * not quietly change it -- email off is a legal position, not a default anybody
+ * may adjust in passing.
+ */
+$recoveryflow_defaults = Options::defaults();
+
+check( 'WhatsApp is on by default', $recoveryflow_defaults['channel_whatsapp_enabled'], true );
+check( 'email is OFF by default, and storing the key did not change that', $recoveryflow_defaults['channel_email_enabled'], false );
+
+// -------------------------------------------------- Admin: saving settings.
+
+/**
+ * Save one tab of the settings form, the way options.php would.
+ *
+ * @param string              $tab    Tab id.
+ * @param array<string,mixed> $posted What the form sent.
+ * @return array<string,mixed> The settings option afterwards.
+ */
+function recoveryflow_save_tab( string $tab, array $posted ): array {
+	$_POST[ Settings_Sanitizer::TAB_FIELD ] = $tab;
+
+	$saved = Settings_Page::sanitize_settings( $posted );
+
+	unset( $_POST[ Settings_Sanitizer::TAB_FIELD ] );
+
+	// Stored, because that is what options.php does next, and because a save
+	// that did not persist would let each of these checks start from a clean
+	// slate -- which is the one condition a real settings screen is never in.
+	update_option( Options::SETTINGS, $saved );
+
+	return is_array( $saved ) ? $saved : array();
+}
+
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::defaults(),
+		array(
+			'inactivity_minutes' => 45,
+			'max_touches'        => 2,
+			'logging_level'      => 'debug',
+		)
+	)
+);
+
+/*
+ * The trap this whole design exists to avoid. Every tab posts only its own
+ * fields, so a sanitiser that returned what it was handed would replace the
+ * entire option with one tab's worth of settings -- silently resetting the
+ * other five to their defaults, on a site that carries on working and gives
+ * nobody a reason to look.
+ */
+$recoveryflow_after = recoveryflow_save_tab(
+	'channels',
+	array(
+		'channel_email_enabled'   => '1',
+		'merchant_postal_address' => "  Example Shop Ltd \n\n 12 Example Road \n Bengaluru 560001 ",
+		'merchant_postal_country' => 'in',
+	)
+);
+
+check( 'saving the Channels tab leaves the Recovery tab alone', $recoveryflow_after['inactivity_minutes'], 45 );
+check( 'and the Advanced tab', $recoveryflow_after['logging_level'], 'debug' );
+check( 'and the rest of the Recovery tab', $recoveryflow_after['max_touches'], 2 );
+check( 'while saving what was actually posted', $recoveryflow_after['merchant_postal_country'], 'IN' );
+check( 'an address is stored as the merchant typed it, minus the padding', $recoveryflow_after['merchant_postal_address'], "Example Shop Ltd\n12 Example Road\nBengaluru 560001" );
+
+// A browser posts nothing at all for an unticked box, so absent has to mean
+// false -- but only on the tab that was submitted, or every save would switch
+// off every checkbox on every other tab.
+$recoveryflow_after = recoveryflow_save_tab( 'channels', array( 'merchant_postal_country' => 'GB' ) );
+
+check( 'an unticked box on the posted tab is stored as off', $recoveryflow_after['channel_email_enabled'], false );
+check( 'a box on another tab is untouched by that save', $recoveryflow_after['quiet_hours_enabled'], true );
+check( 'and so is one on a third tab', $recoveryflow_after['exclude_admins'], true );
+
+/*
+ * Registering a sanitise callback makes WordPress run it on EVERY write to the
+ * option, not only on a form save. This plugin writes its own settings from
+ * several places, and a sanitiser that assumed a posted form would have thrown
+ * every one of those writes away.
+ */
+$recoveryflow_direct = Settings_Page::sanitize_settings(
+	array(
+		'enabled'            => true,
+		'inactivity_minutes' => 15,
+	)
+);
+
+check(
+	'a programmatic write is passed through, not rewritten from a form that was never posted',
+	$recoveryflow_direct,
+	array(
+		'enabled'            => true,
+		'inactivity_minutes' => 15,
+	)
+);
+
+// A value out of range is clamped rather than refused: somebody who typed 500
+// into a field that stops at 30 meant "as long as possible".
+$recoveryflow_after = recoveryflow_save_tab( 'recovery', array( 'recovery_link_ttl_days' => '500' ) );
+check( 'a number past the maximum is clamped to it', $recoveryflow_after['recovery_link_ttl_days'], 30 );
+
+$recoveryflow_after = recoveryflow_save_tab( 'recovery', array( 'recovery_link_ttl_days' => '0' ) );
+check( 'and one below the minimum is clamped up', $recoveryflow_after['recovery_link_ttl_days'], 1 );
+
+$recoveryflow_after = recoveryflow_save_tab( 'recovery', array( 'recovery_link_ttl_days' => 'soon' ) );
+check( 'a value that is not a number leaves the stored one alone', $recoveryflow_after['recovery_link_ttl_days'], 1 );
+
+$recoveryflow_after = recoveryflow_save_tab( 'privacy', array( 'eligibility_mode' => 'whatever_i_like' ) );
+check( 'a choice that is not on the list is refused', $recoveryflow_after['eligibility_mode'], 'explicit_consent' );
+
+$recoveryflow_after = recoveryflow_save_tab( 'recovery', array( 'quiet_hours_start' => '25:00' ) );
+check( 'a time that does not exist is refused', $recoveryflow_after['quiet_hours_start'], '21:00' );
+
+// The credential is not part of the settings option and must never leak into
+// it: that option is autoloaded on every request of every page.
+$recoveryflow_after = recoveryflow_save_tab( 'wacr', array( Settings_Schema::FIELD_API_KEY => 'wacr_live_secret' ) );
+
+ok( 'the API key is never stored in the settings option', ! array_key_exists( Settings_Schema::FIELD_API_KEY, $recoveryflow_after ) );
+ok( 'and no stored value contains it', false === strpos( wp_json_encode( $recoveryflow_after ), 'wacr_live_secret' ) );
+
+// ------------------------------------------------- Admin: the email surface.
+
+/**
+ * Render the settings screen and hand back the HTML.
+ *
+ * @param string $tab   Tab to render.
+ * @param string $field Setting the deeplink named, if any.
+ * @return string
+ */
+function recoveryflow_render_settings( string $tab, string $field = '' ): string {
+	$_GET['tab']   = $tab;
+	$_GET['field'] = $field;
+
+	ob_start();
+	Settings_Page::render();
+	$html = (string) ob_get_clean();
+
+	unset( $_GET['tab'], $_GET['field'] );
+
+	return $html;
+}
+
+/*
+ * The gap this slice exists to close. The email channel has refused to send
+ * since it was built, for three reasons it can name -- and until now nothing
+ * drew them, so a merchant could read that email was unavailable and have no
+ * way at all to find out what to do about it.
+ */
+update_option( Options::SETTINGS, Options::defaults() );
+
+$recoveryflow_html = recoveryflow_render_settings( 'channels' );
+
+ok( 'the Channels tab renders', false !== strpos( $recoveryflow_html, 'recoveryflow-settings' ) );
+
+foreach ( Email_Compliance::blockers( Options::defaults() ) as $recoveryflow_code ) {
+	ok(
+		"the screen tells the merchant what to do about {$recoveryflow_code}",
+		false !== strpos( $recoveryflow_html, esc_html( Email_Compliance::reason_label( $recoveryflow_code ) ) )
+	);
+}
+
+ok( 'and links to the control that clears the postal address', false !== strpos( $recoveryflow_html, esc_url( Settings_Schema::deeplink( Email_Compliance::SETTING_ADDRESS ) ) ) );
+ok( 'and to the one that clears the country', false !== strpos( $recoveryflow_html, esc_url( Settings_Schema::deeplink( Email_Compliance::SETTING_COUNTRY ) ) ) );
+
+// The unsubscribe-window blocker is cleared on a different tab entirely, which
+// is exactly why it needs a link rather than a sentence.
+ok( 'and to the recovery-link lifetime, which lives on another tab', false !== strpos( $recoveryflow_html, esc_url( Settings_Schema::deeplink( 'recovery_link_ttl_days' ) ) ) );
+
+// Settling the three makes email PERMISSIBLE. It does not switch it on, and
+// the screen has to say so, or a merchant reads "settled" as "sending".
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::defaults(),
+		array(
+			'merchant_postal_address' => "Example Shop Ltd\n12 Example Road",
+			'merchant_postal_country' => 'GB',
+			'recovery_link_ttl_days'  => 30,
+		)
+	)
+);
+
+$recoveryflow_html = recoveryflow_render_settings( 'channels' );
+
+ok( 'once settled the screen says so', false !== strpos( $recoveryflow_html, 'recoveryflow-compliance--met' ) );
+ok( 'and says that settling it is not the same as switching it on', false !== strpos( $recoveryflow_html, esc_html__( 'Email reminders are permissible from this site. Whether they are actually sent is the switch below.', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and the switch itself is still unticked', false === strpos( $recoveryflow_html, 'name="recoveryflow_settings[channel_email_enabled]" value="1" checked' ) );
+ok( 'the switch is on the screen to be ticked', false !== strpos( $recoveryflow_html, 'name="recoveryflow_settings[channel_email_enabled]"' ) );
+
+// ------------------------------------------------ Admin: the screen itself.
+
+$recoveryflow_html = recoveryflow_render_settings( 'channels', Email_Compliance::SETTING_ADDRESS );
+
+ok( 'a deeplinked control is marked, so it is findable without relying on colour', false !== strpos( $recoveryflow_html, 'recoveryflow-field--targeted' ) );
+ok( 'every control names its own description', false !== strpos( $recoveryflow_html, 'aria-describedby="recoveryflow-field-merchant-postal-address-help"' ) );
+ok( 'the tab in view is marked for a screen reader too, not only by colour', false !== strpos( $recoveryflow_html, 'aria-current="page"' ) );
+ok( 'the form posts to core, so the nonce and the capability check are WordPress\'s', false !== strpos( $recoveryflow_html, 'options.php' ) );
+ok( 'and says which tab it is, or the sanitiser cannot tell what to leave alone', false !== strpos( $recoveryflow_html, 'name="' . Settings_Sanitizer::TAB_FIELD . '" value="channels"' ) );
+
+$recoveryflow_html = recoveryflow_render_settings( 'privacy' );
+
+ok( 'a group of choices is a fieldset, so it is announced as one question', false !== strpos( $recoveryflow_html, '<fieldset' ) );
+ok( 'and the question is available to a screen reader', false !== strpos( $recoveryflow_html, 'screen-reader-text' ) );
+ok( 'an irreversible option asks first', false !== strpos( $recoveryflow_html, 'data-confirm=' ) );
+
+$recoveryflow_html = recoveryflow_render_settings( 'wacr' );
+
+ok( 'rarely-touched settings are in a native expandable', false !== strpos( $recoveryflow_html, '<details' ) );
+ok( 'the credential box is never rendered holding the credential', false !== strpos( $recoveryflow_html, 'type="password" id="recoveryflow-field-wacr-api-key" name="recoveryflow_settings[wacr_api_key]" value=""' ) );
+
+// A conditional field is rendered and then hidden by script, never omitted:
+// with scripts off the screen has to be complete rather than missing settings.
+$recoveryflow_html = recoveryflow_render_settings( 'recovery' );
+
+ok( 'a conditional setting is in the HTML whether or not it currently applies', false !== strpos( $recoveryflow_html, 'name="recoveryflow_settings[quiet_hours_start]"' ) );
+ok( 'and carries its condition for the script to act on', false !== strpos( $recoveryflow_html, 'data-requires="quiet_hours_enabled"' ) );
+
+/*
+ * The shipped admin script carries no user-facing text of its own -- the same
+ * ruling the checkout script ships under. One string in JavaScript would need a
+ * JavaScript i18n build and a second translation pipeline for the rest of the
+ * plugin's life, so everything it announces is passed in from PHP, already
+ * translated. Checked by looking for the strings it is given rather than by
+ * reading the file's prose.
+ */
+$recoveryflow_admin_js = (string) file_get_contents( dirname( __DIR__ ) . '/assets/js/admin.js' );
+
+ok( 'the admin script exists and is shipped', strlen( $recoveryflow_admin_js ) > 500 );
+ok( 'it announces through wp.a11y.speak rather than moving the page about', false !== strpos( $recoveryflow_admin_js, 'wp.a11y.speak' ) );
+ok( 'it takes its wording from PHP rather than carrying its own', false !== strpos( $recoveryflow_admin_js, 'strings.focused' ) );
+ok( 'and defines none of that wording itself', false === strpos( $recoveryflow_admin_js, 'focused:' ) );
+
+// assets/ is deliberately absent from .distignore, and a new file under it that
+// nobody checked is a silent way to ship a plugin whose script is missing.
+$recoveryflow_distignore = (string) file_get_contents( dirname( __DIR__ ) . '/.distignore' );
+
+foreach ( array( 'assets/js/admin.js', 'assets/css/admin.css' ) as $recoveryflow_asset ) {
+	ok( "{$recoveryflow_asset} is on disk", file_exists( dirname( __DIR__ ) . '/' . $recoveryflow_asset ) );
+}
+
+ok( 'assets/ is still shipped', false === strpos( $recoveryflow_distignore, "\nassets" ) );
+
+
+
+// ------------------------------------------------------- Privacy: the tools.
+
+/*
+ * WordPress's own privacy screens are the route a site owner actually uses, so
+ * RecoveryFlow has to be on them. An exporter nobody registered exports
+ * nothing, and does it silently.
+ */
+$recoveryflow_exporters = $plugin->privacy_exporter()->register( array() );
+$recoveryflow_erasers   = $plugin->privacy_eraser()->register( array() );
+
+ok( 'the exporter registers itself with WordPress', isset( $recoveryflow_exporters[ Exporter::GROUP ] ) );
+ok( 'and is callable', is_callable( $recoveryflow_exporters[ Exporter::GROUP ]['callback'] ?? null ) );
+ok( 'the eraser registers itself with WordPress', isset( $recoveryflow_erasers[ Eraser::GROUP ] ) );
+ok( 'and is callable', is_callable( $recoveryflow_erasers[ Eraser::GROUP ]['callback'] ?? null ) );
+ok( 'both are named in words a site owner would recognise', '' !== (string) $recoveryflow_exporters[ Exporter::GROUP ]['exporter_friendly_name'] );
+
+// An address this shop has never seen must finish rather than page for ever.
+$recoveryflow_export = $plugin->privacy_exporter()->export( 'nobody@example.test' );
+
+check( 'an unknown address exports nothing', $recoveryflow_export['data'], array() );
+check( 'and says it has finished, rather than paging for ever', $recoveryflow_export['done'], true );
+
+$recoveryflow_erase = $plugin->privacy_eraser()->erase( 'nobody@example.test' );
+
+check( 'an unknown address erases nothing', $recoveryflow_erase['items_removed'], false );
+check( 'and reports nothing retained, because there was nothing', $recoveryflow_erase['items_retained'], false );
+check( 'and finishes', $recoveryflow_erase['done'], true );
+
+check( 'anonymising customer zero is refused rather than fatal', $plugin->anonymizer()->anonymize_customer( 0 ), false );
+
+/*
+ * The one thing an erasure must NOT do. Suppression is keyed by the hash of an
+ * identity, so deleting the hash deletes the record that this person asked not
+ * to be messaged -- and the next time they type the same number into a checkout
+ * the shop treats them as somebody new and messages them again. Erasing an
+ * opt-out is not a privacy improvement; it is the failure the opt-out exists to
+ * prevent.
+ */
+$recoveryflow_anon = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Privacy/Anonymizer.php', 'anonymize_customer' );
+
+ok( 'the erasure can be read', strlen( $recoveryflow_anon ) > 100 );
+ok( 'an erasure detaches the consent ledger from the person', false !== strpos( $recoveryflow_anon, 'detach_customer' ) );
+ok( 'and never deletes it, or the opt-out dies with the customer', false === strpos( $recoveryflow_anon, 'delete' ) );
+ok( 'an erasure revokes the recovery links already sent', false !== strpos( $recoveryflow_anon, 'revoke_tokens' ) );
+ok( 'and strips what the basket contained', false !== strpos( $recoveryflow_anon, 'strip_items' ) );
+
+// A journey still in flight is stopped, not merely stripped. Eligibility would
+// already refuse to send for an anonymised customer, so nothing would go out --
+// but a scheduled journey left in the queue shows work still being done for
+// somebody who asked to be forgotten.
+ok( 'an erasure stops a journey that is still running', false !== strpos( $recoveryflow_anon, 'Journey_State::CANCELLED' ) );
+ok( 'and only one that is still running', false !== strpos( $recoveryflow_anon, 'is_terminal' ) );
+
+$recoveryflow_identity_anon = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Customer/Identity_Repository.php', 'anonymize' );
+
+ok( 'the readable contact detail is blanked', false !== strpos( $recoveryflow_identity_anon, "'value_raw'" ) );
+ok( 'and the hash it is recognised by is NOT', false === strpos( $recoveryflow_identity_anon, "'value_hash'" ) );
+
+// The person is told what was kept and why. "We kept a hash" without the reason
+// reads as a shop hedging.
+$recoveryflow_notice = Anonymizer::retained_notice();
+
+ok( 'the erasure explains what it kept', false !== stripos( $recoveryflow_notice, 'one-way' ) );
+ok( 'and why keeping it is in their interest', false !== stripos( $recoveryflow_notice, 'asked not to be messaged' ) );
+
+/*
+ * Retention has to reach the person, not only the basket. Stripping what
+ * somebody was buying while keeping their name and phone number would be the
+ * wrong half of the job.
+ */
+$recoveryflow_retention = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Jobs/Stages/Retention.php', 'run' );
+
+ok( 'the daily clear-out anonymises people whose journeys are long finished', false !== strpos( $recoveryflow_retention, 'anonymize_finished_customers' ) );
+
+$recoveryflow_due = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Customer/Customer_Repository.php', 'due_for_anonymization' );
+
+ok( 'and only reaches customers with no journey still running', false !== strpos( $recoveryflow_due, 'NOT IN' ) );
+ok( 'walking by primary key, so a clear-out cannot skip rows', false !== strpos( $recoveryflow_due, 'c.id > %d' ) );
+ok( 'and never re-anonymising somebody already done', false !== strpos( $recoveryflow_due, 'anonymized_at IS NULL' ) );
+
+
+
+// ------------------------------------------------------- REST: the surface.
+
+/*
+ * The routes are read back from what the plugin actually registered, not from
+ * the source. A test that grepped for "permission_callback" would pass just as
+ * happily on a route whose callback returned true.
+ */
+$GLOBALS['recoveryflow_routes'] = array();
+
+$plugin->rest_journeys()->register_routes();
+$plugin->rest_status()->register_routes();
+$plugin->rest_settings()->register_routes();
+
+$recoveryflow_routes = $GLOBALS['recoveryflow_routes'];
+
+ok( 'the plugin registers REST routes', count( $recoveryflow_routes ) >= 4 );
+
+foreach ( $recoveryflow_routes as $recoveryflow_route ) {
+	$recoveryflow_path = $recoveryflow_route['namespace'] . $recoveryflow_route['route'];
+
+	// Decision 5: KDC plugins share one namespace and separate by path.
+	check( "{$recoveryflow_path} is in the shared KDC namespace", $recoveryflow_route['namespace'], Routes::REST_NAMESPACE );
+	ok( "{$recoveryflow_path} sits under this plugin's prefix", 0 === strpos( $recoveryflow_route['route'], '/' . Routes::PREFIX . '/' ) );
+
+	foreach ( $recoveryflow_route['endpoints'] as $recoveryflow_endpoint ) {
+		$recoveryflow_method = (string) ( $recoveryflow_endpoint['methods'] ?? '' );
+		$recoveryflow_label  = "{$recoveryflow_method} {$recoveryflow_path}";
+
+		// A route with no permission callback is public. WordPress warns about
+		// it and then serves it anyway.
+		ok( "{$recoveryflow_label} has a permission callback", is_callable( $recoveryflow_endpoint['permission_callback'] ?? null ) );
+		ok( "{$recoveryflow_label} has a handler", is_callable( $recoveryflow_endpoint['callback'] ?? null ) );
+
+		foreach ( $recoveryflow_endpoint['args'] ?? array() as $recoveryflow_arg => $recoveryflow_spec ) {
+			ok(
+				"{$recoveryflow_label} validates or sanitises {$recoveryflow_arg}",
+				isset( $recoveryflow_spec['sanitize_callback'] ) || isset( $recoveryflow_spec['enum'] ) || isset( $recoveryflow_spec['type'] )
+			);
+		}
+	}
+}
+
+/*
+ * The matrix. Every route is asked the same three questions: may a logged-out
+ * visitor call it, may a subscriber, may somebody holding the right capability.
+ * The first two must be refused by every single route -- these carry customer
+ * contact details and the ability to cancel somebody's recovery.
+ */
+$recoveryflow_denied_anon = 0;
+$recoveryflow_denied_sub  = 0;
+$recoveryflow_allowed     = 0;
+
+foreach ( $recoveryflow_routes as $recoveryflow_route ) {
+	foreach ( $recoveryflow_route['endpoints'] as $recoveryflow_endpoint ) {
+		$recoveryflow_guard = $recoveryflow_endpoint['permission_callback'];
+		$recoveryflow_label = (string) ( $recoveryflow_endpoint['methods'] ?? '' ) . ' ' . $recoveryflow_route['route'];
+
+		// Logged out.
+		$GLOBALS['recoveryflow_caps']       = array();
+		$GLOBALS['recoveryflow_logged_out'] = true;
+		$recoveryflow_verdict               = $recoveryflow_guard();
+
+		ok( "{$recoveryflow_label} refuses a logged-out visitor", $recoveryflow_verdict instanceof WP_Error );
+		check( "{$recoveryflow_label} tells them to log in rather than that they are forbidden", $recoveryflow_verdict instanceof WP_Error ? $recoveryflow_verdict->get_status() : 0, 401 );
+		++$recoveryflow_denied_anon;
+
+		// A customer with an account on the shop. Logged in is not staff.
+		$GLOBALS['recoveryflow_caps']       = array( 'read' );
+		$GLOBALS['recoveryflow_logged_out'] = false;
+		$recoveryflow_verdict               = $recoveryflow_guard();
+
+		ok( "{$recoveryflow_label} refuses a subscriber", $recoveryflow_verdict instanceof WP_Error );
+		check( "{$recoveryflow_label} refuses them with 403, not 401", $recoveryflow_verdict instanceof WP_Error ? $recoveryflow_verdict->get_status() : 0, 403 );
+		ok( "{$recoveryflow_label} names the permission that was missing", $recoveryflow_verdict instanceof WP_Error && false !== strpos( $recoveryflow_verdict->get_error_message(), 'recoveryflow_' ) );
+		++$recoveryflow_denied_sub;
+
+		// Somebody holding every RecoveryFlow capability.
+		$GLOBALS['recoveryflow_caps'] = Capabilities::all();
+
+		check( "{$recoveryflow_label} admits a user with the capability", $recoveryflow_guard(), true );
+		++$recoveryflow_allowed;
+	}
+}
+
+ok( 'every route was tried logged out', $recoveryflow_denied_anon >= 6 );
+ok( 'every route was tried as a subscriber', $recoveryflow_denied_sub === $recoveryflow_denied_anon );
+ok( 'and every route was tried with the capability', $recoveryflow_allowed === $recoveryflow_denied_anon );
+
+$GLOBALS['recoveryflow_caps']       = null;
+$GLOBALS['recoveryflow_logged_out'] = false;
+
+/*
+ * The credential must not leave the site by any route, in any form -- not
+ * masked, not as a length. An endpoint that reports facts about a secret helps
+ * somebody guess it.
+ */
+( new WAcr\RecoveryFlow\WAcr\Credentials() )->set_api_key( 'wacr_live_do_not_leak_me' );
+
+// Read on a site that has settled nothing, which is where every site starts.
+update_option( Options::SETTINGS, Options::defaults() );
+
+$recoveryflow_settings_body = $plugin->rest_settings()->index()->get_data();
+
+ok( 'the settings endpoint answers', is_array( $recoveryflow_settings_body['settings'] ) );
+ok( 'and never returns the API key', false === strpos( wp_json_encode( $recoveryflow_settings_body ), 'do_not_leak_me' ) );
+ok( 'nor a field for it at all', ! array_key_exists( Settings_Schema::FIELD_API_KEY, $recoveryflow_settings_body['settings'] ) );
+ok( 'but does say what is blocking email', count( $recoveryflow_settings_body['email_blockers'] ) > 0 );
+check( 'and that email is not permitted yet', $recoveryflow_settings_body['email_permitted'], false );
+
+// A blocker travels as a machine code AND a sentence. The code is what is
+// compared and logged and must never be translated; the sentence is what a
+// person reads.
+$recoveryflow_first_blocker = $recoveryflow_settings_body['email_blockers'][0];
+
+ok( 'a blocker carries its untranslated code', in_array( $recoveryflow_first_blocker['code'], array( Email_Compliance::NO_POSTAL_ADDRESS, Email_Compliance::NO_POSTAL_COUNTRY, Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT ), true ) );
+ok( 'and a sentence a person can act on', strlen( (string) $recoveryflow_first_blocker['message'] ) > 20 );
+
+// Settle all three and the same endpoint says email is permitted -- and still
+// does not say it is switched on, because it is not.
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::defaults(),
+		array(
+			'merchant_postal_address' => "Example Shop Ltd\n12 Example Road",
+			'merchant_postal_country' => 'GB',
+			'recovery_link_ttl_days'  => 30,
+		)
+	)
+);
+
+$recoveryflow_settled_body = $plugin->rest_settings()->index()->get_data();
+
+check( 'once settled, the endpoint reports email as permitted', $recoveryflow_settled_body['email_permitted'], true );
+check( 'with nothing left blocking it', $recoveryflow_settled_body['email_blockers'], array() );
+check( 'and the switch itself still off, because permitted is not enabled', $recoveryflow_settled_body['settings']['channel_email_enabled'], false );
+
+
+/*
+ * The masking rule, which guards every route that can return a phone number.
+ * Both halves are required, and the reason the capability alone is not enough
+ * is the shop counter: a journeys list left open all day should not be
+ * readable by whoever walks past, even though the person working it is
+ * entitled to read any single row.
+ */
+$recoveryflow_reveal = new Reveal_Probe( $plugin->receipts() );
+
+$GLOBALS['recoveryflow_caps'] = Capabilities::all();
+check( 'holding the permission does not unmask a listing nobody asked to unmask', $recoveryflow_reveal->probe( new WP_REST_Request( array() ) ), false );
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::VIEW_JOURNEYS );
+check( 'asking without the permission reveals nothing', $recoveryflow_reveal->probe( new WP_REST_Request( array( Abstract_Controller::REVEAL_ARG => true ) ) ), false );
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::VIEW_JOURNEYS, Capabilities::REVEAL_PII );
+check( 'asking with the permission reveals', $recoveryflow_reveal->probe( new WP_REST_Request( array( Abstract_Controller::REVEAL_ARG => true ) ) ), true );
+
+$GLOBALS['recoveryflow_caps'] = null;
+
+/*
+ * And the shaping itself. Masking is what the journeys list shows by default,
+ * so the rule is asserted on the method that does it rather than only on the
+ * endpoints that call it -- the fake database returns no rows, and an
+ * assertion that passed because there was nothing to mask would be worthless.
+ */
+$recoveryflow_summary = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/REST/Journeys_Controller.php', 'customer_summary' );
+
+ok( 'the customer shape can be read', strlen( $recoveryflow_summary ) > 100 );
+ok( 'a phone number is masked unless revealing was earned', false !== strpos( $recoveryflow_summary, 'Mask::phone' ) );
+ok( 'and an email address too', false !== strpos( $recoveryflow_summary, 'Mask::email' ) );
+ok( 'and a name', false !== strpos( $recoveryflow_summary, 'Mask::name' ) );
+ok( 'masking is what happens when revealing was not asked for', false !== strpos( $recoveryflow_summary, '$reveal ?' ) );
+
+// An erased customer has nothing to mask or reveal, and the shape says so
+// rather than returning blanks that read as missing data.
+ok( 'an erased customer is described as erased', false !== strpos( $recoveryflow_summary, 'is_anonymized' ) );
+
+// A missing journey and an erased one must look identical from outside, or the
+// endpoint confirms that a given reference used to be real.
+$recoveryflow_notfound = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/REST/Journeys_Controller.php', 'not_found' );
+
+ok( 'a missing journey gets one uniform answer', false !== strpos( $recoveryflow_notfound, '404' ) );
+check( 'and only one, so it cannot distinguish never-existed from erased', substr_count( $recoveryflow_notfound, 'WP_Error' ), 1 );
+
+// Screen preferences are per person, so the shape of a screen follows somebody
+// between machines rather than living in one browser.
+$plugin->rest_settings()->save_ui_state(
+	new WP_REST_Request(
+		array(
+			'panel' => 'credential',
+			'open'  => true,
+		)
+	)
+);
+check( 'an opened panel is remembered for that person', get_user_meta( 1, Settings_Controller::UI_META, true ), array( 'credential' => true ) );
+
+$plugin->rest_settings()->save_ui_state(
+	new WP_REST_Request(
+		array(
+			'panel' => 'credential',
+			'open'  => false,
+		)
+	)
+);
+check( 'and forgotten when they close it', get_user_meta( 1, Settings_Controller::UI_META, true ), array() );
+
+
+
+// ------------------------------------------------------ Admin: the screens.
+
+/*
+ * Every screen is registered, capability-gated, and renders. The last of those
+ * matters more than it sounds: an admin screen that fatals shows a white page
+ * with no clue what caused it, and nothing short of loading it finds out.
+ */
+$GLOBALS['recoveryflow_caps'] = null;
+
+$recoveryflow_menu = $plugin->admin_menu();
+$recoveryflow_menu->register();
+
+$recoveryflow_hooks = $recoveryflow_menu->hook_suffixes();
+
+ok( 'the menu registers a top-level screen and its submenus', count( $recoveryflow_hooks ) >= 6 );
+ok( 'and knows which screens are its own', $recoveryflow_menu->owns( $recoveryflow_hooks[0] ) );
+ok( 'and does not claim somebody else\'s', ! $recoveryflow_menu->owns( 'edit.php' ) );
+
+// A screen that forgot its capability is one anybody can open. Each is checked
+// against the capability it should need rather than against "not empty".
+check( 'the overview needs the status capability', Screen::capability( Screen::OVERVIEW ), Capabilities::VIEW_STATUS );
+check( 'the recoveries list needs the journeys capability', Screen::capability( Screen::JOURNEYS ), Capabilities::VIEW_JOURNEYS );
+check( 'one recovery needs the journeys capability', Screen::capability( Screen::JOURNEY ), Capabilities::VIEW_JOURNEYS );
+check( 'settings need the settings capability', Screen::capability( Screen::SETTINGS ), Capabilities::MANAGE_SETTINGS );
+check( 'integrations need the settings capability', Screen::capability( Screen::INTEGRATIONS ), Capabilities::MANAGE_SETTINGS );
+check( 'status needs the status capability', Screen::capability( Screen::STATUS ), Capabilities::VIEW_STATUS );
+
+// An unknown slug must fail closed. A screen somebody forgot to list should be
+// shut, not open to everyone.
+check( 'a screen nobody listed is closed rather than open', Screen::capability( 'recoveryflow-invented' ), Capabilities::MANAGE_SETTINGS );
+ok( 'and is not treated as one of ours', ! Screen::is_ours( 'recoveryflow-invented' ) );
+
+/**
+ * Render an admin screen and hand back the HTML.
+ *
+ * @param callable $render The screen's render method.
+ * @return string
+ */
+function recoveryflow_render_screen( callable $render ): string {
+	ob_start();
+	$render();
+
+	return (string) ob_get_clean();
+}
+
+$recoveryflow_screens = array(
+	'overview'     => array( $plugin->admin_overview(), 'render' ),
+	'recoveries'   => array( $plugin->admin_journeys(), 'render' ),
+	'recovery'     => array( $plugin->admin_journey(), 'render' ),
+	'integrations' => array( $plugin->admin_integrations(), 'render' ),
+	'status'       => array( $plugin->admin_status(), 'render' ),
+);
+
+foreach ( $recoveryflow_screens as $recoveryflow_name => $recoveryflow_render ) {
+	$recoveryflow_html = recoveryflow_render_screen( $recoveryflow_render );
+
+	ok( "the {$recoveryflow_name} screen renders", false !== strpos( $recoveryflow_html, '<div class="wrap' ) );
+	ok( "the {$recoveryflow_name} screen has exactly one top-level heading", 1 === substr_count( $recoveryflow_html, '<h1>' ) );
+}
+
+// Every screen must refuse somebody without its capability. wp_die is stubbed
+// to throw, so a screen that rendered anyway is a screen that failed to check.
+foreach ( $recoveryflow_screens as $recoveryflow_name => $recoveryflow_render ) {
+	$GLOBALS['recoveryflow_caps'] = array( 'read' );
+	$recoveryflow_refused         = false;
+
+	try {
+		recoveryflow_render_screen( $recoveryflow_render );
+	} catch ( RuntimeException $e ) {
+		$recoveryflow_refused = true;
+	}
+
+	ok( "the {$recoveryflow_name} screen refuses a user without the capability", $recoveryflow_refused );
+}
+
+$GLOBALS['recoveryflow_caps'] = null;
+
+// The status screen states each result in words in a column of its own, so a
+// screenshot pasted into a support thread keeps its meaning.
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_status(), 'render' ) );
+
+foreach ( $plugin->health()->checks() as $recoveryflow_check ) {
+	ok( "the status screen shows the {$recoveryflow_check['id']} check", false !== strpos( $recoveryflow_html, esc_html( (string) $recoveryflow_check['label'] ) ) );
+}
+
+ok( 'and says what each result means rather than only colouring it', false !== strpos( $recoveryflow_html, esc_html( _x( 'Working', 'the result of a system check', 'kdc-wacr-recoveryflow' ) ) ) );
+ok( 'and names every background pass in words, not stage keys', false !== strpos( $recoveryflow_html, esc_html__( 'Finding abandoned baskets', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'a failing check links to the setting that fixes it', false !== strpos( $recoveryflow_html, esc_html__( 'Go to this setting', 'kdc-wacr-recoveryflow' ) ) );
+
+// The overview shows what is wrong, not a wall of ticks somebody scrolls past.
+$recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_overview(), 'render' ) );
+
+ok( 'the overview leads with what needs attention', false !== strpos( $recoveryflow_html, esc_html__( 'Needs attention', 'kdc-wacr-recoveryflow' ) ) );
+
+// Counted rather than looked for. A list of ticks is something people learn to
+// scroll past, and the one line that matters is then buried in the middle of
+// it -- so the overview must show exactly the checks that did not pass, and no
+// others.
+$recoveryflow_failing = 0;
+$recoveryflow_passing = 0;
+
+foreach ( $plugin->health()->checks() as $recoveryflow_check ) {
+	if ( Health::OK === $recoveryflow_check['severity'] ) {
+		++$recoveryflow_passing;
+	} else {
+		++$recoveryflow_failing;
+	}
+}
+
+ok( 'this site has checks in both states, so the count means something', $recoveryflow_failing > 0 && $recoveryflow_passing > 0 );
+check( 'the overview lists exactly the checks that need attention', substr_count( $recoveryflow_html, 'recoveryflow-attention__item' ), $recoveryflow_failing * 2 );
+
+/*
+ * The one screen that can show a customer's real phone number. Contact details
+ * are shortened until somebody with the reveal capability asks -- both halves,
+ * so a screen left open on a counter is not a list of phone numbers.
+ */
+$recoveryflow_detail = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journey_Detail.php', 'may_reveal' );
+
+ok( 'the reveal rule can be read', strlen( $recoveryflow_detail ) > 50 );
+// Both halves in one condition, asserted as one condition: checking only that
+// the words appear somewhere in the method would pass on a version that
+// computed $asked and then ignored it.
+ok( 'revealing requires having asked AND holding the capability', false !== strpos( $recoveryflow_detail, '! $asked || ! current_user_can' ) );
+ok( 'and the capability it requires is the reveal one', false !== strpos( $recoveryflow_detail, 'REVEAL_PII' ) );
+ok( 'and is recorded when it happens', false !== strpos( $recoveryflow_detail, 'KIND_REVEAL' ) );
+
+$recoveryflow_contact = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journey_Detail.php', 'contact' );
+
+ok( 'a contact detail is masked when revealing was not earned', false !== strpos( $recoveryflow_contact, 'Mask::phone' ) );
+ok( 'and so is an email address', false !== strpos( $recoveryflow_contact, 'Mask::email' ) );
+
+// The list is masked with no way to unmask it at all: it is the screen that
+// sits open, and one row at a time is the point of the detail screen.
+$recoveryflow_list = (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys_Table.php' );
+
+ok( 'the recoveries list masks the customer', false !== strpos( $recoveryflow_list, 'Mask::name' ) );
+ok( 'and offers no way to unmask a whole list at once', false === strpos( $recoveryflow_list, 'REVEAL_PII' ) );
+
+// WP_List_Table lives in wp-admin/includes and is not loaded on every request.
+// A subclass of it fatals the moment its file is included unless something has
+// required it first.
+$recoveryflow_journeys_page = (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys.php' );
+
+ok( 'the list table class is loaded before the subclass is reached', false !== strpos( $recoveryflow_journeys_page, 'class-wp-list-table.php' ) );
+
+/*
+ * The assets. Enqueuing is exercised rather than inspected, because the whole
+ * failure mode here is a function that does not exist on the request the
+ * enqueue actually runs on.
+ */
+$GLOBALS['recoveryflow_styles']         = array();
+$GLOBALS['recoveryflow_inline_scripts'] = array();
+
+$plugin->admin_assets()->enqueue( $recoveryflow_hooks[0] );
+
+ok( 'the stylesheet loads on a RecoveryFlow screen', isset( $GLOBALS['recoveryflow_styles']['recoveryflow-admin'] ) );
+ok( 'and the script is handed its configuration', isset( $GLOBALS['recoveryflow_inline_scripts']['recoveryflow-admin'] ) );
+
+$recoveryflow_raw = $GLOBALS['recoveryflow_inline_scripts']['recoveryflow-admin'][0];
+
+// Decoded rather than string-matched: wp_json_encode escapes the slashes in a
+// URL, so looking for the path as written would fail on a config that was
+// perfectly correct.
+$recoveryflow_config = json_decode(
+	(string) substr( $recoveryflow_raw, (int) strpos( $recoveryflow_raw, '{' ), -1 ),
+	true
+);
+
+ok( 'the configuration is valid JSON', is_array( $recoveryflow_config ) );
+ok( 'including a REST nonce, or every panel it saves is refused', '' !== (string) ( $recoveryflow_config['nonce'] ?? '' ) );
+ok( 'and the address to save to', false !== strpos( (string) ( $recoveryflow_config['uiStateUrl'] ?? '' ), Routes::PREFIX . '/ui-state' ) );
+ok( 'and its wording, already translated, so none lives in the script', is_array( $recoveryflow_config['strings'] ?? null ) );
+ok( 'and nothing about any customer', false === stripos( $recoveryflow_raw, 'phone' ) && false === stripos( $recoveryflow_raw, '@' ) );
+
+// A plugin that enqueues on every admin page is a plugin that breaks somebody
+// else's screen.
+$GLOBALS['recoveryflow_styles'] = array();
+$plugin->admin_assets()->enqueue( 'edit.php' );
+
+check( 'and nothing loads on a screen that is not ours', $GLOBALS['recoveryflow_styles'], array() );
+
 
 echo "\n";
 echo "\n";

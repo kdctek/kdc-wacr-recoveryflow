@@ -257,8 +257,148 @@ function wp_remote_retrieve_header( $response, $header ) {
 function get_bloginfo( $what = '' ) {
 	return 'version' === $what ? '6.9' : 'Example Store';
 }
+/*
+ * Capability checks, controllable by a test.
+ *
+ * Null means "an administrator", which is what every existing assertion
+ * assumed. Setting the global to a list is how the REST matrix below can ask
+ * what a subscriber, a shop manager and a logged-out visitor each get.
+ */
 function current_user_can( $cap ) {
+	if ( ! isset( $GLOBALS['recoveryflow_caps'] ) || null === $GLOBALS['recoveryflow_caps'] ) {
+		return true;
+	}
+
+	return in_array( $cap, (array) $GLOBALS['recoveryflow_caps'], true );
+}
+function is_user_logged_in() {
+	return ! isset( $GLOBALS['recoveryflow_logged_out'] ) || ! $GLOBALS['recoveryflow_logged_out'];
+}
+function get_current_user_id() {
+	return is_user_logged_in() ? 1 : 0;
+}
+function get_user_meta( $user_id, $key, $single = false ) {
+	return $GLOBALS['recoveryflow_user_meta'][ $user_id ][ $key ] ?? ( $single ? '' : array() );
+}
+function update_user_meta( $user_id, $key, $value ) {
+	$GLOBALS['recoveryflow_user_meta'][ $user_id ][ $key ] = $value;
 	return true;
+}
+function human_time_diff( $from, $to = 0 ) {
+	return max( 0, (int) $to - (int) $from ) . ' seconds';
+}
+function rest_url( $path = '' ) {
+	return 'https://shop.example/wp-json/' . ltrim( $path, '/' );
+}
+
+/*
+ * REST registration, recorded rather than performed.
+ *
+ * The security matrix in the smoke run works by reading what the plugin
+ * actually registered -- paths, methods, permission callbacks and argument
+ * schemas -- and then calling those callbacks. Scanning the source for the
+ * word "permission_callback" would pass just as happily on a route that
+ * returned true.
+ */
+function register_rest_route( $namespace, $route, $args = array(), $override = false ) {
+	$GLOBALS['recoveryflow_routes'][] = array(
+		'namespace' => $namespace,
+		'route'     => $route,
+		'endpoints' => isset( $args[0] ) ? $args : array( $args ),
+	);
+	return true;
+}
+
+/**
+ * Enough of WP_List_Table to load and drive a subclass.
+ *
+ * The real one lives in wp-admin/includes and is not loaded on a front-end
+ * request, so a subclass of it fatals the moment the file is included unless
+ * something has required it first. That is a production trap as much as a test
+ * one -- the admin page requires it before the autoloader reaches the subclass
+ * -- and stubbing it here is what lets the suite load every source file.
+ */
+class WP_List_Table {
+	public $items = array();
+	protected $_column_headers = array();
+	protected $_args = array();
+	protected $_pagination_args = array();
+
+	public function __construct( $args = array() ) {
+		$this->_args = $args;
+	}
+	public function get_items_per_page( $option, $default = 20 ) {
+		return $default;
+	}
+	public function get_pagenum() {
+		return max( 1, (int) ( $_GET['paged'] ?? 1 ) );
+	}
+	public function set_pagination_args( $args ) {
+		$this->_pagination_args = $args;
+	}
+	public function get_pagination_arg( $key ) {
+		return $this->_pagination_args[ $key ] ?? 0;
+	}
+	public function get_columns() {
+		return array();
+	}
+	public function get_sortable_columns() {
+		return array();
+	}
+	public function display() {
+		echo '<table class="wp-list-table widefat fixed striped"><tbody></tbody></table>';
+	}
+	public function views() {
+		$views = $this->get_views();
+		echo '<ul class="subsubsub">';
+		foreach ( $views as $view ) {
+			echo '<li>' . $view . '</li>';
+		}
+		echo '</ul>';
+	}
+	protected function get_views() {
+		return array();
+	}
+	public function search_box( $text, $input_id ) {
+		echo '<p class="search-box"><label class="screen-reader-text" for="' . esc_attr( $input_id ) . '">' . esc_html( $text ) . '</label><input type="search" id="' . esc_attr( $input_id ) . '" name="s" /></p>';
+	}
+	public function no_items() {}
+	public function prepare_items() {}
+}
+
+/**
+ * Enough of WP_REST_Request to drive a controller.
+ */
+class WP_REST_Request {
+	private $params;
+
+	public function __construct( array $params = array() ) {
+		$this->params = $params;
+	}
+	public function get_param( $key ) {
+		return $this->params[ $key ] ?? null;
+	}
+	public function set_param( $key, $value ) {
+		$this->params[ $key ] = $value;
+	}
+}
+
+/**
+ * Enough of WP_REST_Response to inspect one.
+ */
+class WP_REST_Response {
+	public $data;
+	public $headers = array();
+
+	public function __construct( $data = null, $status = 200 ) {
+		$this->data = $data;
+	}
+	public function header( $name, $value ) {
+		$this->headers[ $name ] = $value;
+	}
+	public function get_data() {
+		return $this->data;
+	}
 }
 function is_multisite() {
 	return false;
@@ -275,6 +415,72 @@ function plugin_basename( $file ) {
 function load_plugin_textdomain( $domain, $deprecated, $path ) {
 	return true;
 }
+/*
+ * The admin. Enough of wp-admin to render the settings screen for real in the
+ * smoke run -- which is the point of stubbing it at all. A settings screen that
+ * is only ever eyeballed in a browser is one whose deeplinks, escaping and
+ * conditional fields are checked by nobody; rendering it here means an assertion
+ * can read the actual HTML the merchant would be served.
+ */
+function wp_create_nonce( $action = -1 ) {
+	return substr( md5( (string) $action ), 0, 10 );
+}
+function is_admin() {
+	return true;
+}
+function admin_url( $path = '' ) {
+	return 'https://shop.example/wp-admin/' . ltrim( $path, '/' );
+}
+function add_menu_page( $page_title, $menu_title, $capability, $slug, $callback = '', $icon = '', $position = null ) {
+	return 'toplevel_page_' . $slug;
+}
+function add_submenu_page( $parent, $page_title, $menu_title, $capability, $slug, $callback = '' ) {
+	return $parent . '_page_' . $slug;
+}
+function register_setting( $group, $option, $args = array() ) {
+	$GLOBALS['recoveryflow_registered_settings'][ $group ] = $args;
+}
+function settings_fields( $group ) {
+	echo '<input type="hidden" name="option_page" value="' . esc_attr( $group ) . '" />';
+}
+function settings_errors( $slug = '' ) {}
+function submit_button( $text = null, $type = 'primary', $name = 'submit' ) {
+	echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
+}
+function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
+	$GLOBALS['recoveryflow_styles'][ $handle ] = $src;
+}
+function wp_add_inline_script( $handle, $data, $position = 'after' ) {
+	$GLOBALS['recoveryflow_inline_scripts'][ $handle ][] = $data;
+}
+function wp_die( $message = '', $title = '', $args = array() ) {
+	throw new RuntimeException( is_string( $message ) ? $message : 'wp_die' );
+}
+function checked( $checked, $current = true, $echo = true ) {
+	$out = (string) $checked === (string) $current ? ' checked="checked"' : '';
+	if ( $echo ) {
+		echo $out;
+	}
+	return $out;
+}
+function selected( $selected, $current = true, $echo = true ) {
+	$out = (string) $selected === (string) $current ? ' selected="selected"' : '';
+	if ( $echo ) {
+		echo $out;
+	}
+	return $out;
+}
+function esc_textarea( $text ) {
+	return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+}
+function sanitize_html_class( $class, $fallback = '' ) {
+	$clean = preg_replace( '/[^A-Za-z0-9_-]/', '', (string) $class );
+	return '' === $clean ? $fallback : $clean;
+}
+function sanitize_textarea_field( $value ) {
+	return trim( wp_strip_all_tags( (string) $value ) );
+}
+
 function register_activation_hook( $file, $callback ) {}
 function register_deactivation_hook( $file, $callback ) {}
 function flush_rewrite_rules( $hard = true ) {}
@@ -291,9 +497,18 @@ class WP_Error {
 	private $code;
 	private $message;
 
-	public function __construct( $code = '', $message = '' ) {
+	private $data;
+
+	public function __construct( $code = '', $message = '', $data = array() ) {
 		$this->code    = $code;
 		$this->message = $message;
+		$this->data    = $data;
+	}
+	public function get_error_data() {
+		return $this->data;
+	}
+	public function get_status() {
+		return isset( $this->data['status'] ) ? (int) $this->data['status'] : 0;
 	}
 	public function get_error_code() {
 		return $this->code;
@@ -357,10 +572,29 @@ function get_userdata( $user_id ) {
 	return $GLOBALS['__users'][ $user_id ] ?? false;
 }
 
+// wpdb's result-format constants. Without them any repository method that asks
+// for rows as arrays fatals on an undefined constant rather than returning.
+define( 'ARRAY_A', 'ARRAY_A' );
+define( 'ARRAY_N', 'ARRAY_N' );
+define( 'OBJECT', 'OBJECT' );
+
+/**
+ * The bare wpdb type.
+ *
+ * Repositories declare `: \wpdb` on their database accessor, so a stand-in that
+ * is merely shaped like wpdb is rejected by PHP before a single query runs --
+ * which quietly put every repository method out of reach of the smoke suite.
+ * Declaring the type and extending it is what lets these tests exercise the
+ * real query-building code paths instead of stopping at the boundary.
+ */
+class wpdb {
+	public $prefix = 'wp_';
+}
+
 /**
  * Enough of wpdb to read charset, prefix and to record queries.
  */
-class Fake_Wpdb {
+class Fake_Wpdb extends wpdb {
 	public $prefix  = 'wp_';
 	public $queries = array();
 	public $insert_id = 0;
@@ -375,6 +609,9 @@ class Fake_Wpdb {
 		}
 		$query = str_replace( array( '%s', '%d', '%f' ), '%s', $query );
 		return vsprintf( $query, array_map( static fn( $a ) => is_numeric( $a ) ? $a : "'" . $a . "'", $args ) );
+	}
+	public function esc_like( $text ) {
+		return addcslashes( (string) $text, '_%\\' );
 	}
 	public function query( $sql ) {
 		$this->queries[] = $sql;

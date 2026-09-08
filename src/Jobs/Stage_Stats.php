@@ -240,7 +240,7 @@ final class Stage_Stats {
 	 *
 	 * @return array<string,mixed>
 	 */
-	private static function stored(): array {
+	public static function stored(): array {
 		$all = get_option( Options::STAGE_STATS, array() );
 
 		return is_array( $all ) ? $all : array();
