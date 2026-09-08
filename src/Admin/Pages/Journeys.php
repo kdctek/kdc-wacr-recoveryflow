@@ -106,10 +106,28 @@ final class Journeys {
 		$table->search_box( __( 'Search by reference', 'kdc-wacr-recoveryflow' ), 'recoveryflow-search' );
 		echo '</form>';
 
-		printf( '<form method="post" action="%s">', esc_url( admin_url( 'admin-post.php' ) ) );
-		printf( '<input type="hidden" name="action" value="%s" />', esc_attr( Journey_Actions::ACTION ) );
+		/*
+		 * The POST form only exists when there is something to post.
+		 *
+		 * An empty queue renders no tick-boxes and no bulk control, so wrapping
+		 * it anyway left a form containing one hidden field and no submit
+		 * button -- which is a real WCAG failure and not merely a validator's
+		 * complaint: a form somebody can tab into and cannot operate is a dead
+		 * end. Found by the accessibility run on the "search matching nothing"
+		 * screen, which is exactly why that screen is in the list.
+		 */
+		$recoveryflow_acting = $table->has_items() && $table->can_manage();
+
+		if ( $recoveryflow_acting ) {
+			printf( '<form method="post" action="%s">', esc_url( admin_url( 'admin-post.php' ) ) );
+			printf( '<input type="hidden" name="action" value="%s" />', esc_attr( Journey_Actions::ACTION ) );
+		}
+
 		$table->display();
-		echo '</form>';
+
+		if ( $recoveryflow_acting ) {
+			echo '</form>';
+		}
 
 		echo '</div>';
 	}

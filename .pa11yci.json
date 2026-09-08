@@ -151,16 +151,21 @@
 			"url": "{{INVALID_URL}}"
 		},
 		{
-			"comment": "Public: the add-to-cart capture field, on a real product page. The same fields the basket form renders, in the place they ride WooCommerce's own request.",
-			"url": "{{PRODUCT_URL}}"
+			"comment": "Public: the add-to-cart capture field, on a real product page. It WAITS for our own field rather than just loading the page: without that this entry would pass just as well with the capture point switched off, which is a screen reporting a clean check of markup it never saw.",
+			"url": "{{PRODUCT_URL}}",
+			"hideElements": ".wc-block-mini-cart__drawer, .wp-block-navigation, .wc-block-components-skeleton__element",
+			"actions": [
+				"wait for element #recoveryflow-atc-phone to be visible"
+			]
 		},
 		{
-			"comment": "Public: the basket page's save-this-basket form. The basket is filled by pressing the real add-to-cart button, because the form only renders on a basket with something in it -- writing a cart row would check a page no shopper reaches. The seeder sets WooCommerce's redirect-to-basket so the press lands here, and the wait is on our own form, which fails loudly if it never renders.",
-			"url": "{{PRODUCT_URL}}",
+			"comment": "Public: the basket page's save-this-basket form. The basket is filled by pressing the real add-to-cart button, because the form only renders on a basket with something in it. The query argument is what makes this a DIFFERENT key from the product entry above: pa11y-ci reports results keyed by url, so two entries sharing one address overwrite each other and the findings of the first vanish.",
+			"url": "{{PRODUCT_URL}}?rf=basket",
 			"actions": [
 				"click element form.cart button[type=submit]",
 				"wait for element .recoveryflow-capture to be visible"
-			]
+			],
+			"hideElements": ".wc-block-mini-cart__drawer, .wp-block-navigation, .wc-block-components-skeleton__element"
 		}
 	]
 }

@@ -39,9 +39,9 @@ composer install              # dev dependencies only: WPCS, PHPCompatibilityWP,
 npx @wordpress/env start      # WordPress + WooCommerce, plugin mapped from the repo root as kdc-wacr-recoveryflow
 composer lint                 # php -l + PHPCS (WordPress, WordPress-Extra, WordPress.Security, PHPCompatibilityWP 8.0-)
 composer analyse              # PHPStan level 5 with the WordPress extension
-composer test:unit            # PHPUnit + Brain\Monkey, no WordPress, sub-second
-composer test:integration     # WordPress core test suite inside wp-env, with WooCommerce
-npm run a11y                  # WCAG 2.2 AA over all 22 screens (the gate), then AAA as a report
+composer test:all             # PHPUnit: unit, security and failure. No WordPress, sub-second
+composer test:unit            # one suite. Goes through bin/phpunit.sh, which refuses an empty one
+npm run a11y                  # WCAG 2.2 AA over all 24 screens (the gate), then AAA as a report
 npm run a11y:keyboard         # walk every screen with the Tab key
 ```
 

@@ -1210,13 +1210,43 @@ ok(
 	false === strpos( $recoveryflow_atc_branch, 'admin_post' )
 );
 
-// The basket form renders on a block basket too. woocommerce_after_cart_table
-// belongs to the shortcode template and never fires on a block basket, which
-// would have made this setting silently do nothing on any recently built shop.
-$recoveryflow_reg_src = $recoveryflow_atc_src;
+/*
+ * THE BASKET FORM MUST NOT BE HOOKED ON THE SHORTCODE BASKET'S TEMPLATE.
+ *
+ * `woocommerce_after_cart_table` and `woocommerce_after_cart` both belong to
+ * the shortcode basket. WooCommerce's Cart BLOCK renders none of that template
+ * and fires neither -- so a form hooked there is switched on, saves, reports
+ * itself as on, and does nothing whatever on any shop built in the last few
+ * years. That is exactly what shipped here first, with a docblock claiming the
+ * second hook covered the block basket. The accessibility run pressed the
+ * button, found no form, and that is how it was caught.
+ *
+ * Asserted as a refusal rather than as a preference, because the wrong hook is
+ * the obvious one and the next person will reach for it.
+ */
+ok(
+	'the basket form is not hooked on the shortcode basket template',
+	false === strpos( $recoveryflow_atc_src, "'woocommerce_after_cart" )
+);
+ok(
+	'it renders through the page content, which is what both baskets have',
+	false !== strpos( $recoveryflow_atc_src, "'the_content'" )
+);
 
-ok( 'the basket form is hooked where a shortcode basket fires', false !== strpos( $recoveryflow_reg_src, "'woocommerce_after_cart_table'" ) );
-ok( 'and where a block basket fires as well', false !== strpos( $recoveryflow_reg_src, "'woocommerce_after_cart'" ) );
+$recoveryflow_append_src = kdc_wacr_recoveryflow_code_only(
+	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Integration/WooCommerce/Early_Capture.php', 'append_to_cart_page' )
+);
+
+ok( 'the content filter can be read', strlen( $recoveryflow_append_src ) > 50 );
+
+// A content filter runs on everything, so each guard is what stops the form
+// appearing in an excerpt, a widget or somebody else's page.
+foreach ( array( 'is_cart()', 'is_main_query()', 'in_the_loop()', 'is_empty()' ) as $recoveryflow_guard ) {
+	ok(
+		sprintf( 'the basket form checks %s before rendering', $recoveryflow_guard ),
+		false !== strpos( $recoveryflow_append_src, $recoveryflow_guard )
+	);
+}
 
 // Where the script is allowed to load. These conditions are the reason the
 // class exists: the checkout is the last page on a shop where it is acceptable
@@ -6319,10 +6349,16 @@ ok(
  * keeps meeting: something that describes a check, with nothing behind it. A
  * green tick is read as an answer, which makes either worse than no gate at all.
  *
- * The CI job is gone and the a11y command now refuses. What follows is what
- * stops either half drifting back, in BOTH directions -- the correction that
- * fixes one end of a pair and not the other is the same class of error as the
- * original.
+ * Both are now real. The a11y command refuses an empty URL list and checks
+ * twenty-four screens; the PHPUnit suites have tests in them and the CI job is
+ * back -- behind a wrapper that refuses an empty suite, because PHPUnit 9 exits
+ * 0 over one and cannot be told otherwise.
+ *
+ * What follows is what stops either half drifting back, in BOTH directions --
+ * the correction that fixes one end of a pair and not the other is the same
+ * class of error as the original, and this block has already had to be rewritten
+ * once for exactly that reason: an assertion that the workflow explained why
+ * there was no PHPUnit job outlived the absence it described.
  */
 
 $recoveryflow_root = dirname( __DIR__ );
@@ -6357,12 +6393,88 @@ ok(
 	( array() !== $recoveryflow_phpunit_tests ) === $recoveryflow_ci_runs_phpunit
 );
 
-// The comment left in its place has to still be the reason, or the next reader
-// finds an unexplained absence and puts the empty job back.
+/*
+ * The other end of the pair, and it had to change when the job came back.
+ *
+ * While there was no job, this asserted that the workflow SAID WHY -- so the
+ * next reader found a reason rather than an unexplained absence. That assertion
+ * is now about a thing that no longer exists, and leaving it would be the exact
+ * error this section is about: a check that passes while describing something
+ * else. What matters now is not why the job is absent but why it can be trusted
+ * present.
+ *
+ * PHPUnit 9 exits 0 over an empty suite and cannot be told not to: there is no
+ * failOnEmptyTestSuite in this version, and setting one is silently ignored
+ * (verified, not assumed -- it was tried first). PHPUnit 10 can, and needs PHP
+ * 8.1, while this plugin supports 8.0. So the refusal lives in a wrapper, and a
+ * job calling phpunit directly would be the original defect restored.
+ */
 ok(
-	'and the workflow says why there is no PHPUnit job, rather than just not having one',
-	false !== strpos( $recoveryflow_ci_src, 'No tests executed' )
+	'CI runs PHPUnit through the guard that refuses an empty suite',
+	1 === preg_match( '/^[ \t]*-?[ \t]*run:.*bin\/phpunit\.sh/mi', $recoveryflow_ci_src )
 );
+ok(
+	'and never calls phpunit directly, which is the command that reported success over nothing',
+	0 === preg_match( '/^[ \t]*-?[ \t]*run:[ \t]*(vendor\/bin\/)?phpunit\b/mi', $recoveryflow_ci_src )
+);
+
+$recoveryflow_phpunit_guard = (string) file_get_contents( $recoveryflow_root . '/bin/phpunit.sh' );
+
+ok( 'the guard exists and is readable', strlen( $recoveryflow_phpunit_guard ) > 200 );
+ok(
+	'the guard recognises PHPUnit own wording for an empty suite',
+	false !== strpos( $recoveryflow_phpunit_guard, 'No tests executed!' )
+);
+ok(
+	'and leaves non-zero when it finds one, rather than passing it on',
+	false !== strpos( $recoveryflow_phpunit_guard, 'status=1' )
+);
+
+/*
+ * The composer scripts go through it too. A developer running `composer
+ * test:unit` locally over an emptied suite must see the same refusal CI sees,
+ * or the two disagree about whether the suite is real.
+ */
+$recoveryflow_composer = json_decode( (string) file_get_contents( $recoveryflow_root . '/composer.json' ), true );
+$recoveryflow_scripts  = is_array( $recoveryflow_composer ) ? (array) ( $recoveryflow_composer['scripts'] ?? array() ) : array();
+
+foreach ( $recoveryflow_scripts as $recoveryflow_name => $recoveryflow_cmd ) {
+	if ( 0 !== strpos( (string) $recoveryflow_name, 'test' ) || '@' === substr( (string) $recoveryflow_cmd, 0, 1 ) ) {
+		continue;
+	}
+
+	ok(
+		sprintf( 'composer %s goes through the guard', $recoveryflow_name ),
+		false !== strpos( (string) $recoveryflow_cmd, 'bin/phpunit.sh' )
+	);
+}
+
+/*
+ * Every suite phpunit.xml.dist declares must have a test in it. This is what
+ * stops the empty-suite problem coming back by the other door: declaring a
+ * suite nobody has written yet, which reads as coverage in the config and in
+ * the docs while proving nothing.
+ */
+$recoveryflow_phpunit_config = simplexml_load_file( $recoveryflow_root . '/phpunit.xml.dist' );
+
+ok( 'the phpunit config parses', false !== $recoveryflow_phpunit_config );
+
+if ( false !== $recoveryflow_phpunit_config ) {
+	foreach ( $recoveryflow_phpunit_config->testsuites->testsuite as $recoveryflow_declared ) {
+		$recoveryflow_suite_name = (string) $recoveryflow_declared['name'];
+		$recoveryflow_has_test   = false;
+
+		foreach ( $recoveryflow_phpunit_tests as $recoveryflow_test_path ) {
+			if ( false !== strpos( $recoveryflow_test_path, '/tests/' . $recoveryflow_suite_name . '/' ) ) {
+				$recoveryflow_has_test = true;
+
+				break;
+			}
+		}
+
+		ok( sprintf( 'the declared %s suite has a test in it', $recoveryflow_suite_name ), $recoveryflow_has_test );
+	}
+}
 
 $recoveryflow_package = json_decode( (string) file_get_contents( $recoveryflow_root . '/package.json' ), true );
 

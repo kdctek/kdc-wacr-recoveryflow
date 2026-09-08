@@ -71,15 +71,36 @@ jobs:
       - name: Check the .pot is current
         run: bin/i18n.sh --check
 
-  # There is deliberately NO PHPUnit job here. tests/unit, tests/integration,
-  # tests/security and tests/failure are empty, and `phpunit --testsuite unit`
-  # reports "No tests executed!" and exits 0 -- so a job named "Unit tests" put
-  # a green tick claiming coverage on every run for five slices. A gate that
-  # checks nothing is worse than no gate: it is read as an answer.
+  # The PHPUnit job, back because there is now something for it to run.
   #
-  # Put the job back when the first PHPUnit test is written. tests/smoke.php
-  # asserts that the two stay in step, in both directions, so neither this
-  # comment nor the empty suites can quietly stop being true.
+  # It was removed once and the reason is worth keeping: `phpunit --testsuite
+  # unit` over an empty directory reports "No tests executed!" and exits 0, so a
+  # job with this name put a green tick claiming coverage on every run for five
+  # slices. A gate that checks nothing is worse than no gate, because it is read
+  # as an answer.
+  #
+  # What makes it safe to have back is bin/phpunit.sh, which REFUSES an empty
+  # suite rather than passing over one -- PHPUnit 9 cannot be told to do that
+  # itself, and PHPUnit 10, which can, needs PHP 8.1 while this plugin supports
+  # 8.0. Do not "simplify" this to a bare `phpunit` call; that is precisely the
+  # command that lied.
+  #
+  # tests/smoke.php asserts the pair in both directions: emptying the suites
+  # fails the build until this job goes, and removing this job fails it until
+  # the suites do.
+  tests:
+    name: PHPUnit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.0'
+          coverage: none
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+      - name: Unit, security and failure suites
+        run: bin/phpunit.sh
 
   accessibility:
     name: Accessibility

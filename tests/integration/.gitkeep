@@ -1,5 +1,0 @@
-Git does not track empty directories, and phpunit.xml.dist names this one
-as a test suite. Without this file a fresh clone has no tests/ suite
-directories, and `composer test:unit` exits 2 with "Test directory not
-found" rather than reporting an empty suite -- which fails CI on a tree
-that is otherwise green. Delete this file once the directory holds tests.

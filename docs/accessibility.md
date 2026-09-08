@@ -105,7 +105,7 @@ off within a week.
 
 ```sh
 npm run env:start      # a WordPress with the plugin and WooCommerce on it
-npm run a11y           # the gate: 22 screens at AA, then the AAA report
+npm run a11y           # the gate: 24 screens at AA, then the AAA report
 npm run a11y:keyboard  # the keyboard pass over the same screens
 npm run a11y:clear     # remove the demo data again
 ```
@@ -189,6 +189,43 @@ not resolve renders.
 defines, is not in that list. Every slice so far has added screens, and a suite
 that checks most of them is the same defect as one that checks none, only harder
 to notice.
+
+### The two shop pages, and what is excluded from them
+
+The product page and the basket page are the only screens in the run that are
+not this plugin's own, and they carry a lot of markup that is not ours. Three
+components are removed before the check rather than the rules being switched
+off, so every rule stays live everywhere else, including over our own fields:
+
+| Excluded | Whose it is |
+| --- | --- |
+| `.wc-block-mini-cart__drawer` | WooCommerce's Mini Cart block, in the theme header: `aria-hidden` over focusable children |
+| `.wp-block-navigation` | Twenty Twenty-Five's navigation block: a `<ul>` directly containing a `<ul>` |
+| `.wc-block-components-skeleton__element` | WooCommerce's Cart block loading placeholder: `aria-label` on a plain `<div>` |
+
+Each was verified to be still failing before being listed, and each is a
+component this plugin cannot change and must not claim to have fixed. **The
+findings on our own markup are not excluded and both pages are checked in full
+otherwise.**
+
+Two things about the run over these pages are worth keeping, because both were
+wrong first:
+
+- **Each entry waits for our own element.** The product page waits for
+  `#recoveryflow-atc-phone`, the basket page for `.recoveryflow-capture`.
+  Without that, both would pass exactly as well with the capture points switched
+  off, which is a clean report over markup the run never saw. Verified by
+  switching them off: both entries then fail.
+- **They have different addresses.** pa11y-ci reports results keyed by URL, so
+  two entries sharing one address overwrite each other and the first one's
+  findings simply vanish. The basket entry carries a query argument for that
+  reason alone.
+
+The seeder also takes the demo shop out of WooCommerce's "coming soon" mode and
+turns the admin bar off on the front end. Both are arranging the site rather
+than testing it: a shop nobody has launched is the wrong shop, and a customer
+never sees the admin toolbar. The keyboard walk found the second one, by
+reporting WordPress's own toolbar search box on our product page.
 
 ### The two rules that are ignored, and why
 

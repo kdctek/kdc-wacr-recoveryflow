@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T20:01:26+00:00\n"
+"POT-Creation-Date: 2026-09-08T20:36:53+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -2613,23 +2613,23 @@ msgstr ""
 msgid "Yes, %s may send me a WhatsApp message about my order if I do not finish checking out."
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:235
+#: src/Integration/WooCommerce/Early_Capture.php:276
 msgid "Save this basket"
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:236
+#: src/Integration/WooCommerce/Early_Capture.php:277
 msgid "Leave a way to reach you and we can send you a link back to this basket if you do not finish. You can stop the reminders at any time."
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:241
+#: src/Integration/WooCommerce/Early_Capture.php:282
 msgid "Save my basket"
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:369
+#: src/Integration/WooCommerce/Early_Capture.php:391
 msgid "Mobile number"
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:377
+#: src/Integration/WooCommerce/Early_Capture.php:399
 msgid "Email address"
 msgstr ""
 

@@ -359,6 +359,31 @@ final class RecoveryFlow_A11y_Command {
 		 * hangs rather than one that reports.
 		 */
 		update_option( 'woocommerce_cart_redirect_after_add', 'yes' );
+
+		/*
+		 * And take the shop out of "coming soon". WooCommerce launches a new
+		 * store behind a holding page, which renders a dismiss banner over
+		 * every front-end page for a logged-in admin -- and that banner has an
+		 * accessibility fault of WooCommerce's own. Checking a shop nobody has
+		 * launched is checking the wrong shop.
+		 */
+		update_option( 'woocommerce_coming_soon', 'no' );
+
+		/*
+		 * And take the admin bar off the front end.
+		 *
+		 * The run has to be signed in, because every admin screen is behind a
+		 * capability check -- but that means the shop pages are checked with
+		 * WordPress's admin bar bolted to the top of them, and a customer never
+		 * sees it. Checking it here reports core's own toolbar as a fault on
+		 * OUR basket page, which is both wrong and unfixable from this plugin.
+		 * Turning it off makes the public screens the pages a shopper actually
+		 * gets. The keyboard walk found this: it flagged the toolbar's search
+		 * box on the product page.
+		 */
+		foreach ( get_users( array( 'fields' => 'ID' ) ) as $user_id ) {
+			update_user_meta( (int) $user_id, 'show_admin_bar_front', 'false' );
+		}
 	}
 
 	/**

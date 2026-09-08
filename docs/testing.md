@@ -7,13 +7,22 @@ RecoveryFlow by WA.cr moves money-adjacent state (a merchant's messaging wallet,
 | Suite | Directory | Runner | Needs WordPress | Speed | State |
 | --- | --- | --- | --- | --- | --- |
 | Smoke | `tests/smoke.php` | Plain PHP against the fakes in `tests/wp-stubs.php` | No | Seconds | **Built. This is the suite.** |
-| Unit | `tests/unit/` | PHPUnit 9.6 + Yoast polyfills + Brain\Monkey | No | Sub-second | **Not built. Empty.** |
-| Integration | `tests/integration/` | WordPress core test suite inside wp-env, with WooCommerce | Yes | Minutes | **Not built. Empty.** |
-| Security | `tests/security/` | Runs inside the integration bootstrap | Yes | Minutes | **Not built. Empty.** |
-| Failure | `tests/failure/` | Runs inside the integration bootstrap, with a fake WA.cr transport | Yes | Minutes | **Not built. Empty.** |
-| Accessibility | `.pa11yci.json`, `tests/a11y/` | pa11y-ci at WCAG 2.2 AA over 22 screens, then AAA as a report; a Tab-key pass over the same screens | Yes | Minutes | **Built. 22 screens, run by CI.** |
+| Unit | `tests/unit/` | PHPUnit 9.6 + Yoast polyfills + Brain\Monkey | No | Sub-second | **Built. Run by CI.** |
+| Security | `tests/security/` | Same runner; no WordPress needed for what it asserts | No | Sub-second | **Built. Run by CI.** |
+| Failure | `tests/failure/` | Same runner; the refusal paths | No | Sub-second | **Built. Run by CI.** |
+| Accessibility | `.pa11yci.json`, `tests/a11y/` | pa11y-ci at WCAG 2.2 AA over 24 screens, then AAA as a report; a Tab-key pass over the same screens | Yes | Minutes | **Built. 24 screens, run by CI.** |
 
-Everything asserted about the PHP is in the smoke suite: `php tests/smoke.php`, run by CI on PHP 8.0 and 8.3. The four PHPUnit rows describe a strategy, not a state -- read the note under [What each suite covers](#what-each-suite-covers) before quoting any of them. The accessibility row is a state: `tests/a11y/` exists, `.pa11yci.json` lists 22 screens, and both run in CI.
+**There is no integration suite, and that is a decision rather than a gap.** An
+integration suite here would boot a real WordPress with WooCommerce and assert
+against it, which is exactly what `tests/smoke.php` already does, on two PHP
+versions, on every push. A second one built on the WordPress core test library
+would restate it at the cost of a much heavier CI setup. If that ever changes,
+add the suite to `phpunit.xml.dist` **and** write a test in it in the same
+commit: the smoke run fails on a declared suite with nothing in it.
+
+Most of what is asserted about the PHP is still in the smoke suite: `php tests/smoke.php`, run by CI on PHP 8.0 and 8.3. The three PHPUnit suites hold what is worth stating as a rule rather than as a wiring check -- pure decisions with no WordPress behind them, where a failure names the rule that broke.
+
+**Run them with `bin/phpunit.sh`, never `phpunit` directly.** PHPUnit 9 exits 0 over an empty suite and cannot be told not to; the attribute for it does not exist in this version and setting one is ignored without complaint, and the version that does have the option needs PHP 8.1 while this plugin supports 8.0. The wrapper refuses instead. `composer test:unit`, `test:security`, `test:failure` and `test:all` all go through it, and so does CI.
 
 Static checks run alongside: `composer lint` (`php -l` plus PHPCS with WordPress, WordPress-Extra, WordPress.Security and PHPCompatibilityWP for PHP 8.0 and above) and `composer analyse` (PHPStan level 5 with the WordPress extension).
 
@@ -63,11 +72,11 @@ Splitting a claim in two is only safe because the UPDATE re-checks the lease: tw
 composer install                # once
 composer lint                   # coding standards and PHP syntax
 composer analyse                # static analysis
-composer test:unit              # unit suite, no WordPress needed
+composer test:unit              # one suite, through the guard
 
 npx @wordpress/env start        # WordPress + WooCommerce in Docker; plugin mapped from the repo root
-composer test:integration       # integration, security and failure suites inside wp-env
-npm run a11y                    # WCAG 2.2 AA over all 22 screens, then AAA as a report
+composer test:all               # unit, security and failure. None of them need WordPress
+npm run a11y                    # WCAG 2.2 AA over all 24 screens, then AAA as a report
 npm run a11y:keyboard           # walk the same screens with the Tab key
 npx @wordpress/env stop
 ```
@@ -85,48 +94,64 @@ CI runs smoke on PHP 8.0 and 8.3, the static checks and the translation checks o
 
 ## What each suite covers
 
-> **The four PHPUnit suites are not built, and this section describes the
-> intention rather than the state.** `tests/unit/`, `tests/integration/`,
-> `tests/security/` and `tests/failure/` are all empty. `composer test:unit`
-> reports "No tests executed!" and passes.
+> **Three of the four PHPUnit suites are now built; the fourth was removed
+> rather than left declared.** `tests/unit/`, `tests/security/` and
+> `tests/failure/` hold real tests and run in CI. `tests/integration/` is gone,
+> because `tests/smoke.php` already is that suite.
 >
-> The accessibility suite is the exception and is now built: see
-> [Accessibility runs](#accessibility-runs).
+> The history is worth keeping, because it is the reason the plumbing looks the
+> way it does. CI once ran a job called **Unit tests** over four empty
+> directories: `phpunit --testsuite unit` reports "No tests executed!" and exits
+> 0, so every release since the first carried a green tick for coverage that did
+> not exist. The job was removed rather than left to be misread, and
+> `tests/smoke.php` asserts that CI runs PHPUnit **if and only if** a PHPUnit
+> test exists.
 >
-> CI used to run that as a job called **Unit tests**, so every run since the
-> first release carried a green tick for coverage that did not exist. The job
-> has been removed rather than left to be misread, and `tests/smoke.php` now
-> asserts that CI runs PHPUnit **if and only if** a PHPUnit test exists -- so
-> writing the first test fails the suite until the job is restored, and
-> restoring the job with the suites still empty fails it too. `npm run a11y`
-> was the same defect and has been fixed by building the run rather than by
-> removing it; it still refuses an empty URL list, so emptying the list fails
-> instead of passing.
+> That pairing is why the job could come back the moment tests were written --
+> and why it comes back behind `bin/phpunit.sh` rather than as a bare `phpunit`
+> call. The wrapper is the part that cannot lie: it treats "No tests executed!"
+> as a failure. A job calling `phpunit` directly would be the original defect
+> restored, and the smoke run now fails if one appears.
 >
-> Everything actually asserted today lives in `tests/smoke.php`, which boots the
-> real container against the fakes in `tests/wp-stubs.php`. That is a real suite
-> and it is where the numbers quoted elsewhere come from.
->
-> The gap is worth naming precisely, because it has already cost something. This
-> section has listed "the workflow `Engine` (sequencing, stop reasons, idempotent
-> advance)" since the first release, and until the email channel shipped **the
-> Engine had no test of any kind**. That is exactly how a workflow step could
-> name one channel and send on another for four slices with every gate green: a
-> document said it was covered, and nothing can check a promise. Treat the list
-> below as a to-do, and when a suite is written, delete the part of this note it
-> stops applying to.
+> **The list below is still a to-do in the parts that name things no test
+> touches yet**, and that distinction has already cost something: this section
+> listed "the workflow `Engine` (sequencing, stop reasons, idempotent advance)"
+> from the first release, and until the email channel shipped the Engine had no
+> test of any kind. That is exactly how a workflow step could name one channel
+> and send on another for four slices with every gate green -- a document said it
+> was covered, and nothing can check a promise. What is written and running is
+> named under each heading; everything else is intention.
 
 ### Unit
 
-Event normalisation (WooCommerce cart fixture to `Recovery_Event`); the eligibility rules and reason table; the identity-resolver matrix (user, phone, email fallback, external id, create, and the conflict cases); `Journey_State` allowed and forbidden transitions; `Token_Service` (alphabet and length, hash-only storage, expiry, per-journey revocation); the phone normaliser table; `Template_Renderer` (escaping, unknown variables, WhatsApp parameter rules); the workflow `Engine` (sequencing, stop reasons, idempotent advance); `WAcr\Client` with the fake transport (envelope decoding, error categories, 429 pause, timeout means unknown, no automatic retry on `POST`, exact HMAC signature bytes on a hook push); the Redactor; `Mask`; the `Rate_Limiter`.
+**Written and running:** the two link rules on `Attempt` (revocation closes a
+basket restore and leaves an unsubscribe open; expiry closes both);
+`Journey_State` asserted as properties rather than as a copy of the table (a
+terminal state that records a decision about a person never reopens, `FAILED`
+reopens only into `SCHEDULED`, and never straight to `MESSAGE_SENT`);
+`Token_Service` (alphabet, length, hash-only storage, prefixes do not match);
+`User_Agent::is_link_preview()` including the honest limit that a corporate
+scanner cannot be recognised; `Contact_Snapshot`'s cleaning and country rules.
+
+**Still intention:** event normalisation (WooCommerce cart fixture to `Recovery_Event`); the eligibility rules and reason table; the identity-resolver matrix (user, phone, email fallback, external id, create, and the conflict cases); `Journey_State` allowed and forbidden transitions; `Token_Service` (alphabet and length, hash-only storage, expiry, per-journey revocation); the phone normaliser table; `Template_Renderer` (escaping, unknown variables, WhatsApp parameter rules); the workflow `Engine` (sequencing, stop reasons, idempotent advance); `WAcr\Client` with the fake transport (envelope decoding, error categories, 429 pause, timeout means unknown, no automatic retry on `POST`, exact HMAC signature bytes on a hook push); the Redactor; `Mask`; the `Rate_Limiter`.
 
 ### Integration
 
-Schema install and upgrade; repositories; REST controllers through `WP_REST_Request`; the WooCommerce adapter end to end (guest cart becomes an event, checkout capture identifies the guest, the journey is created; a paid order marks it `RECOVERED`; a failed payment leaves it resumable; a cancelled order after a resume marks it `CANCELLED`; the recovery link rebuilds the cart and 302s to checkout); the processor tick end to end with the fake transport; the privacy exporter and eraser; uninstall; settings deeplink routing.
+**There is no integration suite.** Everything this heading used to list --
+schema install and upgrade, repositories, REST controllers through
+`WP_REST_Request`, the WooCommerce adapter end to end, the processor tick, the
+privacy exporter and eraser, uninstall, settings deeplink routing -- is asserted
+by `tests/smoke.php` against a real container, on two PHP versions, on every
+push. Declaring a second suite for it would restate the same ground and would
+have to be kept in step with it.
 
 ### Security matrix
 
-Mirrors the threat model in [`security.md`](security.md#threat-model):
+**Written and running:** `Privacy\Redactor`, in both directions -- every kind of
+secret it is supposed to remove does not survive, and the sentence around it
+does. A redactor that erased the message would be perfectly safe and useless.
+
+**Still intention:** the rest of this list, which mirrors the threat model in [`security.md`](security.md#threat-model):
 
 - REST matrix: every route × anonymous, subscriber, shop manager, administrator × with and without a nonce.
 - Capability install, filter and `map_meta_cap` fallback.
@@ -140,7 +165,16 @@ Mirrors the threat model in [`security.md`](security.md#threat-model):
 
 ### Failure simulations
 
-Each of these runs the real stages against the fake transport and asserts the ledger afterwards:
+**Written and running:** the email compliance gate, tested as refusals rather
+than as a happy path with a negation. Each blocker is asserted ALONE on settings
+that are otherwise complete -- testing them together would pass just as well
+against a gate that returned one reason for everything, and a merchant clearing
+that gate would be sent round in a circle. The thirty-day boundary is asserted
+at exactly thirty and at twenty-nine, because an off-by-one there is either a
+refusal nobody can explain or a promise the site cannot keep.
+
+**Still intention:** the transport simulations below, each of which would run the
+real stages against the fake transport and assert the ledger afterwards:
 
 | Simulation | Expected |
 | --- | --- |
@@ -157,7 +191,7 @@ Each of these runs the real stages against the fake transport and asserts the le
 
 ## Accessibility runs
 
-`npm run a11y` seeds the site, logs in, and runs pa11y-ci over 22 screens: Overview; the queue unfiltered, filtered and with a search matching nothing; one recovery; the workflows list; the editor loaded and empty; Integrations; all seven Settings tabs; a deeplinked field; System Status; the setup screen; and the three public pages, including the one after the unsubscribe button has been pressed.
+`npm run a11y` seeds the site, logs in, and runs pa11y-ci over 24 screens: Overview; the queue unfiltered, filtered and with a search matching nothing; one recovery; the workflows list; the editor loaded and empty; Integrations; all seven Settings tabs; a deeplinked field; System Status; the setup screen; and the five public pages -- the opt-out page, the page after the unsubscribe button has been pressed, a link that does not resolve, a product page carrying the add-to-cart capture field, and the basket page with the save-this-basket form on a basket the run filled by pressing the real add-to-cart button.
 
 **The gate is WCAG 2.2 AA and it fails the build.** The same command then runs the screens again at AAA and prints the findings without failing on them -- almost all of them are core WordPress's own colours on core's own components. `npm run a11y:keyboard` walks every screen with the Tab key.
 

@@ -159,8 +159,7 @@ final class Early_Capture {
 	 */
 	public function register(): void {
 		if ( self::wants_cart() ) {
-			add_action( 'woocommerce_after_cart_table', array( $this, 'render_cart_form' ) );
-			add_action( 'woocommerce_after_cart', array( $this, 'render_cart_form_for_block' ) );
+			add_filter( 'the_content', array( $this, 'append_to_cart_page' ) );
 			add_action( 'admin_post_' . self::ACTION, array( $this, 'handle_cart_post' ) );
 			add_action( 'admin_post_nopriv_' . self::ACTION, array( $this, 'handle_cart_post' ) );
 		}
@@ -218,18 +217,60 @@ final class Early_Capture {
 	}
 
 	/**
+	 * Put the form after the basket, on whichever kind of basket this shop has.
+	 *
+	 * THIS IS A CONTENT FILTER AND NOT A WOOCOMMERCE HOOK, and the reason is the
+	 * one thing worth knowing about this class.
+	 *
+	 * The obvious hooks -- `woocommerce_after_cart_table` and
+	 * `woocommerce_after_cart` -- belong to the SHORTCODE basket's template.
+	 * WooCommerce's Cart BLOCK renders none of that template and fires neither,
+	 * so a setting hooked there is switched on, saves, reports itself as on, and
+	 * does nothing at all on any shop built in the last few years. That was
+	 * written, reviewed and believed here before the accessibility run tried to
+	 * press the button and found no form.
+	 *
+	 * `the_content` runs on both, because both baskets are a page whose content
+	 * is rendered -- the shortcode expands inside it, the block renders as it.
+	 * The guards below are what keep that from meaning "everywhere": the main
+	 * query, in the loop, on the basket page, with something in the basket.
+	 *
+	 * @param string $content The page's content.
+	 * @return string
+	 */
+	public function append_to_cart_page( $content ) {
+		if ( ! is_string( $content ) ) {
+			return $content;
+		}
+
+		if ( ! function_exists( 'is_cart' ) || ! is_cart() || ! is_main_query() || ! in_the_loop() ) {
+			return $content;
+		}
+
+		// An empty basket has nothing to save, and offering to save it would be
+		// a form that cannot do anything.
+		$cart = function_exists( 'WC' ) ? WC()->cart : null;
+
+		if ( ! is_object( $cart ) || ! method_exists( $cart, 'is_empty' ) || $cart->is_empty() ) {
+			return $content;
+		}
+
+		return $content . $this->cart_form();
+	}
+
+	/**
 	 * The basket page's own small form.
 	 *
-	 * @return void
+	 * @return string
 	 */
-	public function render_cart_form(): void {
+	private function cart_form(): string {
 		$markup = $this->fields_markup( 'recoveryflow-cart' );
 
 		if ( '' === $markup ) {
-			return;
+			return '';
 		}
 
-		printf(
+		return sprintf(
 			'<form method="post" action="%1$s" class="recoveryflow-capture"><h2 class="recoveryflow-capture__title">%2$s</h2><p class="recoveryflow-capture__intro">%3$s</p>%4$s%5$s<input type="hidden" name="action" value="%6$s" /><input type="hidden" name="redirect_to" value="%7$s" /><p><button type="submit" class="button">%8$s</button></p></form>',
 			esc_url( admin_url( 'admin-post.php' ) ),
 			esc_html__( 'Save this basket', 'kdc-wacr-recoveryflow' ),
@@ -240,25 +281,6 @@ final class Early_Capture {
 			esc_url( $this->cart_url() ),
 			esc_html__( 'Save my basket', 'kdc-wacr-recoveryflow' )
 		);
-	}
-
-	/**
-	 * The same form, for a basket page built from the Cart block.
-	 *
-	 * `woocommerce_after_cart_table` is part of the shortcode basket's own
-	 * template and never fires on a block basket, which would have made this
-	 * setting silently do nothing on any shop built in the last few years.
-	 * `woocommerce_after_cart` fires on both, so the shortcode path is guarded
-	 * against rendering the form twice.
-	 *
-	 * @return void
-	 */
-	public function render_cart_form_for_block(): void {
-		if ( did_action( 'woocommerce_after_cart_table' ) > 0 ) {
-			return;
-		}
-
-		$this->render_cart_form();
 	}
 
 	/**

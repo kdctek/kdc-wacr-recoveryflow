@@ -437,6 +437,16 @@ class WP_List_Table {
 	public function get_sortable_columns() {
 		return array();
 	}
+	/*
+	 * HARNESS FAULT SIXTEEN. This was missing, so the first production code to
+	 * ask "are there any rows?" fataled -- and a fatal reads as a failing suite
+	 * rather than as a broken double, which is the same trap as the four before
+	 * it. The queue asks, because a form wrapping an empty table is a form with
+	 * no submit button in it, which is a real accessibility failure.
+	 */
+	public function has_items() {
+		return array() !== $this->items;
+	}
 	public function display() {
 		echo '<table class="wp-list-table widefat fixed striped"><tbody></tbody></table>';
 	}

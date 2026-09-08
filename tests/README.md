@@ -1,6 +1,6 @@
 # Tests
 
-Three harnesses, for three different jobs. **One of them is built.**
+Three harnesses, for three different jobs. **All three are built.**
 
 ## `php tests/smoke.php` — no dependencies, runs anywhere
 
@@ -16,28 +16,38 @@ It needs nothing but PHP, so it runs before `composer install` and on any host.
 failing assertion and confirm it is reported; a runner that silently passes
 everything looks exactly like a healthy one.
 
-## `composer test:*` — PHPUnit — **NOT BUILT. All four suites are empty.**
+## `composer test:*` — PHPUnit — run it through `bin/phpunit.sh`
 
-Every directory below holds a `.gitkeep` and nothing else, so `phpunit
---testsuite unit` reports "No tests executed!" and exits 0. **A passing
-`composer test:unit` is not a signal of anything.** CI no longer runs it: a job
-named "Unit tests" ticked green for five slices over a suite with no tests in
-it, which is worse than having no job, because a green tick is read as an
-answer.
+Three suites, all of which run without WordPress and in well under a second.
+They hold what is worth stating as a rule rather than as a wiring check: pure
+decisions, where a failure names the rule that broke instead of the plumbing
+that carried it.
 
-`tests/smoke.php` asserts that the two stay in step in **both** directions — the
-first PHPUnit test you write fails the smoke suite until the CI job is restored,
-and restoring the job over empty suites fails it too. So the table below is a
-plan, and the plan cannot silently become a claim.
+| Suite | What it holds | State |
+| --- | --- | --- |
+| `test:unit` | The two link rules on `Attempt`; `Journey_State` as properties rather than a copy of its table; `Token_Service`; link-preview detection and its honest limit; `Contact_Snapshot` cleaning | Built |
+| `test:security` | `Privacy\Redactor`, asserted in both directions — the secret does not survive and the sentence around it does | Built |
+| `test:failure` | The email compliance gate, each blocker alone, and the thirty-day boundary at exactly thirty and twenty-nine | Built |
 
-| Suite | What it should cover | Needs | State |
-| --- | --- | --- | --- |
-| `test:unit` | Pure classes with Brain Monkey | `composer install` | Empty |
-| `test:integration` | Repositories, REST routes, the WooCommerce adapter | WordPress test suite (`npm run env:start`) | Empty |
-| `test:security` | Authorisation, CSRF, injection, token guessing, replay | WordPress test suite | Empty |
-| `test:failure` | API unavailable, timeouts, rate limits, duplicate events | WordPress test suite | Empty |
+There is deliberately **no integration suite**. `tests/smoke.php` already boots
+the real classes and runs on two PHP versions on every push, which is what one
+here would be.
 
-## `npm run a11y` — **built: 22 screens, WCAG 2.2 AA**
+**Never run `phpunit` directly, and never put a bare `phpunit` call in CI.** It
+exits 0 over an empty suite and PHPUnit 9 cannot be told otherwise — the
+attribute does not exist in this version and setting one is ignored without
+complaint; the version that has it needs PHP 8.1 and this plugin supports 8.0.
+`bin/phpunit.sh` treats "No tests executed!" as a failure, and every
+`composer test:*` script goes through it.
+
+That guard exists because of what happened without it: a CI job named "Unit
+tests" ticked green for five slices over four empty directories, because a green
+tick is read as an answer. `tests/smoke.php` asserts the pair in **both**
+directions — emptying the suites fails the build until the job goes, removing
+the job fails it until the suites do, and declaring a suite in
+`phpunit.xml.dist` with nothing in it fails it too.
+
+## `npm run a11y` — **built: 24 screens, WCAG 2.2 AA**
 
 `pa11y-ci` over every admin screen, every settings tab and the three public
 pages. The gate is AA and fails the build; AAA runs afterwards and is printed
