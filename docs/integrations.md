@@ -89,12 +89,57 @@ Every source answers these in its class docblock and in this document. For WooCo
 | Question | WooCommerce |
 | --- | --- |
 | **1. What is recoverable?** | A cart with at least one line and a non-zero total, from the first item added until an order is placed or the cart is emptied. Classic and block-based carts and checkouts are the same event (`source_type` `cart` or `checkout`). Carts belonging to users with `manage_woocommerce`, zero-amount carts, JSON pings and test-mode orders are excluded |
-| **2. How is the customer identified?** | Logged-in customers: WordPress user id plus billing details from the customer object, read once per session. Guests: billing phone, email, first and last name and country captured server-side as the customer fills in the classic checkout, or from the Store API customer update on the block checkout. Captured server-side and stored server-side, with no public endpoint; on the classic checkout a small script nudges WooCommerce's own update_order_review round trip when the phone or email field loses focus, and sends nothing itself. The contact snapshot lives in the WooCommerce session and identity is resolved only when it changes |
+| **2. How is the customer identified?** | Logged-in customers: WordPress user id plus billing details from the customer object, read once per session. Guests: billing phone, email, first and last name and country captured server-side as the customer fills in the classic checkout, or from the Store API customer update on the block checkout. Captured server-side and stored server-side, with no public endpoint; on the classic checkout a small script nudges WooCommerce's own update_order_review round trip when the phone or email field loses focus, and sends nothing itself. The contact snapshot lives in the WooCommerce session, is written in one place (`Contact_Snapshot`, where a blank never overwrites something already known), and identity is resolved only when it changes. Two optional points ask earlier, both off by default: a form on the basket page and a field beside add-to-cart -- see below |
 | **3. When is it abandoned?** | After 30 minutes without a cart change (adapter default; the site setting overrides). Events older than seven days expire without a journey |
 | **4. How is completion detected?** | Order placed (classic, Store API or `woocommerce_new_order`) moves the journey to `PENDING_PAYMENT`. A paid status or `on-hold` (setting `recovered_statuses`) moves it to `RECOVERED`. A failed or cancelled payment resumes the journey once. Orders are matched by the journey uid and event uid stamped on the order at creation, then by session key, then by customer within 30 days |
 | **5. Where do we send the customer?** | `/recovery/{token}` restores the cart into the clicker's own session, merging with what is there, prefills guest billing details, and 302s to the checkout URL (the cart URL if nothing could be restored) |
 | **6. What value information exists?** | Currency, total, item count and a line-item snapshot (name, SKU, quantity, unit and line amounts, product and variation ids and attributes), plus applied coupon codes in metadata. Never addresses |
-| **7. What consent constraints apply?** | In `explicit_consent` mode an unchecked checkbox naming the site and WhatsApp is added after the phone field on the classic checkout and as an additional checkout field on the block checkout, and the wording version is recorded with the consent. Opt-outs from any channel are honoured in every mode |
+| **7. What consent constraints apply?** | In `explicit_consent` mode an unchecked checkbox naming the site and WhatsApp is added after the phone field on the classic checkout and as an additional checkout field on the block checkout, and the wording version is recorded with the consent. The same box, the same wording and the same recorded version appear at the two optional earlier points. Opt-outs from any channel are honoured in every mode |
+
+### Asking before the checkout
+
+The checkout is where contact details are normally learned, and that is the
+problem: most shoppers who abandon never reach it, so the plugin knows nothing
+about the majority of the baskets it records. Two optional points ask earlier.
+**Both are off by default**, because each one puts a field in front of somebody
+trying to get through a page -- a trade a merchant makes, not a plugin.
+
+They are not the same shape, and the difference is the interesting part.
+
+| | Basket page (`capture_at_cart`) | Add to basket (`capture_at_add_to_cart`) |
+| --- | --- | --- |
+| Rendered by | `woocommerce_after_cart_table`, plus `woocommerce_after_cart` so a **block** basket is covered too | `woocommerce_after_add_to_cart_button`, inside WooCommerce's own form |
+| How it reaches the server | Its own POST to `admin-post.php` | WooCommerce's own add-to-cart request |
+| Defences | Nonce, per-address rate limit (10 per 5 minutes), redirect back so a refresh cannot re-post, and a re-check that the setting is still on | WooCommerce's own; nothing of ours is opened |
+| JavaScript | None | None |
+
+The basket form is **the only place in this plugin that accepts a post from a
+member of the public**, which is why it carries all four. A nonce on a page
+anybody can load says where a post came from and nothing about how often, so the
+rate limit is not belt-and-braces: without it this is a free way to write to a
+shop's session store, once per request, forever. It writes nothing but the
+shopper's own contact snapshot and their own consent answer, into their own
+session -- no journey, no other customer -- and it answers identically whether or
+not the details were already known, so it cannot be asked whether an address is
+enrolled.
+
+Neither point records a consent refusal when nothing was filled in. An ignored
+field is not an answer, and treating it as one would suppress a shopper who
+never replied.
+
+### Making the phone number compulsory
+
+`checkout_phone_required` turns WooCommerce's optional billing phone into a
+required one, on the classic and block checkouts alike. **It filters
+`woocommerce_checkout_phone_field` and never writes it.** That option is
+WooCommerce's own setting, shared with the block checkout's own screen; writing
+it would mean a RecoveryFlow switch silently editing a WooCommerce screen, and
+-- the part that actually matters -- the requirement would survive this plugin
+being deactivated, leaving a shop with a rule nobody chose and no control that
+explains it. Filtering the read leaves the merchant's stored value untouched.
+
+Note that requiring it also un-hides a phone field set to `hidden`, because
+there is no way to require something nobody is shown. The setting says so.
 
 ## WooCommerce in detail
 

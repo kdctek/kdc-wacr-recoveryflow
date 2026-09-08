@@ -44,6 +44,9 @@ use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Tracker;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Capture;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Script;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Consent_Field;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Contact_Snapshot;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Early_Capture;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Phone_Requirement;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Order_Observer;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Session as Wc_Session;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Source as Woo_Source;
@@ -445,16 +448,20 @@ final class Plugin {
 		$registry = $this->sources();
 		$session  = $this->wc_session();
 		$logger   = $this->logger();
+		$contact  = new Contact_Snapshot( $session );
+		$consent  = new Consent_Field( $session, $logger );
 
 		$registry->add(
 			new Woo_Source(
 				$this->ingest(),
 				new Cart_Tracker( $this->ingest(), $session, $logger ),
-				new Checkout_Capture( $session, $logger ),
-				new Consent_Field( $session, $logger ),
+				new Checkout_Capture( $session, $contact, $logger ),
+				$consent,
 				new Order_Observer( $this->conversions(), $this->ingest(), $this->receipts(), $this->customers(), $session, $logger ),
 				new Cart_Restorer( $session, $this->customers(), $logger ),
-				new Checkout_Script()
+				new Checkout_Script(),
+				new Early_Capture( $session, $contact, $consent, $this->rate_limiter(), $logger ),
+				new Phone_Requirement()
 			)
 		);
 

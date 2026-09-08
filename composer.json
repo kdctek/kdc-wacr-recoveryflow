@@ -1,52 +1,52 @@
 {
-	"name": "kdctek/kdc-wacr-recoveryflow",
-	"description": "RecoveryFlow by WA.cr \u2014 a conversion recovery engine for WordPress. Composer is a development dependency only; the shipped plugin needs no vendor directory.",
-	"type": "wordpress-plugin",
-	"license": "GPL-2.0-or-later",
-	"require": {
-		"php": ">=8.0"
-	},
-	"require-dev": {
-		"brain/monkey": "^2.6",
-		"dealerdirect/phpcodesniffer-composer-installer": "^1.0",
-		"php-stubs/woocommerce-stubs": "^9.0 || ^10.0",
-		"php-stubs/wp-cli-stubs": "^2.12",
-		"phpcompatibility/phpcompatibility-wp": "^2.1",
-		"phpstan/phpstan": "^1.10",
-		"phpunit/phpunit": "^9.6",
-		"squizlabs/php_codesniffer": "^3.9",
-		"szepeviktor/phpstan-wordpress": "^1.3",
-		"wp-coding-standards/wpcs": "^3.1",
-		"yoast/phpunit-polyfills": "^2.0"
-	},
-	"autoload-dev": {
-		"psr-4": {
-			"WAcr\\RecoveryFlow\\Tests\\": "tests/"
-		}
-	},
-	"config": {
-		"allow-plugins": {
-			"dealerdirect/phpcodesniffer-composer-installer": true
-		},
-		"platform": {
-			"php": "8.0"
-		},
-		"sort-packages": true
-	},
-	"scripts": {
-		"lint": "phpcs",
-		"lint:fix": "phpcbf",
-		"i18n": "bin/i18n.sh",
-		"i18n:check": "bin/i18n.sh --check",
-		"i18n:audit": "php tests/i18n-audit.php",
-		"schema:audit": "php tests/schema-audit.php",
-		"dist:check": "php tests/dist-manifest.php",
-		"dist": "bin/build.sh",
-		"analyse": "phpstan analyse --memory-limit=2G",
-		"test": "@test:unit",
-		"test:unit": "phpunit --testsuite unit",
-		"test:integration": "phpunit --testsuite integration",
-		"test:security": "phpunit --testsuite security",
-		"test:all": "phpunit"
-	}
+    "name": "kdctek/kdc-wacr-recoveryflow",
+    "description": "RecoveryFlow by WA.cr \u2014 a conversion recovery engine for WordPress. Composer is a development dependency only; the shipped plugin needs no vendor directory.",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {
+        "brain/monkey": "^2.6",
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.0",
+        "php-stubs/woocommerce-stubs": "^9.0 || ^10.0",
+        "php-stubs/wp-cli-stubs": "^2.12",
+        "phpcompatibility/phpcompatibility-wp": "^2.1",
+        "phpstan/phpstan": "^1.10",
+        "phpunit/phpunit": "^9.6",
+        "squizlabs/php_codesniffer": "^3.9",
+        "szepeviktor/phpstan-wordpress": "^1.3",
+        "wp-coding-standards/wpcs": "^3.1",
+        "yoast/phpunit-polyfills": "^2.0"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "WAcr\\RecoveryFlow\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        },
+        "platform": {
+            "php": "8.0"
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "lint": "phpcs",
+        "lint:fix": "phpcbf",
+        "i18n": "bin/i18n.sh",
+        "i18n:check": "bin/i18n.sh --check",
+        "i18n:audit": "php tests/i18n-audit.php",
+        "schema:audit": "php tests/schema-audit.php",
+        "dist:check": "php tests/dist-manifest.php",
+        "dist": "bin/build.sh",
+        "analyse": "phpstan analyse --memory-limit=2G",
+        "test": "@test:unit",
+        "test:unit": "bin/phpunit.sh unit",
+        "test:security": "bin/phpunit.sh security",
+        "test:all": "bin/phpunit.sh",
+        "test:failure": "bin/phpunit.sh failure"
+    }
 }

@@ -437,6 +437,16 @@ class WP_List_Table {
 	public function get_sortable_columns() {
 		return array();
 	}
+	/*
+	 * HARNESS FAULT SIXTEEN. This was missing, so the first production code to
+	 * ask "are there any rows?" fataled -- and a fatal reads as a failing suite
+	 * rather than as a broken double, which is the same trap as the four before
+	 * it. The queue asks, because a form wrapping an empty table is a form with
+	 * no submit button in it, which is a real accessibility failure.
+	 */
+	public function has_items() {
+		return array() !== $this->items;
+	}
 	public function display() {
 		echo '<table class="wp-list-table widefat fixed striped"><tbody></tbody></table>';
 	}
@@ -956,3 +966,84 @@ class Fake_Wpdb extends wpdb {
 $GLOBALS['__single_events']  = array();
 $GLOBALS['__fake_insert_id'] = 0;
 $GLOBALS['wpdb']            = new Fake_Wpdb();
+
+/**
+ * A WooCommerce session that actually remembers things.
+ *
+ * HARNESS FAULT FIFTEEN, and the same shape as the four before it: there was no
+ * `WC()` at all, so `Session::is_ready()` answered false, every `get()` returned
+ * its fallback and every `set()` was a no-op that reported nothing. Anything
+ * built on the session therefore ran, passed, and stored nothing -- so the class
+ * deciding whether a shopper's phone number survives from the product page to
+ * the checkout had never once been exercised writing a value and reading it
+ * back.
+ *
+ * Deliberately minimal, and deliberately NOT a `WC_Session_Handler`: the real
+ * one on a Store API request is a different class with five methods, which is
+ * the trap `Session` exists to survive. Only `get()` and `set()` are defined,
+ * because those are the only two the plugin is allowed to call.
+ */
+class Fake_WC_Session {
+
+	/**
+	 * Stored values.
+	 *
+	 * @var array<string,mixed>
+	 */
+	public array $data = array();
+
+	/**
+	 * Read one value.
+	 *
+	 * @param string $key      Key.
+	 * @param mixed  $fallback Returned when absent.
+	 * @return mixed
+	 */
+	public function get( $key, $fallback = null ) {
+		return array_key_exists( $key, $this->data ) ? $this->data[ $key ] : $fallback;
+	}
+
+	/**
+	 * Write one value.
+	 *
+	 * @param string $key   Key.
+	 * @param mixed  $value Value.
+	 * @return void
+	 */
+	public function set( $key, $value ) {
+		$this->data[ $key ] = $value;
+	}
+}
+
+/**
+ * Just enough of WooCommerce for the session adapter to work against.
+ */
+class Fake_WC {
+
+	/**
+	 * The session.
+	 *
+	 * @var Fake_WC_Session
+	 */
+	public $session;
+
+	/**
+	 * Constructor.
+	 */
+	public function __construct() {
+		$this->session = new Fake_WC_Session();
+	}
+}
+
+$GLOBALS['__fake_wc'] = new Fake_WC();
+
+if ( ! function_exists( 'WC' ) ) {
+	/**
+	 * WooCommerce's own accessor.
+	 *
+	 * @return Fake_WC
+	 */
+	function WC() { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName.FunctionNameInvalid -- this is WooCommerce's own name for it.
+		return $GLOBALS['__fake_wc'];
+	}
+}

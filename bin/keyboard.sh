@@ -108,7 +108,28 @@ URLS="$(php -r '
 	$urls = array();
 
 	foreach ( (array) ( $config["urls"] ?? array() ) as $entry ) {
-		if ( array() !== (array) ( $entry["actions"] ?? array() ) ) {
+		/*
+		 * Entries that NAVIGATE are skipped, because the page the walk would
+		 * land on is not the one this url names -- the opt-out submit entry
+		 * presses a button and ends up somewhere else entirely.
+		 *
+		 * An entry that only WAITS is not one of those. It ends on the page it
+		 * names, and skipping it too silently dropped the product page out of
+		 * the keyboard pass the moment a wait was added to make the pa11y check
+		 * non-vacuous: one gate got stronger and another quietly got weaker,
+		 * with both still reporting green.
+		 */
+		$navigates = false;
+
+		foreach ( (array) ( $entry["actions"] ?? array() ) as $action ) {
+			if ( false !== stripos( (string) $action, "click element" ) || false !== stripos( (string) $action, "navigate to" ) ) {
+				$navigates = true;
+
+				break;
+			}
+		}
+
+		if ( $navigates ) {
 			continue;
 		}
 

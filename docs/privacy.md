@@ -92,6 +92,28 @@ So a click figure on the email channel is softer than one on WhatsApp, and that 
 - **A click sets no state.** Only reading a WhatsApp conversation back ever moves a journey to `ENGAGED`. A scanner cannot make a customer look like they replied.
 - **The opt-out refuses a `GET`.** A scanner that opens every link in a message cannot unsubscribe the person whose mail it was scanning. This mattered already for WhatsApp's preview fetcher; on email, where scanners are both more aggressive and less identifiable, it is the guarantee doing the real work.
 
+### Buying does not close the unsubscribe
+
+The unsubscribe link and the recovery link are one token, and the token is
+revoked the moment an order is placed -- so that a basket somebody has already
+bought cannot be rebuilt. For a while that rule was applied to both halves, and
+the effect was precisely backwards: the customer who returned and bought was the
+only customer who could not unsubscribe from the mail that brought them back.
+The link answered with the same page as a link that had never existed, and
+recorded nothing.
+
+`Attempt::opt_out_is_usable()` is the weaker of the two rules and exists only for
+this. Revocation closes the restore and leaves the unsubscribe open; a finished
+journey does the same. **Expiry still closes both**, which is what keeps
+`unsubscribe_window_too_short` an enforceable promise rather than a claim: the
+window the footer offers is the window the endpoint honours.
+
+Suppression itself needed no change, and the reason is worth stating, because it
+is why the fix is four lines rather than a redesign. An opt-out is recorded
+against the **customer's identities**, never against the recovery whose link was
+used -- so it is meaningful long after that recovery closed, and it is what stops
+the next one being created.
+
 ## Exporter, eraser, anonymiser, retention, uninstall
 
 **Exporter.** Registered on `wp_privacy_personal_data_exporters` in group `recoveryflow`. Given an email address it finds every customer reachable from that address and exports, for each: the recovery record, every contact detail held, the full consent history (channel, decision, when, from where, and the exact wording agreed to) and each unfinished order with the reminders sent about it. One customer per page, because a shared address really can find several people.

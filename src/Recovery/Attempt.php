@@ -291,4 +291,34 @@ final class Attempt {
 
 		return null === $this->token_expires_at || $this->token_expires_at > $now;
 	}
+
+	/**
+	 * Whether the unsubscribe link on this attempt can still be used.
+	 *
+	 * The same token, deliberately judged by a weaker rule, and the difference
+	 * is the whole point: **revocation does not close an unsubscribe.**
+	 *
+	 * Revoking a token is how a recovery link stops rebuilding a basket once
+	 * the person has already bought, which is right for a restore and wrong
+	 * for the unsubscribe printed at the foot of the same email. Tokens are
+	 * revoked on conversion, so applying that rule to both meant the customer
+	 * most likely to want out -- the one who bought -- was the one customer who
+	 * could not get out, while `Email_Compliance` went on holding every email
+	 * to a thirty-day unsubscribe it could no longer honour.
+	 *
+	 * Expiry still applies, and that is what keeps the promise measurable: the
+	 * compliance gate refuses to send at all unless the link outlives the mail
+	 * by thirty days, so the window this returns true for IS the window the
+	 * footer claims.
+	 *
+	 * @param string $now UTC datetime to compare against.
+	 * @return bool
+	 */
+	public function opt_out_is_usable( string $now ): bool {
+		if ( null === $this->token_hash ) {
+			return false;
+		}
+
+		return null === $this->token_expires_at || $this->token_expires_at > $now;
+	}
 }

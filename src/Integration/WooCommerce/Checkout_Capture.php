@@ -38,16 +38,18 @@ defined( 'ABSPATH' ) || exit;
 final class Checkout_Capture {
 
 	/**
-	 * Longest value worth keeping from a checkout field.
-	 */
-	private const MAX_LENGTH = 100;
-
-	/**
 	 * Guarded access to the WooCommerce session.
 	 *
 	 * @var Session
 	 */
 	private Session $session;
+
+	/**
+	 * Where a contact detail is written.
+	 *
+	 * @var Contact_Snapshot
+	 */
+	private Contact_Snapshot $contact;
 
 	/**
 	 * Logger.
@@ -59,11 +61,13 @@ final class Checkout_Capture {
 	/**
 	 * Constructor.
 	 *
-	 * @param Session $session Guarded session access.
-	 * @param Logger  $logger  Logger.
+	 * @param Session          $session Guarded session access.
+	 * @param Contact_Snapshot $contact Where a contact detail is written.
+	 * @param Logger           $logger  Logger.
 	 */
-	public function __construct( Session $session, Logger $logger ) {
+	public function __construct( Session $session, Contact_Snapshot $contact, Logger $logger ) {
 		$this->session = $session;
+		$this->contact = $contact;
 		$this->logger  = $logger;
 	}
 
@@ -124,12 +128,12 @@ final class Checkout_Capture {
 
 			$this->remember(
 				array(
-					'phone'            => substr( $billing['phone'], 0, self::MAX_LENGTH ),
-					'email'            => substr( $billing['email'], 0, self::MAX_LENGTH ),
-					'first_name'       => substr( $billing['first_name'], 0, self::MAX_LENGTH ),
-					'last_name'        => substr( $billing['last_name'], 0, self::MAX_LENGTH ),
-					'country'          => $this->country( $billing['country'] ),
-					'shipping_country' => $this->country( $billing['shipping_country'] ),
+					'phone'            => $billing['phone'],
+					'email'            => $billing['email'],
+					'first_name'       => $billing['first_name'],
+					'last_name'        => $billing['last_name'],
+					'country'          => $billing['country'],
+					'shipping_country' => $billing['shipping_country'],
 				)
 			);
 		} catch ( \Throwable $e ) {
@@ -189,38 +193,21 @@ final class Checkout_Capture {
 	/**
 	 * Merge what was seen into the session snapshot.
 	 *
-	 * Empty values never overwrite something already captured: WooCommerce
-	 * serialises fields that are hidden for the chosen country as empty
-	 * strings, and losing a phone number the shopper typed two updates ago
-	 * would lose the whole basket with it.
+	 * The rules -- a blank never overwrites something known, an unchanged value
+	 * is not a write, everything sanitised and capped -- moved to
+	 * Contact_Snapshot when the basket page became a second place a detail can
+	 * be typed. They were correct here while this was the only caller and would
+	 * have been copied on the next one.
 	 *
 	 * @param array<string,string> $fields Freshly read values.
 	 * @return void
 	 */
 	private function remember( array $fields ): void {
-		$stored = $this->session->get( Session::KEY_CONTACT, array() );
-		$stored = is_array( $stored ) ? $stored : array();
-
-		$changed = false;
-
-		foreach ( $fields as $key => $value ) {
-			if ( '' === $value || ( isset( $stored[ $key ] ) && (string) $stored[ $key ] === $value ) ) {
-				continue;
-			}
-
-			$stored[ $key ] = $value;
-			$changed        = true;
-		}
-
-		if ( ! $changed ) {
-			return;
-		}
-
-		$this->session->set( Session::KEY_CONTACT, $stored );
+		$this->contact->remember( $fields );
 	}
 
 	/**
-	 * Read one field out of the parsed form, sanitised and capped.
+	 * Read one field out of the parsed form.
 	 *
 	 * @param array<string,mixed> $parsed Parsed form values.
 	 * @param string              $key    Field name.
@@ -231,7 +218,7 @@ final class Checkout_Capture {
 			return '';
 		}
 
-		return substr( sanitize_text_field( (string) $parsed[ $key ] ), 0, self::MAX_LENGTH );
+		return Contact_Snapshot::clean( (string) $parsed[ $key ] );
 	}
 
 	/**
@@ -241,8 +228,6 @@ final class Checkout_Capture {
 	 * @return string
 	 */
 	private function country( string $value ): string {
-		$value = strtoupper( substr( $value, 0, 2 ) );
-
-		return 1 === preg_match( '/^[A-Z]{2}$/', $value ) ? $value : '';
+		return Contact_Snapshot::country( $value );
 	}
 }

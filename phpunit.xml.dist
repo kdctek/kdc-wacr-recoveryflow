@@ -1,4 +1,20 @@
 <?xml version="1.0"?>
+<!--
+	A suite with no tests in it must FAIL, not pass, and PHPUnit 9 cannot be told
+	to do that. There is no failOnEmptyTestSuite attribute and no
+	fail-on-empty-test-suite option in this version; setting one is silently
+	ignored, which is the same shape of non-gate this file exists to avoid.
+	PHPUnit 10 has the option and requires PHP 8.1, and this plugin supports 8.0.
+
+	So the refusal lives in bin/phpunit.sh, which is what `composer test:*` and CI
+	both run. Calling phpunit directly still works and still exits 0 over an empty
+	directory: that is the command the guard exists to wrap.
+
+	There is no "integration" suite, and its absence is deliberate rather than
+	pending. tests/smoke.php already runs against a real WordPress and WooCommerce
+	container on two PHP versions, which is what an integration suite here would
+	be; a second one built on the WordPress core test library would restate it.
+-->
 <phpunit
 	bootstrap="tests/bootstrap.php"
 	backupGlobals="false"
@@ -11,9 +27,6 @@
 	<testsuites>
 		<testsuite name="unit">
 			<directory suffix="Test.php">tests/unit</directory>
-		</testsuite>
-		<testsuite name="integration">
-			<directory suffix="Test.php">tests/integration</directory>
 		</testsuite>
 		<testsuite name="security">
 			<directory suffix="Test.php">tests/security</directory>

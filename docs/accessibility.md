@@ -51,7 +51,28 @@ The "Run now" button on the status screen is built. It is an ordinary form posti
 
 The queue's row action opens a recovery and changes nothing. The four things that DO change one -- stop it, try it again, stop its links working, never message this customer again -- are POST buttons on the recovery's own screen, each with a sentence saying what it will do before it is pressed, because three of them cannot be undone. They are not row actions on the list on purpose: a row action is an anchor, and an anchor that cancels somebody's recovery is fetched by anything that follows links -- a prefetcher, a crawler, the antivirus proxy that opens every URL in an incoming email. A nonce is no defence, because the link in the page carries a valid one. Somebody who may read the queue but not change it is told which permission is missing rather than finding the buttons silently absent.
 
-Not built yet: bulk actions on the queue.
+The queue also acts in bulk, and it is the same four things through the same
+handler. Each row carries a tick-box labelled with the recovery's own reference,
+so a screen reader announces "Select recovery rec-812-4f9c1a" rather than
+twenty-five identical "Select" boxes; the chooser is a labelled `<select>` and an
+ordinary submit button, with no script in the path. The tick-boxes appear only
+for somebody who may act -- reading the queue and changing it are separate
+permissions, and a read-only view should look read-only rather than offering
+controls that answer "you are not allowed to do that".
+
+Two structural notes, because both were traps rather than choices. The screen
+carries **two forms**: searching and filtering stay `GET`, so a filtered queue is
+still a linkable address and the run above can check one by URL, while acting is
+`POST` to `admin-post.php` for the same reason a row action is not a link that
+does something. And the bulk chooser is named `recoveryflow_action` rather than
+core's `action`, which on a form posting to `admin-post.php` already means "which
+handler" -- core's own naming would have posted a bulk verb into the slot that
+picks the handler, and the form would have failed closed and silently.
+
+Nothing about what may be done changes in bulk. Every ticked recovery goes
+through the single-recovery handler one at a time, so the rules are decided
+once; a refusal is reported by reference rather than counted, because "three were
+refused" is not something a shop worker can act on and three references are.
 
 The setup screen has one step rather than four on purpose. Every later thing a wizard would ask -- which channel, how messages are sent, consent, retention -- already has a control on the settings screen with its own deeplink, and a wizard whose remaining steps restate settings that exist elsewhere is a wizard people learn to click through without reading. Connecting a workspace is the only thing on it because it is the only thing RecoveryFlow cannot do for itself.
 
@@ -84,7 +105,7 @@ off within a week.
 
 ```sh
 npm run env:start      # a WordPress with the plugin and WooCommerce on it
-npm run a11y           # the gate: 22 screens at AA, then the AAA report
+npm run a11y           # the gate: 24 screens at AA, then the AAA report
 npm run a11y:keyboard  # the keyboard pass over the same screens
 npm run a11y:clear     # remove the demo data again
 ```
@@ -168,6 +189,43 @@ not resolve renders.
 defines, is not in that list. Every slice so far has added screens, and a suite
 that checks most of them is the same defect as one that checks none, only harder
 to notice.
+
+### The two shop pages, and what is excluded from them
+
+The product page and the basket page are the only screens in the run that are
+not this plugin's own, and they carry a lot of markup that is not ours. Three
+components are removed before the check rather than the rules being switched
+off, so every rule stays live everywhere else, including over our own fields:
+
+| Excluded | Whose it is |
+| --- | --- |
+| `.wc-block-mini-cart__drawer` | WooCommerce's Mini Cart block, in the theme header: `aria-hidden` over focusable children |
+| `.wp-block-navigation` | Twenty Twenty-Five's navigation block: a `<ul>` directly containing a `<ul>` |
+| `.wc-block-components-skeleton__element` | WooCommerce's Cart block loading placeholder: `aria-label` on a plain `<div>` |
+
+Each was verified to be still failing before being listed, and each is a
+component this plugin cannot change and must not claim to have fixed. **The
+findings on our own markup are not excluded and both pages are checked in full
+otherwise.**
+
+Two things about the run over these pages are worth keeping, because both were
+wrong first:
+
+- **Each entry waits for our own element.** The product page waits for
+  `#recoveryflow-atc-phone`, the basket page for `.recoveryflow-capture`.
+  Without that, both would pass exactly as well with the capture points switched
+  off, which is a clean report over markup the run never saw. Verified by
+  switching them off: both entries then fail.
+- **They have different addresses.** pa11y-ci reports results keyed by URL, so
+  two entries sharing one address overwrite each other and the first one's
+  findings simply vanish. The basket entry carries a query argument for that
+  reason alone.
+
+The seeder also takes the demo shop out of WooCommerce's "coming soon" mode and
+turns the admin bar off on the front end. Both are arranging the site rather
+than testing it: a shop nobody has launched is the wrong shop, and a customer
+never sees the admin toolbar. The keyboard walk found the second one, by
+reporting WordPress's own toolbar search box on our product page.
 
 ### The two rules that are ignored, and why
 

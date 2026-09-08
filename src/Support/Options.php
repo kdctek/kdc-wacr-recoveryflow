@@ -59,6 +59,24 @@ final class Options {
 			'channel_whatsapp_enabled' => true,
 			'channel_email_enabled'    => false,
 
+			/*
+			 * Where a contact detail may be collected.
+			 *
+			 * All three off, and the reason is the same for each: every one of
+			 * them puts a field in front of a shopper who is trying to get
+			 * through a page, and two of them can cost a sale outright -- a
+			 * required phone number turns "I would rather not" into "I cannot
+			 * buy here". A plugin does not get to make that trade on a
+			 * merchant's behalf by shipping it switched on.
+			 *
+			 * The checkout is not in this list because capture there is not
+			 * optional: it is where the details are typed anyway, and reading
+			 * what somebody has already entered costs them nothing.
+			 */
+			'capture_at_cart'          => false,
+			'capture_at_add_to_cart'   => false,
+			'checkout_phone_required'  => false,
+
 			// Recovery rules.
 			'inactivity_minutes'       => 30,
 			'max_age_days'             => 7,

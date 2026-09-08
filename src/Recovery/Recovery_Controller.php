@@ -38,6 +38,14 @@ defined( 'ABSPATH' ) || exit;
  * list of guesses -- and the person asking is, by construction, not the person
  * the link was sent to.
  *
+ * **But revoked and finished are not failures for the unsubscribe.** They are
+ * failures for `restore` only. Tokens are revoked and journeys go terminal when
+ * the customer converts, so judging both actions by one rule left the shopper
+ * who bought unable to unsubscribe from the mail that brought them back --
+ * while `Email_Compliance` refused to send at all without a thirty-day
+ * unsubscribe. Expiry still closes both, and that is what keeps the thirty days
+ * honest rather than merely asserted. See `Attempt::opt_out_is_usable()`.
+ *
  * **The lookup is by hash.** The plaintext token is never written anywhere: not
  * to the database, not to a log, not to an error message.
  *
@@ -245,7 +253,26 @@ final class Recovery_Controller {
 			return;
 		}
 
-		if ( ! $attempt->link_is_usable( $this->clock->now() ) ) {
+		$is_opt_out = 'opt-out' === $action;
+
+		/*
+		 * The two actions are judged by different rules from here down, and the
+		 * asymmetry is deliberate: a dead recovery link must still open a live
+		 * unsubscribe.
+		 *
+		 * Both of the refusals below are correct for `restore` -- a revoked
+		 * token must not rebuild a basket, and a journey that has finished has
+		 * nothing to restore. Applied to `opt-out` they broke the one link the
+		 * law requires to keep working. A token is revoked when the customer
+		 * converts, and the journey is terminal for the same reason, so the
+		 * person most likely to want out of the reminders was the only person
+		 * who could not get out of them.
+		 */
+		$usable = $is_opt_out
+			? $attempt->opt_out_is_usable( $this->clock->now() )
+			: $attempt->link_is_usable( $this->clock->now() );
+
+		if ( ! $usable ) {
 			$this->render_generic();
 
 			return;
@@ -253,13 +280,25 @@ final class Recovery_Controller {
 
 		$journey = $this->journeys->find( $attempt->journey_id );
 
-		if ( null === $journey || $journey->is_terminal() ) {
+		if ( null === $journey ) {
 			$this->render_generic();
 
 			return;
 		}
 
-		if ( 'opt-out' === $action ) {
+		/*
+		 * An opt-out on a finished journey is not a no-op. Suppression is
+		 * recorded against the CUSTOMER's identities rather than this journey
+		 * -- which is what makes it meaningful long after this recovery closed,
+		 * and what stops the NEXT one being created.
+		 */
+		if ( ! $is_opt_out && $journey->is_terminal() ) {
+			$this->render_generic();
+
+			return;
+		}
+
+		if ( $is_opt_out ) {
 			$this->opt_out( $journey, $token );
 
 			return;
