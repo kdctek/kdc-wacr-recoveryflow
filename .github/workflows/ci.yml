@@ -71,15 +71,12 @@ jobs:
       - name: Check the .pot is current
         run: bin/i18n.sh --check
 
-  unit:
-    name: Unit tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.0'
-          coverage: none
-      - uses: ramsey/composer-install@v3
-      - name: PHPUnit
-        run: composer test:unit
+  # There is deliberately NO PHPUnit job here. tests/unit, tests/integration,
+  # tests/security and tests/failure are empty, and `phpunit --testsuite unit`
+  # reports "No tests executed!" and exits 0 -- so a job named "Unit tests" put
+  # a green tick claiming coverage on every run for five slices. A gate that
+  # checks nothing is worse than no gate: it is read as an answer.
+  #
+  # Put the job back when the first PHPUnit test is written. tests/smoke.php
+  # asserts that the two stay in step, in both directions, so neither this
+  # comment nor the empty suites can quietly stop being true.
