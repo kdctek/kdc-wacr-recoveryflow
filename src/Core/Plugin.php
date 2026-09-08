@@ -35,6 +35,9 @@ use WAcr\RecoveryFlow\Jobs\Stages\Expire;
 use WAcr\RecoveryFlow\Jobs\Stages\Poll;
 use WAcr\RecoveryFlow\Jobs\Stages\Retention;
 use WAcr\RecoveryFlow\Jobs\Wp_Cron_Driver;
+use WAcr\RecoveryFlow\Privacy\Anonymizer;
+use WAcr\RecoveryFlow\Privacy\Eraser;
+use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Conversion_Tracker;
 use WAcr\RecoveryFlow\Recovery\Eligibility_Evaluator;
@@ -194,6 +197,27 @@ final class Plugin {
 			'scheduler'           => static fn (): Scheduler_Factory => new Scheduler_Factory( new Action_Scheduler_Driver(), new Wp_Cron_Driver() ),
 			'runner'              => static fn ( Plugin $c ): Stage_Runner => $c->build_stage_runner(),
 
+			// Privacy. The anonymiser is shared: WordPress's eraser and the
+			// daily retention clear-out must not drift into two ideas of what
+			// "erased" means.
+			'anonymizer'          => static fn ( Plugin $c ): Anonymizer => new Anonymizer(
+				$c->customers(),
+				$c->journeys(),
+				$c->events(),
+				$c->attempts(),
+				$c->consents(),
+				$c->logger()
+			),
+			'privacy_exporter'    => static fn ( Plugin $c ): Exporter => new Exporter(
+				$c->customers(),
+				$c->identities(),
+				$c->consents(),
+				$c->journeys(),
+				$c->events(),
+				$c->attempts()
+			),
+			'privacy_eraser'      => static fn ( Plugin $c ): Eraser => new Eraser( $c->customers(), $c->anonymizer() ),
+
 			// The admin. Built only when a request is actually in wp-admin --
 			// see boot() -- so a shop page never pays for a screen nobody is
 			// looking at.
@@ -290,7 +314,7 @@ final class Plugin {
 		$runner->add( new Dispatch( $this->journeys(), $this->engine(), $this->rate_budget(), $this->logger() ) );
 		$runner->add( new Poll( $this->journeys(), $this->attempts(), $this->customers(), $this->consent(), $this->wacr(), $this->clock(), $this->logger() ) );
 		$runner->add( new Expire( $this->journeys(), $this->events(), $this->attempts() ) );
-		$runner->add( new Retention( $this->events(), $this->attempts(), $this->receipts(), $this->clock() ) );
+		$runner->add( new Retention( $this->events(), $this->attempts(), $this->receipts(), $this->customers(), $this->anonymizer(), $this->clock() ) );
 
 		return $runner;
 	}
@@ -640,6 +664,33 @@ final class Plugin {
 	}
 
 	/**
+	 * The anonymizer service.
+	 *
+	 * @return Anonymizer
+	 */
+	public function anonymizer(): Anonymizer {
+		return $this->typed( 'anonymizer', Anonymizer::class );
+	}
+
+	/**
+	 * The privacy exporter service.
+	 *
+	 * @return Exporter
+	 */
+	public function privacy_exporter(): Exporter {
+		return $this->typed( 'privacy_exporter', Exporter::class );
+	}
+
+	/**
+	 * The privacy eraser service.
+	 *
+	 * @return Eraser
+	 */
+	public function privacy_eraser(): Eraser {
+		return $this->typed( 'privacy_eraser', Eraser::class );
+	}
+
+	/**
 	 * The admin menu service.
 	 *
 	 * @return Admin_Menu
@@ -713,6 +764,12 @@ final class Plugin {
 			$this->admin_menu()->hooks();
 			$this->admin_assets()->hooks();
 		}
+
+		// The privacy tools. Registered on every request, not only in wp-admin:
+		// a privacy request is fulfilled by a background job, and an exporter
+		// that only existed on an admin screen would silently export nothing.
+		$this->privacy_exporter()->hooks();
+		$this->privacy_eraser()->hooks();
 
 		// The public recovery endpoint, the stage hooks and the scheduler.
 		$this->recovery_controller()->hooks();

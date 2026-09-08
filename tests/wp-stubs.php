@@ -420,10 +420,29 @@ function get_userdata( $user_id ) {
 	return $GLOBALS['__users'][ $user_id ] ?? false;
 }
 
+// wpdb's result-format constants. Without them any repository method that asks
+// for rows as arrays fatals on an undefined constant rather than returning.
+define( 'ARRAY_A', 'ARRAY_A' );
+define( 'ARRAY_N', 'ARRAY_N' );
+define( 'OBJECT', 'OBJECT' );
+
+/**
+ * The bare wpdb type.
+ *
+ * Repositories declare `: \wpdb` on their database accessor, so a stand-in that
+ * is merely shaped like wpdb is rejected by PHP before a single query runs --
+ * which quietly put every repository method out of reach of the smoke suite.
+ * Declaring the type and extending it is what lets these tests exercise the
+ * real query-building code paths instead of stopping at the boundary.
+ */
+class wpdb {
+	public $prefix = 'wp_';
+}
+
 /**
  * Enough of wpdb to read charset, prefix and to record queries.
  */
-class Fake_Wpdb {
+class Fake_Wpdb extends wpdb {
 	public $prefix  = 'wp_';
 	public $queries = array();
 	public $insert_id = 0;

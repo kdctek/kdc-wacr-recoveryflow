@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T03:53:37+00:00\n"
+"POT-Creation-Date: 2026-09-08T04:01:48+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -829,6 +829,153 @@ msgstr ""
 
 #: src/Jobs/Wp_Cron_Driver.php:78
 msgid "Every five minutes (RecoveryFlow)"
+msgstr ""
+
+#: src/Privacy/Anonymizer.php:191
+msgid "Your contact details, name and basket contents have been removed, and any recovery links sent to you no longer work. A one-way code made from your phone number and email address is kept, and cannot be turned back into either: it is how this site continues to recognise that you asked not to be messaged. The value and date of past orders are kept as part of the shop's own accounts."
+msgstr ""
+
+#: src/Privacy/Eraser.php:80
+#: src/Privacy/Exporter.php:139
+msgid "Cart and checkout recovery"
+msgstr ""
+
+#: src/Privacy/Exporter.php:189
+msgid "First name"
+msgstr ""
+
+#: src/Privacy/Exporter.php:190
+msgid "Last name"
+msgstr ""
+
+#: src/Privacy/Exporter.php:191
+msgid "Country"
+msgstr ""
+
+#: src/Privacy/Exporter.php:192
+msgid "First seen"
+msgstr ""
+
+#: src/Privacy/Exporter.php:196
+msgid "Anonymised on"
+msgstr ""
+
+#: src/Privacy/Exporter.php:201
+msgid "Recovery record"
+msgstr ""
+
+#: src/Privacy/Exporter.php:202
+msgid "What this shop recorded in order to remind you about an unfinished order."
+msgstr ""
+
+#: src/Privacy/Exporter.php:224
+msgid "Removed"
+msgstr ""
+
+#: src/Privacy/Exporter.php:229
+msgid "Contact detail"
+msgstr ""
+
+#: src/Privacy/Exporter.php:230
+msgid "A way this shop was able to reach you about an unfinished order."
+msgstr ""
+
+#: src/Privacy/Exporter.php:232
+msgid "Type"
+msgstr ""
+
+#: src/Privacy/Exporter.php:233
+msgid "Value"
+msgstr ""
+
+#: src/Privacy/Exporter.php:234
+msgid "Recorded"
+msgstr ""
+
+#: src/Privacy/Exporter.php:262
+msgid "Messaging permission"
+msgstr ""
+
+#: src/Privacy/Exporter.php:263
+msgid "A record of whether you agreed to be reminded about unfinished orders, and on which channel."
+msgstr ""
+
+#: src/Privacy/Exporter.php:265
+msgid "Channel"
+msgstr ""
+
+#: src/Privacy/Exporter.php:266
+msgid "Decision"
+msgstr ""
+
+#: src/Privacy/Exporter.php:267
+msgid "Recorded at"
+msgstr ""
+
+#: src/Privacy/Exporter.php:268
+msgid "Recorded from"
+msgstr ""
+
+#: src/Privacy/Exporter.php:269
+msgid "Wording agreed to"
+msgstr ""
+
+#: src/Privacy/Exporter.php:291
+msgid "Started"
+msgstr ""
+
+#: src/Privacy/Exporter.php:292
+msgid "Outcome"
+msgstr ""
+
+#: src/Privacy/Exporter.php:293
+msgid "Reminders sent"
+msgstr ""
+
+#: src/Privacy/Exporter.php:297
+msgid "Basket value"
+msgstr ""
+
+#: src/Privacy/Exporter.php:298
+msgid "Items"
+msgstr ""
+
+#: src/Privacy/Exporter.php:303
+msgid "Reminder"
+msgstr ""
+
+#. translators: 1: the channel a reminder was sent on. 2: what happened to it. 3: when it was sent.
+#: src/Privacy/Exporter.php:306
+#, php-format
+msgid "%1$s, %2$s, %3$s"
+msgstr ""
+
+#: src/Privacy/Exporter.php:316
+msgid "Unfinished order"
+msgstr ""
+
+#: src/Privacy/Exporter.php:317
+msgid "An order you started and did not complete, and the reminders this shop sent about it."
+msgstr ""
+
+#: src/Privacy/Exporter.php:338
+msgid "You agreed to be reminded"
+msgstr ""
+
+#: src/Privacy/Exporter.php:341
+msgid "You were asked and did not agree"
+msgstr ""
+
+#: src/Privacy/Exporter.php:344
+msgid "You withdrew your agreement"
+msgstr ""
+
+#: src/Privacy/Exporter.php:347
+msgid "You asked to stop receiving reminders"
+msgstr ""
+
+#: src/Privacy/Exporter.php:350
+msgid "No decision recorded"
 msgstr ""
 
 #: src/Recovery/Channel.php:90

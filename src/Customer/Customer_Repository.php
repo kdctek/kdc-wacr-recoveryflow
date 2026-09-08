@@ -10,6 +10,7 @@ namespace WAcr\RecoveryFlow\Customer;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Database\Repository;
 use WAcr\RecoveryFlow\Database\Table_Names;
+use WAcr\RecoveryFlow\Recovery\Journey_State;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -208,6 +209,56 @@ final class Customer_Repository extends Repository {
 			),
 			array( 'id' => $id )
 		);
+	}
+
+	/**
+	 * Customers whose recovery work is long finished and who still carry a name.
+	 *
+	 * The retention clear-out uses this. Two conditions have to hold together
+	 * and the second is the one that is easy to leave out: every journey the
+	 * customer has must be finished, AND the most recent of them must be older
+	 * than the retention period. Testing only the second would anonymise
+	 * somebody in the middle of being messaged, because a customer who came
+	 * back after six months has an old journey and a live one.
+	 *
+	 * A customer with no journeys at all is not returned. They are reached by
+	 * the unidentified-event pass instead, which deletes the whole row rather
+	 * than blanking half of it.
+	 *
+	 * Paged by primary key. An offset walk over a table being written to skips
+	 * rows, which on a clear-out means data quietly outliving its retention
+	 * period for ever.
+	 *
+	 * @param string $before UTC datetime; the newest journey must predate this.
+	 * @param int    $after  Customer id to continue after.
+	 * @param int    $limit  Maximum rows.
+	 * @return int[] Customer ids.
+	 */
+	public function due_for_anonymization( string $before, int $after, int $limit = 500 ): array {
+		$table    = $this->table();
+		$journeys = Table_Names::get( Table_Names::JOURNEYS );
+		$statuses = Journey_State::terminal();
+		$slots    = $this->placeholders( $statuses );
+
+		$sql = "SELECT c.id
+			FROM `{$table}` AS c
+			INNER JOIN `{$journeys}` AS j ON j.customer_id = c.id
+			WHERE c.anonymized_at IS NULL
+				AND c.id > %d
+			GROUP BY c.id
+			HAVING SUM( CASE WHEN j.status NOT IN ({$slots}) THEN 1 ELSE 0 END ) = 0
+				AND MAX( j.updated_at ) < %s
+			ORDER BY c.id ASC
+			LIMIT %d";
+
+		$args = array_merge( array( $after ), $statuses, array( $before, max( 1, $limit ) ) );
+
+		$rows = $this->many(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table names from class constants, the placeholder list is generated from a count, and every value is bound.
+			$this->db()->prepare( $sql, $args )
+		);
+
+		return array_map( static fn ( array $row ): int => (int) $row['id'], $rows );
 	}
 
 	/**

@@ -33,6 +33,9 @@ use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Customer\Phone_Normalizer;
+use WAcr\RecoveryFlow\Privacy\Anonymizer;
+use WAcr\RecoveryFlow\Privacy\Eraser;
+use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\Privacy\Redactor;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
@@ -1473,6 +1476,81 @@ foreach ( array( 'assets/js/admin.js', 'assets/css/admin.css' ) as $recoveryflow
 }
 
 ok( 'assets/ is still shipped', false === strpos( $recoveryflow_distignore, "\nassets" ) );
+
+
+
+// ------------------------------------------------------- Privacy: the tools.
+
+/*
+ * WordPress's own privacy screens are the route a site owner actually uses, so
+ * RecoveryFlow has to be on them. An exporter nobody registered exports
+ * nothing, and does it silently.
+ */
+$recoveryflow_exporters = $plugin->privacy_exporter()->register( array() );
+$recoveryflow_erasers   = $plugin->privacy_eraser()->register( array() );
+
+ok( 'the exporter registers itself with WordPress', isset( $recoveryflow_exporters[ Exporter::GROUP ] ) );
+ok( 'and is callable', is_callable( $recoveryflow_exporters[ Exporter::GROUP ]['callback'] ?? null ) );
+ok( 'the eraser registers itself with WordPress', isset( $recoveryflow_erasers[ Eraser::GROUP ] ) );
+ok( 'and is callable', is_callable( $recoveryflow_erasers[ Eraser::GROUP ]['callback'] ?? null ) );
+ok( 'both are named in words a site owner would recognise', '' !== (string) $recoveryflow_exporters[ Exporter::GROUP ]['exporter_friendly_name'] );
+
+// An address this shop has never seen must finish rather than page for ever.
+$recoveryflow_export = $plugin->privacy_exporter()->export( 'nobody@example.test' );
+
+check( 'an unknown address exports nothing', $recoveryflow_export['data'], array() );
+check( 'and says it has finished, rather than paging for ever', $recoveryflow_export['done'], true );
+
+$recoveryflow_erase = $plugin->privacy_eraser()->erase( 'nobody@example.test' );
+
+check( 'an unknown address erases nothing', $recoveryflow_erase['items_removed'], false );
+check( 'and reports nothing retained, because there was nothing', $recoveryflow_erase['items_retained'], false );
+check( 'and finishes', $recoveryflow_erase['done'], true );
+
+check( 'anonymising customer zero is refused rather than fatal', $plugin->anonymizer()->anonymize_customer( 0 ), false );
+
+/*
+ * The one thing an erasure must NOT do. Suppression is keyed by the hash of an
+ * identity, so deleting the hash deletes the record that this person asked not
+ * to be messaged -- and the next time they type the same number into a checkout
+ * the shop treats them as somebody new and messages them again. Erasing an
+ * opt-out is not a privacy improvement; it is the failure the opt-out exists to
+ * prevent.
+ */
+$recoveryflow_anon = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Privacy/Anonymizer.php', 'anonymize_customer' );
+
+ok( 'the erasure can be read', strlen( $recoveryflow_anon ) > 100 );
+ok( 'an erasure detaches the consent ledger from the person', false !== strpos( $recoveryflow_anon, 'detach_customer' ) );
+ok( 'and never deletes it, or the opt-out dies with the customer', false === strpos( $recoveryflow_anon, 'delete' ) );
+ok( 'an erasure revokes the recovery links already sent', false !== strpos( $recoveryflow_anon, 'revoke_tokens' ) );
+ok( 'and strips what the basket contained', false !== strpos( $recoveryflow_anon, 'strip_items' ) );
+
+$recoveryflow_identity_anon = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Customer/Identity_Repository.php', 'anonymize' );
+
+ok( 'the readable contact detail is blanked', false !== strpos( $recoveryflow_identity_anon, "'value_raw'" ) );
+ok( 'and the hash it is recognised by is NOT', false === strpos( $recoveryflow_identity_anon, "'value_hash'" ) );
+
+// The person is told what was kept and why. "We kept a hash" without the reason
+// reads as a shop hedging.
+$recoveryflow_notice = Anonymizer::retained_notice();
+
+ok( 'the erasure explains what it kept', false !== stripos( $recoveryflow_notice, 'one-way' ) );
+ok( 'and why keeping it is in their interest', false !== stripos( $recoveryflow_notice, 'asked not to be messaged' ) );
+
+/*
+ * Retention has to reach the person, not only the basket. Stripping what
+ * somebody was buying while keeping their name and phone number would be the
+ * wrong half of the job.
+ */
+$recoveryflow_retention = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Jobs/Stages/Retention.php', 'run' );
+
+ok( 'the daily clear-out anonymises people whose journeys are long finished', false !== strpos( $recoveryflow_retention, 'anonymize_finished_customers' ) );
+
+$recoveryflow_due = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Customer/Customer_Repository.php', 'due_for_anonymization' );
+
+ok( 'and only reaches customers with no journey still running', false !== strpos( $recoveryflow_due, 'NOT IN' ) );
+ok( 'walking by primary key, so a clear-out cannot skip rows', false !== strpos( $recoveryflow_due, 'c.id > %d' ) );
+ok( 'and never re-anonymising somebody already done', false !== strpos( $recoveryflow_due, 'anonymized_at IS NULL' ) );
 
 
 echo "\n";

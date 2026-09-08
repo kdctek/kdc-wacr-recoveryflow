@@ -377,6 +377,34 @@ final class Journey_Repository extends Repository {
 	}
 
 	/**
+	 * Every journey a customer has had, newest first.
+	 *
+	 * Used by the privacy tools, which have to speak for all of somebody's data
+	 * rather than only the part still being worked. The limit is a safety rail
+	 * rather than a page: a privacy export is a single request, and a customer
+	 * with more journeys than this has a data problem the export should not
+	 * make worse by trying to render all of it.
+	 *
+	 * @param int $customer_id Customer id.
+	 * @param int $limit       Maximum rows.
+	 * @return array<int,Recovery_Journey>
+	 */
+	public function all_for_customer( int $customer_id, int $limit = 200 ): array {
+		$table = $this->table();
+
+		$rows = $this->many(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant; every value bound.
+			$this->db()->prepare(
+				"SELECT * FROM `{$table}` WHERE customer_id = %d ORDER BY id DESC LIMIT %d",
+				$customer_id,
+				max( 1, $limit )
+			)
+		);
+
+		return array_map( array( Recovery_Journey::class, 'from_row' ), $rows );
+	}
+
+	/**
 	 * Whether a customer already has a journey in flight.
 	 *
 	 * @param int $customer_id Customer id.
