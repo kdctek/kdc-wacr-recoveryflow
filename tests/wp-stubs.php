@@ -20,6 +20,16 @@ define( 'KDC_WACR_RECOVERYFLOW_BASENAME', 'kdc-wacr-recoveryflow/kdc-wacr-recove
 define( 'KDC_WACR_RECOVERYFLOW_MIN_PHP', '8.0' );
 define( 'KDC_WACR_RECOVERYFLOW_MIN_WP', '6.5' );
 
+// WordPress defines these in default-constants.php before any plugin loads, so
+// plugin code may legitimately use them in a class-constant expression -- which
+// is evaluated at class-load time, long before any function stub could stand in.
+define( 'MINUTE_IN_SECONDS', 60 );
+define( 'HOUR_IN_SECONDS', 60 * MINUTE_IN_SECONDS );
+define( 'DAY_IN_SECONDS', 24 * HOUR_IN_SECONDS );
+define( 'WEEK_IN_SECONDS', 7 * DAY_IN_SECONDS );
+define( 'MONTH_IN_SECONDS', 30 * DAY_IN_SECONDS );
+define( 'YEAR_IN_SECONDS', 365 * DAY_IN_SECONDS );
+
 define( 'AUTH_KEY', 'auth-key-for-tests-only' );
 define( 'SECURE_AUTH_KEY', 'secure-auth-key-for-tests-only' );
 define( 'LOGGED_IN_KEY', 'logged-in-key-for-tests-only' );
