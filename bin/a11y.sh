@@ -3,8 +3,7 @@
 # Run pa11y-ci over every screen listed in .pa11yci.json.
 #
 #   npm run env:start
-#   npm run a11y:seed        # demo data, and the ids the URL list needs
-#   npm run a11y
+#   npm run a11y             # seeds, then checks; see SEED below
 #
 # WHAT THIS SCRIPT IS FOR
 #
@@ -25,6 +24,13 @@
 #    Chrome as a header. The alternative -- a pa11y `actions` block driving the
 #    login form -- would log in once per URL, which is twenty logins and twenty
 #    more things to go wrong on a check nobody watches.
+#
+#    A header works here only because pa11y-ci gives each URL its own page. A
+#    browser drops it once a response has set cookies, so anything that reuses
+#    one page must put the session in the cookie jar instead, as
+#    tests/a11y/keyboard.js does -- it did not, and every screen after the first
+#    was the login form. Nothing here has to remember that: `rootElement` on the
+#    admin entries fails the run if the session is not reaching wp-admin.
 #
 # 2. THREE IDS THAT DO NOT EXIST UNTIL SOMETHING DOES. One recovery, one
 #    workflow's editor and the public opt-out page cannot be addressed without a
@@ -150,8 +156,6 @@ if [[ "${probe}" != "200" ]]; then
 	echo "bin/a11y.sh: the session did not reach wp-admin (HTTP ${probe})." >&2
 	exit 1
 fi
-
-# --- the ids ---------------------------------------------------------------
 
 # --- the runnable config ----------------------------------------------------
 
