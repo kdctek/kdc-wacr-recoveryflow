@@ -21,6 +21,7 @@ use WAcr\RecoveryFlow\Core\Autoloader;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Core\Hooks;
+use WAcr\RecoveryFlow\Core\Upgrader;
 use WAcr\RecoveryFlow\Core\Plugin;
 use WAcr\RecoveryFlow\Core\Requirements;
 use WAcr\RecoveryFlow\Core\Rewrites;
@@ -692,6 +693,104 @@ foreach ( $i18n_problems as $i18n_problem ) {
 }
 
 ok( 'the scan actually looked at the source', count( kdc_wacr_recoveryflow_shipped_php( dirname( __DIR__ ) ) ) > 10 );
+
+// ------------------------------------------------------- Activation parity.
+
+/*
+ * WordPress does not run a plugin's activation hook when the plugin is updated,
+ * so anything added to activation and not mirrored into the upgrader reaches
+ * fresh installs only. That already happened once: the default workflows were
+ * seeded on activation alone, and a site that had RecoveryFlow switched on
+ * before that release came out of the update with its tables and its schedule
+ * but nothing to run, detecting abandoned carts and silently recovering none of
+ * them. Nothing appeared in a log, because nothing went wrong.
+ *
+ * The property worth holding is that activation and update leave a site in the
+ * same state. Asserting the state itself needs a database, which this harness
+ * deliberately does not have -- so what is asserted here is the invariant that
+ * produces it: every subject activation provisions, the upgrader provisions
+ * too. It is a weaker check than the live one, and it is the one that runs on
+ * every push, on both PHP versions, even when composer itself is broken.
+ */
+
+/**
+ * Extract one method's body from a source file, by brace matching.
+ *
+ * @param string $file   Absolute path.
+ * @param string $method Method name.
+ * @return string The body, or '' when it could not be found.
+ */
+function kdc_wacr_recoveryflow_method_body( string $file, string $method ): string {
+	$source = (string) file_get_contents( $file );
+	$at     = strpos( $source, 'function ' . $method . '(' );
+
+	if ( false === $at ) {
+		return '';
+	}
+
+	$open = strpos( $source, '{', $at );
+
+	if ( false === $open ) {
+		return '';
+	}
+
+	$depth = 0;
+
+	for ( $i = $open, $len = strlen( $source ); $i < $len; $i++ ) {
+		if ( '{' === $source[ $i ] ) {
+			++$depth;
+		} elseif ( '}' === $source[ $i ] ) {
+			--$depth;
+
+			if ( 0 === $depth ) {
+				return substr( $source, $open, $i - $open );
+			}
+		}
+	}
+
+	return '';
+}
+
+$activate = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Core/Activator.php', 'activate' );
+$upgrade  = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Core/Upgrader.php', 'maybe_upgrade' );
+
+// A failure to read either body must fail loudly rather than quietly pass the
+// comparison that follows, which would be trivially true for two empty strings.
+ok( 'the activation routine can be read', strlen( $activate ) > 50 );
+ok( 'the upgrade routine can be read', strlen( $upgrade ) > 50 );
+
+/*
+ * Subjects rather than calls, because the two paths legitimately reach the same
+ * subject by different names: activation installs a schema that has never
+ * existed, an update migrates one that has. Naming the subject keeps the check
+ * true when either side is rewritten, and still fails when a subject is added
+ * to one path and forgotten on the other.
+ */
+$provisioning_subjects = array(
+	'Schema'        => 'the database schema',
+	'Capabilities'  => 'the capabilities',
+	'Hash_Key'      => 'the per-site hash key',
+	'Options'       => 'the settings',
+	'seed_defaults' => 'the default workflows',
+	'scheduler()'   => 'the background schedule',
+);
+
+foreach ( $provisioning_subjects as $subject => $label ) {
+	$in_activation = false !== strpos( $activate, $subject );
+	$in_upgrade    = false !== strpos( $upgrade, $subject );
+
+	ok( "activation provisions {$label}", $in_activation );
+	ok( "updating provisions {$label} too, because activation hooks do not run on update", $in_upgrade );
+}
+
+// Rewrite rules are the one thing that is legitimately activation-only: they
+// are registered on every request by Rewrites::hooks() and only need flushing
+// when the rule set first appears.
+ok( 'flushing rewrite rules stays on the activation path only', false !== strpos( $activate, 'flush_rewrite_rules' ) && false === strpos( $upgrade, 'flush_rewrite_rules' ) );
+
+// The version guard is what stops the upgrade path running on every page load.
+ok( 'the upgrader is guarded by the stored version', false !== strpos( $upgrade, Upgrader::OPTION ) || false !== strpos( $upgrade, 'self::OPTION' ) );
+ok( 'the upgrader stamps the version forward', false !== strpos( $upgrade, 'update_option' ) );
 
 // -------------------------------------------------------------------- Result.
 
