@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T02:51:29+00:00\n"
+"POT-Creation-Date: 2026-09-08T03:14:02+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -115,16 +115,16 @@ msgid "This recovery link belongs to a different account."
 msgstr ""
 
 #. translators: %s: the name of this shop.
-#: src/Integration/WooCommerce/Consent_Field.php:276
+#: src/Integration/WooCommerce/Consent_Field.php:312
 #, php-format
 msgid "Yes, %s may send me a WhatsApp message about my order if I do not finish checking out."
 msgstr ""
 
-#: src/Integration/WooCommerce/Source.php:121
+#: src/Integration/WooCommerce/Source.php:131
 msgid "WooCommerce"
 msgstr ""
 
-#: src/Integration/WooCommerce/Source.php:130
+#: src/Integration/WooCommerce/Source.php:140
 msgid "Recovers abandoned carts and checkouts, on both the classic and the block checkout."
 msgstr ""
 

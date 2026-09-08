@@ -31,6 +31,10 @@ use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Customer\Phone_Normalizer;
 use WAcr\RecoveryFlow\Privacy\Redactor;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Script;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Consent_Field;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Session;
+use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\Database\Schema;
 use WAcr\RecoveryFlow\Database\Table_Names;
 use WAcr\RecoveryFlow\Security\Capabilities;
@@ -867,6 +871,149 @@ ok( 'the same address hashes the same either way', Identity_Repository::hash_for
 // identifier, or lookups from the order observer would silently never match.
 ok( 'the email hash matches Hash_Key::email()', Identity_Repository::hash_for( Identity::EMAIL, 'Asha@Example.com' ) === Hash_Key::email( 'Asha@Example.com' ) );
 ok( 'the phone hash matches Hash_Key::hash()', Identity_Repository::hash_for( Identity::E164, '+919876543210' ) === Hash_Key::hash( '+919876543210' ) );
+
+// ------------------------------------------- Classic consent, readable back.
+
+/*
+ * The one-string bug class. WooCommerce reads the classic checkout back only
+ * during its update_order_review AJAX call, and checkout.js asks for that call
+ * from a fixed selector list: address fields, and anything inside a
+ * .update_totals_on_change container. The phone and email fields are declared
+ * plain form-row-wide and so are in neither list -- which is why typing a phone
+ * number fires nothing, and why the consent box has to opt itself in.
+ *
+ * Drop that class in a refactor and nothing breaks loudly: the box still
+ * renders, still submits at Place Order, and still reads correctly in every
+ * test that posts a form. What silently stops working is the only case that
+ * matters -- the shopper who ticks the box and then ABANDONS, whose answer is
+ * never read because the AJAX call that would have read it was never made.
+ * With explicit_consent as the default mode that failure looks exactly like
+ * poor opt-in rates. Hence a test on the string itself.
+ */
+
+$consent_field = new Consent_Field( new Session(), new Logger( new Clock() ) );
+$consent_fields = $consent_field->add_classic_field( array( 'billing' => array() ) );
+
+ok( 'the classic consent box is added to the billing group', isset( $consent_fields['billing'][ Consent_Field::FIELD_ID ] ) );
+
+$consent_box = $consent_fields['billing'][ Consent_Field::FIELD_ID ] ?? array();
+
+check( 'the consent box is a checkbox', $consent_box['type'] ?? '', 'checkbox' );
+
+// The class that makes the answer survive abandonment. checkout.js binds
+// change on '.update_totals_on_change input[type="checkbox"]', and
+// woocommerce_form_field puts this array on the wrapper <p>, so the tick
+// triggers WooCommerce's own nonce-protected update_checkout -- which posts
+// the whole serialised form, carrying the consent AND the typed phone/email.
+ok(
+	'ticking consent asks WooCommerce to re-read the checkout',
+	in_array( 'update_totals_on_change', (array) ( $consent_box['class'] ?? array() ), true )
+);
+
+// It must be on the wrapper, which is what $args['class'] becomes; input_class
+// would land on the <input> and match none of core's selectors.
+ok( 'the trigger class is on the wrapper, not the input', ! isset( $consent_box['input_class'] ) );
+
+// The listener has to exist for the trigger to be worth anything. These two
+// are a pair: the class asks for the AJAX call, this hook reads the result.
+$consent_source = (string) file_get_contents( dirname( __DIR__ ) . '/src/Integration/WooCommerce/Consent_Field.php' );
+ok( 'something is listening for the re-read it triggers', false !== strpos( $consent_source, 'woocommerce_checkout_update_order_review' ) );
+
+// The class covers explicit_consent only. In identified_contact mode is_asked()
+// renders no box, so there is nothing for the class to sit on -- which is the
+// whole reason the script exists as well.
+$consent_script = dirname( __DIR__ ) . '/' . Checkout_Script::PATH;
+
+ok( 'the capture script is actually shipped', is_readable( $consent_script ) );
+
+$consent_script_body = (string) file_get_contents( $consent_script );
+
+// It must ask for WooCommerce's own round trip and nothing else. A script that
+// posted anywhere itself would need an endpoint, a nonce and a rate limit, and
+// would be a different change requiring a different review.
+ok( 'the script triggers WooCommerce own update_checkout', false !== strpos( $consent_script_body, "trigger( 'update_checkout' )" ) );
+ok( 'the script opens no request of its own', false === strpos( $consent_script_body, 'ajax' ) && false === strpos( $consent_script_body, 'fetch(' ) && false === strpos( $consent_script_body, 'XMLHttpRequest' ) );
+
+// It watches the two fields core does not. Watching address fields as well
+// would double every request core already makes.
+ok( 'the script watches the phone field', false !== strpos( $consent_script_body, '#billing_phone' ) );
+ok( 'the script watches the email field', false !== strpos( $consent_script_body, '#billing_email' ) );
+
+// Per the .pot ruling, this script carries no user-facing text, so there is no
+// second extraction toolchain and no jed JSON per locale to keep in step.
+ok( 'the script needs no translation', false === strpos( $consent_script_body, 'wp.i18n' ) && false === strpos( $consent_script_body, '__(' ) );
+
+// Where the script is allowed to load. These conditions are the reason the
+// class exists: the checkout is the last page on a shop where it is acceptable
+// to add a request that does nothing, so every one of them is asserted in both
+// directions rather than only in the direction that passes.
+$consent_enqueue = new Checkout_Script();
+
+$GLOBALS['__options']['recoveryflow_settings'] = array( 'enabled' => true );
+
+$GLOBALS['__is_checkout']       = false;
+$GLOBALS['__is_order_received'] = false;
+$GLOBALS['__is_pay_page']       = false;
+ok( 'no script on a page that is not the checkout', ! $consent_enqueue->is_wanted() );
+
+$GLOBALS['__is_checkout'] = true;
+ok( 'the script loads on the classic checkout', $consent_enqueue->is_wanted() );
+
+// The two checkout pages with nothing left to recover.
+$GLOBALS['__is_order_received'] = true;
+ok( 'no script on the thank-you page', ! $consent_enqueue->is_wanted() );
+$GLOBALS['__is_order_received'] = false;
+
+$GLOBALS['__is_pay_page'] = true;
+ok( 'no script on the order-pay page', ! $consent_enqueue->is_wanted() );
+$GLOBALS['__is_pay_page'] = false;
+
+// The one that matters most: a shop that has not switched recovery on is not
+// asked to carry the script at all. Asserted by flipping the setting back and
+// forth on an otherwise identical request, so it cannot pass because some
+// unrelated condition happened to be false.
+$GLOBALS['__options']['recoveryflow_settings'] = array( 'enabled' => false );
+ok( 'no script when recovery is switched off', ! $consent_enqueue->is_wanted() );
+
+$GLOBALS['__options']['recoveryflow_settings'] = array( 'enabled' => true );
+ok( 'the same request wants the script once recovery is on', $consent_enqueue->is_wanted() );
+
+// It must load in BOTH eligibility modes. identified_contact renders no
+// tick-box, so the script is the only thing capturing a typed number there --
+// gating it on the consent field would reintroduce the bug for that mode.
+$GLOBALS['__options']['recoveryflow_settings'] = array(
+	'enabled'          => true,
+	'eligibility_mode' => 'identified_contact',
+);
+ok( 'the script still loads where no consent box is rendered', $consent_enqueue->is_wanted() );
+
+$GLOBALS['__options']['recoveryflow_settings'] = array(
+	'enabled'          => true,
+	'eligibility_mode' => 'explicit_consent',
+);
+
+// And what it actually queues.
+$GLOBALS['__scripts'] = array();
+$consent_enqueue->enqueue();
+ok( 'enqueuing registers the script', isset( $GLOBALS['__scripts'][ Checkout_Script::HANDLE ] ) );
+
+$consent_queued = $GLOBALS['__scripts'][ Checkout_Script::HANDLE ] ?? array();
+check( 'the script depends on jQuery, which checkout.js needs anyway', $consent_queued['deps'] ?? array(), array( 'jquery' ) );
+ok( 'the script is versioned, so an update is not served from cache', ! empty( $consent_queued['ver'] ) );
+ok( 'the script loads in the footer, after the checkout form', true === ( $consent_queued['args'] ?? false ) );
+
+// Nothing queued when nothing is wanted.
+$GLOBALS['__scripts']     = array();
+$GLOBALS['__is_checkout'] = false;
+$consent_enqueue->enqueue();
+check( 'nothing is queued off the checkout', $GLOBALS['__scripts'], array() );
+
+$GLOBALS['__is_checkout'] = false;
+$GLOBALS['__options']['recoveryflow_settings'] = array();
+
+// A missing billing group must not fatal the checkout.
+check( 'a checkout with no billing group is left alone', $consent_field->add_classic_field( array() ), array() );
+check( 'a non-array field set is left alone', $consent_field->add_classic_field( 'nonsense' ), 'nonsense' );
 
 echo "\n";
 echo "\n";

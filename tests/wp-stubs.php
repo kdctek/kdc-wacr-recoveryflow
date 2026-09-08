@@ -41,6 +41,12 @@ $GLOBALS['__filters']  = array();
 $GLOBALS['__rewrites'] = array();
 $GLOBALS['__query_vars'] = array();
 $GLOBALS['__transients'] = array();
+$GLOBALS['__scripts']    = array();
+
+// WooCommerce page context, driven by the tests rather than by a real request.
+$GLOBALS['__is_checkout']       = false;
+$GLOBALS['__is_order_received'] = false;
+$GLOBALS['__is_pay_page']       = false;
 
 // Options.
 function get_option( $name, $default = false ) {
@@ -59,6 +65,26 @@ function update_option( $name, $value, $autoload = null ) {
 }
 function delete_option( $name ) {
 	unset( $GLOBALS['__options'][ $name ] );
+	return true;
+}
+
+// WooCommerce conditionals and the script queue.
+function is_checkout() {
+	return ! empty( $GLOBALS['__is_checkout'] );
+}
+function is_order_received_page() {
+	return ! empty( $GLOBALS['__is_order_received'] );
+}
+function is_checkout_pay_page() {
+	return ! empty( $GLOBALS['__is_pay_page'] );
+}
+function wp_enqueue_script( $handle, $src = '', $deps = array(), $ver = false, $args = false ) {
+	$GLOBALS['__scripts'][ $handle ] = array(
+		'src'  => $src,
+		'deps' => $deps,
+		'ver'  => $ver,
+		'args' => $args,
+	);
 	return true;
 }
 
@@ -149,6 +175,16 @@ function esc_url_raw( $url ) {
 }
 function sanitize_text_field( $value ) {
 	return trim( strip_tags( (string) $value ) );
+}
+function wp_strip_all_tags( $value, $remove_breaks = false ) {
+	$value = preg_replace( '@<(script|style)[^>]*?>.*?</\\1>@si', '', (string) $value );
+	$value = strip_tags( $value );
+
+	if ( $remove_breaks ) {
+		$value = preg_replace( '/[\r\n\t ]+/', ' ', $value );
+	}
+
+	return trim( $value );
 }
 function sanitize_key( $value ) {
 	return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $value ) );

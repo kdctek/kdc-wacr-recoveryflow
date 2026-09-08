@@ -18,6 +18,7 @@ use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Restorer;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Tracker;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Capture;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Script;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Consent_Field;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Order_Observer;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Session as Wc_Session;
@@ -303,7 +304,8 @@ final class Plugin {
 				new Checkout_Capture( $session, $logger ),
 				new Consent_Field( $session, $logger ),
 				new Order_Observer( $this->conversions(), $this->ingest(), $this->receipts(), $this->customers(), $session, $logger ),
-				new Cart_Restorer( $session, $this->customers(), $logger )
+				new Cart_Restorer( $session, $this->customers(), $logger ),
+				new Checkout_Script()
 			)
 		);
 

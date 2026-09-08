@@ -77,6 +77,13 @@ final class Source extends Abstract_Source {
 	private Cart_Restorer $restorer;
 
 	/**
+	 * The classic checkout's capture script.
+	 *
+	 * @var Checkout_Script
+	 */
+	private Checkout_Script $script;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Event_Ingest     $ingest   Event ingestion.
@@ -85,6 +92,7 @@ final class Source extends Abstract_Source {
 	 * @param Consent_Field    $consent  The consent tick-box.
 	 * @param Order_Observer   $orders   Conversion detection.
 	 * @param Cart_Restorer    $restorer The restore path.
+	 * @param Checkout_Script  $script   The classic checkout's capture script.
 	 */
 	public function __construct(
 		Event_Ingest $ingest,
@@ -92,7 +100,8 @@ final class Source extends Abstract_Source {
 		Checkout_Capture $checkout,
 		Consent_Field $consent,
 		Order_Observer $orders,
-		Cart_Restorer $restorer
+		Cart_Restorer $restorer,
+		Checkout_Script $script
 	) {
 		parent::__construct( $ingest );
 
@@ -101,6 +110,7 @@ final class Source extends Abstract_Source {
 		$this->consent  = $consent;
 		$this->orders   = $orders;
 		$this->restorer = $restorer;
+		$this->script   = $script;
 	}
 
 	/**
@@ -149,6 +159,7 @@ final class Source extends Abstract_Source {
 		$this->checkout->register();
 		$this->consent->register();
 		$this->orders->register();
+		$this->script->register();
 	}
 
 	/**

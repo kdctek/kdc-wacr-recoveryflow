@@ -1,7 +1,7 @@
 {
 	"name": "kdc-wacr-recoveryflow",
 	"private": true,
-	"description": "Development tooling for RecoveryFlow by WA.cr. The plugin ships no built assets.",
+	"description": "Development tooling for RecoveryFlow by WA.cr. The plugin ships one hand-written frontend script and no built assets, so there is no build step.",
 	"license": "GPL-2.0-or-later",
 	"scripts": {
 		"env:start": "wp-env start",

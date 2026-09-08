@@ -124,6 +124,42 @@ final class Consent_Field {
 	 * Priority 115 puts it below the phone and email fields, which WooCommerce
 	 * gives 100 and 110, so the question follows the number it is about.
 	 *
+	 * update_totals_on_change is what makes the answer readable at all before
+	 * the shopper leaves. WooCommerce reads the classic checkout back only
+	 * during its update_order_review AJAX call, and checkout.js asks for that
+	 * call from a fixed list of selectors: address fields, and anything inside
+	 * a .update_totals_on_change container. The phone and email fields are in
+	 * neither list -- WooCommerce declares them plain form-row-wide -- so
+	 * typing a number fires nothing, and a shopper who answers the question and
+	 * then abandons was, until this class was added, never recorded as having
+	 * answered. With the class on the wrapper, checkout.js's own
+	 * change-on-checkbox binding runs trigger_update_checkout, and because that
+	 * request posts the whole serialised form, the one tick carries the consent
+	 * AND whatever phone and email have been typed so far. It is WooCommerce's
+	 * own mechanism, on WooCommerce's own nonce -- the same class core puts on
+	 * its country field.
+	 *
+	 * The cost is one extra checkout AJAX round trip each time the box is
+	 * toggled, which is the price of the answer surviving abandonment.
+	 *
+	 * This class is the floor rather than the whole answer, and it is worth
+	 * being clear about which half it covers. It fires only when the tick-box
+	 * is ticked, so it covers explicit_consent mode and nothing else: in
+	 * identified_contact mode is_asked() renders no box at all, there is
+	 * nothing for the class to sit on, and a shopper who types a number and
+	 * leaves is still lost. Checkout_Script closes that half by asking for the
+	 * same round trip when the phone or email field is left. The two are
+	 * deliberately not merged -- this one keeps working when the script fails
+	 * to load, so the worst case degrades to the old behaviour rather than to
+	 * nothing.
+	 *
+	 * This fixes the CLASSIC checkout only, and nothing here reaches the block
+	 * checkout -- Blocks renders no form-row wrapper and loads none of
+	 * checkout.js, so the class is inert there. Blocks is covered separately,
+	 * and for a different reason: its field is registered at the address
+	 * location, which the Store API writes to the customer as the shopper
+	 * types. The two checkouts stay two problems.
+	 *
 	 * @param mixed $fields The checkout field groups.
 	 * @return mixed
 	 */
@@ -140,7 +176,7 @@ final class Consent_Field {
 			'label'    => esc_html( $this->label() ),
 			'required' => false,
 			'default'  => 0,
-			'class'    => array( 'form-row-wide' ),
+			'class'    => array( 'form-row-wide', 'update_totals_on_change' ),
 			'priority' => 115,
 		);
 
