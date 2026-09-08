@@ -23,23 +23,54 @@ final class Deactivator {
 	 * @return void
 	 */
 	public static function deactivate(): void {
-		foreach ( array( 'evaluate', 'dispatch', 'poll', 'expire', 'retention' ) as $stage ) {
-			$hook = 'recoveryflow/' . $stage;
-
-			if ( function_exists( 'as_unschedule_all_actions' ) ) {
-				as_unschedule_all_actions( $hook, array(), 'recoveryflow' );
-			}
-
-			$timestamp = wp_next_scheduled( $hook );
-
-			while ( false !== $timestamp ) {
-				wp_unschedule_event( $timestamp, $hook );
-				$timestamp = wp_next_scheduled( $hook );
-			}
-		}
-
-		wp_clear_scheduled_hook( 'recoveryflow/tick' );
+		self::clear_action_scheduler();
+		self::clear_wp_cron();
 
 		flush_rewrite_rules();
+	}
+
+	/**
+	 * Cancel every action this plugin scheduled.
+	 *
+	 * Cancelling by hook name would miss most of them. Action Scheduler matches
+	 * a hook-and-arguments pair, and passing an empty argument list matches only
+	 * actions that were themselves scheduled with no arguments -- so the
+	 * continuation actions, which carry a stage, would survive deactivation and
+	 * keep running against a plugin the merchant has switched off. Cancelling
+	 * the whole group is the only form that catches everything.
+	 *
+	 * @return void
+	 */
+	private static function clear_action_scheduler(): void {
+		if ( ! function_exists( 'as_unschedule_all_actions' ) ) {
+			return;
+		}
+
+		as_unschedule_all_actions( '', array(), 'recoveryflow' );
+	}
+
+	/**
+	 * Clear the fallback scheduler's events.
+	 *
+	 * @return void
+	 */
+	private static function clear_wp_cron(): void {
+		$hooks = array(
+			'recoveryflow/tick',
+			'recoveryflow/evaluate',
+			'recoveryflow/dispatch',
+			'recoveryflow/poll',
+			'recoveryflow/expire',
+			'recoveryflow/retention',
+			'recoveryflow/run/evaluate',
+			'recoveryflow/run/dispatch',
+			'recoveryflow/run/poll',
+			'recoveryflow/run/expire',
+			'recoveryflow/run/retention',
+		);
+
+		foreach ( $hooks as $hook ) {
+			wp_clear_scheduled_hook( $hook );
+		}
 	}
 }

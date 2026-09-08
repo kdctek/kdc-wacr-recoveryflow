@@ -61,4 +61,8 @@ final class Hooks {
 	public const FILTER_RETENTION_DAYS    = 'recoveryflow_retention_days';
 	public const FILTER_RECOVERED_STATES  = 'recoveryflow_wc_recovered_statuses';
 	public const FILTER_RESTORE_ITEM_DATA = 'recoveryflow_wc_restore_cart_item_data';
+
+	// Presentation.
+	public const FILTER_TEMPLATE                = 'recoveryflow_template';
+	public const FILTER_BLOCKS_CONSENT_LOCATION = 'recoveryflow_wc_blocks_consent_location';
 }

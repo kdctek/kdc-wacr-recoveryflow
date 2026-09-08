@@ -3,8 +3,6 @@ includes:
 
 parameters:
 	level: 5
-	# WooCommerce and Action Scheduler are optional at runtime, so their ignore
-	# patterns match nothing until the integration lands.
 	reportUnmatchedIgnoredErrors: false
 	paths:
 		- src
@@ -12,9 +10,37 @@ parameters:
 		- uninstall.php
 	bootstrapFiles:
 		- tests/phpstan-bootstrap.php
+	# WooCommerce and Action Scheduler are optional at runtime but their symbols
+	# are needed to check the adapter properly. Scanning the real stubs gives
+	# actual signatures, which catches a misspelled method or a wrong argument
+	# count; the alternative -- ignoring every "unknown class WC_" error -- would
+	# have made the whole adapter invisible to static analysis.
+	scanFiles:
+		- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
+		- vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
 	excludePaths:
 		- vendor
 	ignoreErrors:
-		# WooCommerce and Action Scheduler are optional dependencies.
-		- '#Function as_[a-z_]+ not found#'
-		- '#Call to method [a-zA-Z_]+\(\) on an unknown class WC_#'
+		# The stubs declare WooCommerce::$cart, $session and $customer as always
+		# present and correctly typed. At runtime they are not: $cart is null
+		# until wc_load_cart() has run, $session does not exist on requests that
+		# never boot a session, and WC() itself returns null before WooCommerce
+		# has initialised. The adapter runs on all of those requests, so these
+		# guards are the difference between working and a fatal on a customer's
+		# page. Scoped to the integration, where that reasoning applies.
+		-
+			message: '#Property WooCommerce::\$[a-z_]+ \([A-Za-z_\\]+\) in isset\(\) is not nullable\.#'
+			path: src/Integration/WooCommerce/*
+		-
+			message: '#Result of (&&|\|\|) is always (true|false)\.#'
+			path: src/Integration/WooCommerce/*
+		-
+			message: '#(Right|Left) side of && is always true\.#'
+			path: src/Integration/WooCommerce/*
+		# Two further cases of trusting a declared type further than it deserves:
+		# wp_parse_str() writes by reference and apply_filters() hands the value
+		# to third-party code that may return anything at all. Checking what came
+		# back is correct, however confidently the signature is written.
+		-
+			message: '#Else branch is unreachable because ternary operator condition is always true\.#'
+			path: src/Integration/WooCommerce/*

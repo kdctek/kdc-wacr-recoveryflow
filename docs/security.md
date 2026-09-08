@@ -40,7 +40,7 @@ Opt-outs also arrive by keyword: the Poll stage treats a whole-message `STOP`, `
 
 ## Webhook receiver
 
-`POST /wp-json/recoveryflow/v1/webhooks/wacr` accepts engagement events from a WA.cr Auto Flow webhook step. It is public by necessity and hardened accordingly:
+`POST /wp-json/kdc/v1/wacr/recoveryflow/webhooks/wacr` accepts engagement events from a WA.cr Auto Flow webhook step. It is public by necessity and hardened accordingly:
 
 1. **Dark until configured.** Returns 404 until a webhook secret has been minted in Settings.
 2. **Size and type.** Bodies over 64 KB get 413; anything but JSON gets 415.

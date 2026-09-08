@@ -89,7 +89,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 ## Conventions
 
 - Namespace `WAcr\RecoveryFlow`, PSR-4 under `src/`, WordPress-style `Snake_Case` class names, no Composer autoloader at runtime.
-- Hooks `recoveryflow_*`, REST namespace `recoveryflow/v1`, options, capabilities and tables prefixed `recoveryflow_`, constants `KDC_WACR_RECOVERYFLOW_*`, text domain `kdc-wacr-recoveryflow`.
+- Hooks `recoveryflow_*`, REST namespace `kdc/v1`, routes under `wacr/recoveryflow/`, options, capabilities and tables prefixed `recoveryflow_`, constants `KDC_WACR_RECOVERYFLOW_*`, text domain `kdc-wacr-recoveryflow`.
 - WordPress Coding Standards 3.x plus PHPCompatibilityWP; core admin UI only; WCAG 2.2 AA minimum, AAA where achievable; en-IN spelling in copy; the brand is written **WA.cr**.
 - All datetimes are UTC and bound as strings; every processor query hits an index and carries a `LIMIT`; every state change is a conditional `UPDATE`.
 - [`CHANGELOG.md`](CHANGELOG.md) follows Keep a Changelog; each entry opens with a bolded plain-language statement of what changed for the person affected.

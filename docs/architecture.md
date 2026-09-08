@@ -238,7 +238,7 @@ followed by a `SELECT … WHERE claim_token = %s`. Every subsequent write on the
 
 ```text
 Send_Gate      quiet hours ⇒ shift next_action_at · frequency cap ⇒ skip
-Rate_Budget    take() or stop the batch
+Rate_Budget    checked, not debited -- the client debits it once per call
 reserve        INSERT attempt (idempotency_key, status = 'sending', sending_started_at)
                already exists? sent ⇒ advance · sending/unknown ⇒ reconcile from the conversation,
                else wait until reconcile_after, else mark lost and reserve attempt_no + 1 (max 3)
