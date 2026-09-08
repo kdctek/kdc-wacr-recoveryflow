@@ -32,12 +32,14 @@ use WAcr\RecoveryFlow\Core\Requirements;
 use WAcr\RecoveryFlow\Core\Rewrites;
 use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Customer\Identity_Repository;
+use WAcr\RecoveryFlow\Customer\Identity_Resolver;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Customer\Phone_Normalizer;
 use WAcr\RecoveryFlow\Privacy\Anonymizer;
 use WAcr\RecoveryFlow\Privacy\Eraser;
 use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\Privacy\Redactor;
+use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
 use WAcr\RecoveryFlow\Recovery\Attempt;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
@@ -4219,6 +4221,126 @@ $GLOBALS['wpdb']->rows = array();
 
 
 // ---------------------------------------------------------------------------
+// Erasing a customer who only ever gave a phone number.
+//
+// Core's privacy eraser is keyed by email address. A shopper who typed a phone
+// number at the checkout and never an address could not be found by it at all,
+// so the honest answer to "please delete my data" was to open the database.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_SETTINGS );
+
+$recoveryflow_erase = $plugin->privacy_erase_phone();
+
+// The two refusals that look alike from outside and mean opposite things: one
+// says try again, the other says stop looking.
+check(
+	'an empty box is refused without pretending to search',
+	$recoveryflow_erase->erase( '' )['ok'],
+	false
+);
+
+$recoveryflow_unreadable = $recoveryflow_erase->erase( 'not a phone number' );
+
+ok( 'something that is not a number is refused', false === $recoveryflow_unreadable['ok'] );
+ok(
+	'and is told it could not be read, not that nobody has it',
+	false !== strpos( $recoveryflow_unreadable['message'], 'not a phone number RecoveryFlow can read' )
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array();
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array();
+
+$recoveryflow_absent = $recoveryflow_erase->erase( '+447700900123' );
+
+ok( 'a number nobody has is refused', false === $recoveryflow_absent['ok'] );
+ok(
+	'and is told nobody has it, not that it could not be read',
+	false !== strpos( $recoveryflow_absent['message'], 'No customer is recorded against that number' )
+);
+
+// The number is normalised before it is hashed. A customer reads their number
+// off their phone as 07700 900123; the identity was stored as +447700900123, so
+// hashing what was typed finds nobody who is certainly there.
+update_option(
+	Options::SETTINGS,
+	array_merge( (array) get_option( Options::SETTINGS, array() ), array( Email_Compliance::SETTING_COUNTRY => 'GB' ) )
+);
+
+$recoveryflow_local_hash = Identity_Repository::hash_for( Identity::E164, '+447700900123' );
+
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array( array( 'customer_id' => 77 ) );
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array(
+	array(
+		'id'            => 77,
+		'phone_hash'    => $recoveryflow_local_hash,
+		'anonymized_at' => null,
+	),
+);
+
+$recoveryflow_local = $recoveryflow_erase->erase( '07700 900123' );
+
+ok( 'a number typed the way a customer reads it is found', true === $recoveryflow_local['ok'] );
+ok(
+	'and the erasure says what was kept and why, rather than only that it is done',
+	false !== strpos( $recoveryflow_local['message'], 'stopped working' )
+);
+
+// It must go through the resolver, not the normaliser beneath it: a site that
+// filters how a number is stored has to be searched the same way.
+ok(
+	'the lookup normalises through the same path the checkout stored by',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Privacy/Erase_By_Phone.php', 'erase' ),
+		'Identity_Resolver::to_e164'
+	)
+);
+
+// One implementation of forgetting somebody. A second would eventually disagree
+// about what "erased" means, and the half nobody watched would forget something.
+ok(
+	'erasing by phone ends at the same anonymiser as everything else',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Privacy/Erase_By_Phone.php', 'erase' ),
+		'anonymizer->anonymize_customer'
+	)
+);
+
+// Erasing somebody already erased is not an error and is not work. Saying
+// "done" again would be a lie about something that did not happen.
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array( array( 'customer_id' => 78 ) );
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array(
+	array(
+		'id'            => 78,
+		'phone_hash'    => $recoveryflow_local_hash,
+		'anonymized_at' => '2026-01-01 00:00:00',
+	),
+);
+
+$recoveryflow_again = $recoveryflow_erase->erase( '+447700900123' );
+
+ok( 'erasing somebody already erased is not an error', true === $recoveryflow_again['ok'] );
+ok(
+	'and says nothing changed rather than claiming the work was done again',
+	false !== strpos( $recoveryflow_again['message'], 'already been erased' )
+);
+
+// The form never echoes back who was found: it would otherwise answer "does
+// this phone number belong to one of your customers" for anyone who can see it.
+$recoveryflow_erase_html = recoveryflow_render_screen( array( Erase_By_Phone::class, 'form' ) );
+
+ok( 'the erase form is a post', false !== strpos( $recoveryflow_erase_html, 'method="post"' ) );
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_erase_html, 'name="_wpnonce"' ) );
+ok( 'and says it cannot be undone before it is used', false !== strpos( $recoveryflow_erase_html, 'cannot be undone' ) );
+ok(
+	'and its box has a real label rather than a placeholder standing in for one',
+	false !== strpos( $recoveryflow_erase_html, 'for="' . Erase_By_Phone::FIELD . '"' )
+);
+
+$GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
 // Working a recovery: retry, revoke links, and an opt-out taken by telephone.
 //
 // Three of these could not be done from wp-admin at all, and cancelling had a
@@ -4270,7 +4392,7 @@ ok( 'retrying cannot skip the send gate', ! Journey_State::can_transition( Journ
 
 // A recovery that did not fail is refused, and told what it actually is.
 $GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array(
-	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::RECOVERED ) )
+	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::RECOVERED ) ),
 );
 
 $recoveryflow_refused = $recoveryflow_act( 'rec-900-abcdef', 'retry' );
@@ -4286,7 +4408,7 @@ ok(
 // An opted-out customer must never be retried back into the queue. This is the
 // one that would put a message in front of somebody who said stop.
 $GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array(
-	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::OPTED_OUT ) )
+	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::OPTED_OUT ) ),
 );
 
 ok( 'an opted-out recovery cannot be retried', $recoveryflow_act( 'rec-900-abcdef', 'retry' ) instanceof WP_Error );
@@ -4510,12 +4632,22 @@ set_transient(
 				array(
 					'name'      => 'usable_one',
 					'language'  => 'en',
-					'variables' => array( array( 'id' => 'body_1', 'required' => true ) ),
+					'variables' => array(
+						array(
+							'id'       => 'body_1',
+							'required' => true,
+						),
+					),
 				),
 				array(
 					'name'      => 'needs_an_image',
 					'language'  => 'en',
-					'variables' => array( array( 'id' => 'header_media_image', 'required' => true ) ),
+					'variables' => array(
+						array(
+							'id'       => 'header_media_image',
+							'required' => true,
+						),
+					),
 				),
 			),
 		),

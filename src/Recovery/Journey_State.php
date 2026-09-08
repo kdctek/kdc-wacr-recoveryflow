@@ -150,6 +150,7 @@ final class Journey_State {
 			self::CANCELLED       => array(),
 			self::OPTED_OUT       => array(),
 			self::INVALID         => array(),
+
 			/*
 			 * FAILED is the one terminal state that means "the machinery could
 			 * not", rather than "do not message this person". RECOVERED,

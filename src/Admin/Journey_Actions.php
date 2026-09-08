@@ -194,7 +194,7 @@ final class Journey_Actions {
 
 			default:
 				return __( 'This recovery has been cancelled and its links no longer work. Nothing further will be sent for it.', 'kdc-wacr-recoveryflow' );
-		}
+		}//end switch
 	}
 
 	/**
@@ -238,7 +238,7 @@ final class Journey_Actions {
 				esc_html( $labels['label'] ),
 				esc_html( $labels['help'] )
 			);
-		}
+		}//end foreach
 
 		echo '</div>';
 	}

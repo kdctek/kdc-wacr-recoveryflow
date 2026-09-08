@@ -57,6 +57,7 @@ use WAcr\RecoveryFlow\Jobs\Stages\Poll;
 use WAcr\RecoveryFlow\Jobs\Stages\Retention;
 use WAcr\RecoveryFlow\Jobs\Wp_Cron_Driver;
 use WAcr\RecoveryFlow\Privacy\Anonymizer;
+use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
 use WAcr\RecoveryFlow\Privacy\Eraser;
 use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\REST\Journeys_Controller;
@@ -305,6 +306,7 @@ final class Plugin {
 			'admin_hook_test'     => static fn ( Plugin $c ): Hook_Test => new Hook_Test( $c->wacr(), $c->credentials() ),
 			'admin_run_now'       => static fn ( Plugin $c ): Run_Now => new Run_Now( $c->runner() ),
 			'admin_journey_acts'  => static fn ( Plugin $c ): Journey_Actions => new Journey_Actions( $c->rest_journeys() ),
+			'privacy_erase_phone' => static fn ( Plugin $c ): Erase_By_Phone => new Erase_By_Phone( $c->customers(), $c->anonymizer() ),
 
 			// The public endpoint.
 			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
@@ -997,6 +999,15 @@ final class Plugin {
 	}
 
 	/**
+	 * Erasing a customer who only ever gave a phone number.
+	 *
+	 * @return Erase_By_Phone
+	 */
+	public function privacy_erase_phone(): Erase_By_Phone {
+		return $this->typed( 'privacy_erase_phone', Erase_By_Phone::class );
+	}
+
+	/**
 	 * The first-run setup screen.
 	 *
 	 * @return Setup
@@ -1083,6 +1094,7 @@ final class Plugin {
 			$this->admin_hook_test()->hooks();
 			$this->admin_run_now()->hooks();
 			$this->admin_journey_acts()->hooks();
+			$this->privacy_erase_phone()->hooks();
 			$this->admin_setup()->hooks();
 		}
 

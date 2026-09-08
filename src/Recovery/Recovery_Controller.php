@@ -135,13 +135,13 @@ final class Recovery_Controller {
 	/**
 	 * Constructor.
 	 *
-	 * @param Attempt_Repository  $attempts  Attempt ledger.
-	 * @param Journey_Repository  $journeys  Journey storage.
-	 * @param Event_Repository    $events    Event storage.
-	 * @param Source_Registry     $sources   Registered sources.
-	 * @param Rate_Limiter        $limiter   Request throttle.
-	 * @param Logger              $logger    Logger.
-	 * @param Clock               $clock     Clock.
+	 * @param Attempt_Repository $attempts  Attempt ledger.
+	 * @param Journey_Repository $journeys  Journey storage.
+	 * @param Event_Repository   $events    Event storage.
+	 * @param Source_Registry    $sources   Registered sources.
+	 * @param Rate_Limiter       $limiter   Request throttle.
+	 * @param Logger             $logger    Logger.
+	 * @param Clock              $clock     Clock.
 	 */
 	public function __construct(
 		Attempt_Repository $attempts,
@@ -153,12 +153,12 @@ final class Recovery_Controller {
 		Clock $clock,
 		Suppressor $suppressor
 	) {
-		$this->attempts  = $attempts;
-		$this->journeys  = $journeys;
-		$this->events    = $events;
-		$this->sources   = $sources;
-		$this->limiter   = $limiter;
-		$this->logger    = $logger;
+		$this->attempts   = $attempts;
+		$this->journeys   = $journeys;
+		$this->events     = $events;
+		$this->sources    = $sources;
+		$this->limiter    = $limiter;
+		$this->logger     = $logger;
 		$this->clock      = $clock;
 		$this->suppressor = $suppressor;
 	}

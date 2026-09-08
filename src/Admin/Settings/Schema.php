@@ -515,6 +515,17 @@ final class Schema {
 					),
 				),
 			),
+			'erase'        => array(
+				'title'       => __( 'Erase one customer', 'kdc-wacr-recoveryflow' ),
+				'description' => __( 'WordPress finds somebody by email address. Many of the people RecoveryFlow holds gave a phone number at the checkout and never an address, and cannot be found that way at all.', 'kdc-wacr-recoveryflow' ),
+				'cards'       => array(
+					'by_phone' => array(
+						'title'    => __( 'Erase by phone number', 'kdc-wacr-recoveryflow' ),
+						'fields'   => array(),
+						'renderer' => 'erase_by_phone',
+					),
+				),
+			),
 			'retention'    => array(
 				'title'       => __( 'How long anything is kept', 'kdc-wacr-recoveryflow' ),
 				'description' => __( 'An abandoned basket says what somebody was about to buy. There is no reason to still know that a year later, so finished journeys are stripped of their contents on a schedule.', 'kdc-wacr-recoveryflow' ),

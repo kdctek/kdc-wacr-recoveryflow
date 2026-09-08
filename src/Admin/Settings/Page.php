@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Admin\Settings;
 
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Recovery\Channel;
@@ -182,6 +183,7 @@ final class Page {
 		settings_errors();
 		Connection_Test::notice();
 		Hook_Test::notice();
+		Erase_By_Phone::notice();
 
 		self::tab_bar( $tabs, $current );
 
@@ -363,7 +365,11 @@ final class Page {
 			case 'signposts':
 				self::signposts();
 				break;
-		}
+
+			case 'erase_by_phone':
+				Erase_By_Phone::form();
+				break;
+		}//end switch
 	}
 
 	/**
