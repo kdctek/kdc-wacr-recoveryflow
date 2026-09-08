@@ -47,7 +47,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIG="${ROOT}/.pa11yci.json"
 VALUES="${ROOT}/tests/a11y/urls.generated.json"
 
-SITE="${RECOVERYFLOW_A11Y_URL:-http://localhost:8901}"
+# Where the site is. wp-env listens on 8888 unless a .wp-env.override.json
+# says otherwise, and that file is per-developer and git-ignored -- several
+# worktrees of this plugin run at once and each needs its own port. So the port
+# is read from it when it exists rather than hard-coded to whichever worktree
+# happened to be in use when this was written: a default of 8901 works on one
+# machine and sends CI, which has no override file, at a port nothing is
+# listening on.
+if [[ -z "${RECOVERYFLOW_A11Y_URL:-}" ]] && [[ -f "${ROOT}/.wp-env.override.json" ]]; then
+	PORT="$(php -r '
+		$config = json_decode( (string) file_get_contents( $argv[1] ), true );
+		echo (int) ( is_array( $config ) ? ( $config["port"] ?? 8888 ) : 8888 );
+	' "${ROOT}/.wp-env.override.json")"
+else
+	PORT=8888
+fi
+
+SITE="${RECOVERYFLOW_A11Y_URL:-http://localhost:${PORT}}"
 USER="${RECOVERYFLOW_A11Y_USER:-admin}"
 PASS="${RECOVERYFLOW_A11Y_PASS:-password}"
 
@@ -122,6 +138,24 @@ of which have an address until something has been created. Seed them first:
 Running without it would leave those placeholders unsubstituted and check three
 URLs that do not resolve -- which pa11y reports as a clean page.
 MSG
+	exit 1
+fi
+
+# The site that was SEEDED and the site being CHECKED must be the same one.
+# They are reached differently -- seeding goes through wp-env's CLI container in
+# whichever worktree this is, while the URLs come from the seeder's own
+# home_url() and the login goes to SITE -- so they can disagree, and the way
+# they disagree is not harmless: 8888 on this machine is a review site running
+# from a different worktree, and pointing a seeding run at somebody's review
+# site is not a mistake to make twice.
+SEEDED="$(php -r '
+	$values = json_decode( (string) file_get_contents( $argv[1] ), true );
+	echo rtrim( (string) ( is_array( $values ) ? ( $values["SITE_URL"] ?? "" ) : "" ), "/" );
+' "${VALUES}")"
+
+if [[ -n "${SEEDED}" ]] && [[ "${SEEDED}" != "${SITE%/}" ]]; then
+	echo "bin/${0##*/}: seeded ${SEEDED} but checking ${SITE}." >&2
+	echo "Those must be the same site. Set RECOVERYFLOW_A11Y_URL to ${SEEDED}, or seed the site you mean to check." >&2
 	exit 1
 fi
 
