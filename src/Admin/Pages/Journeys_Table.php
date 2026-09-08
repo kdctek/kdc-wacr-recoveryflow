@@ -15,6 +15,7 @@ use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\Support\Money;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -243,10 +244,32 @@ final class Journeys_Table extends \WP_List_Table {
 	protected function column_reference( Recovery_Journey $item ): string {
 		$url = Screen::journey_url( $item->journey_uid );
 
+		/*
+		 * The row actions are LINKS TO the recovery's own screen, and the
+		 * things that change it are POST buttons once you are there. A row
+		 * action in a WP_List_Table is an anchor, and an anchor that cancels
+		 * somebody's recovery is fetched by anything that follows links -- a
+		 * prefetcher, a crawler, the antivirus proxy that opens every URL in
+		 * an incoming email. A nonce does not help: the link in the page
+		 * carries a valid one. So nothing here changes anything.
+		 */
+		$actions = array(
+			'open' => sprintf(
+				'<a href="%1$s">%2$s</a>',
+				esc_url( $url ),
+				esc_html(
+					current_user_can( Capabilities::MANAGE_JOURNEYS )
+						? __( 'Open and act on it', 'kdc-wacr-recoveryflow' )
+						: __( 'Open', 'kdc-wacr-recoveryflow' )
+				)
+			),
+		);
+
 		return sprintf(
-			'<strong><a href="%1$s">%2$s</a></strong>',
+			'<strong><a href="%1$s">%2$s</a></strong>%3$s',
 			esc_url( $url ),
-			esc_html( $item->journey_uid )
+			esc_html( $item->journey_uid ),
+			$this->row_actions( $actions )
 		);
 	}
 
@@ -283,7 +306,7 @@ final class Journeys_Table extends \WP_List_Table {
 			return '<span aria-hidden="true">&mdash;</span><span class="screen-reader-text">' . esc_html__( 'Not known', 'kdc-wacr-recoveryflow' ) . '</span>';
 		}
 
-		return esc_html( $event->amount . ' ' . $event->currency );
+		return esc_html( Money::format( (string) $event->amount, (string) $event->currency ) );
 	}
 
 	/**

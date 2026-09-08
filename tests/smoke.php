@@ -32,12 +32,15 @@ use WAcr\RecoveryFlow\Core\Requirements;
 use WAcr\RecoveryFlow\Core\Rewrites;
 use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Customer\Identity_Repository;
+use WAcr\RecoveryFlow\Customer\Identity_Resolver;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Customer\Phone_Normalizer;
 use WAcr\RecoveryFlow\Privacy\Anonymizer;
 use WAcr\RecoveryFlow\Privacy\Eraser;
 use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\Privacy\Redactor;
+use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
+use WAcr\RecoveryFlow\Recovery\Attempt;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
@@ -55,6 +58,8 @@ use WAcr\RecoveryFlow\Integration\GravityForms\Unpaid_Entry as Gf_Unpaid_Entry;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\Event_Batch;
 use WAcr\RecoveryFlow\Integration\Pollable_Source_Interface;
+use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
+use WAcr\RecoveryFlow\Jobs\Stage_Label;
 use WAcr\RecoveryFlow\Jobs\Stage_Stats;
 use WAcr\RecoveryFlow\Jobs\Stages\Evaluate;
 use WAcr\RecoveryFlow\Jobs\Time_Budget;
@@ -69,16 +74,24 @@ use WAcr\RecoveryFlow\Database\Schema;
 use WAcr\RecoveryFlow\Database\Table_Names;
 use WAcr\RecoveryFlow\REST\Abstract_Controller;
 use WAcr\RecoveryFlow\REST\Routes;
+use WAcr\RecoveryFlow\REST\Journeys_Controller;
+use WAcr\RecoveryFlow\Security\Webhook_Secret;
+use WAcr\RecoveryFlow\REST\Webhook_Controller;
+use WAcr\RecoveryFlow\Database\Receipt_Repository;
 use WAcr\RecoveryFlow\REST\Settings_Controller;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Security\Crypto;
 use WAcr\RecoveryFlow\Security\Hash_Key;
 use WAcr\RecoveryFlow\Security\Token_Service;
+use WAcr\RecoveryFlow\Support\Money;
 use WAcr\RecoveryFlow\Support\Options;
 use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Admin\Webhook_Setup;
+use WAcr\RecoveryFlow\Admin\Journey_Actions;
+use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
 use WAcr\RecoveryFlow\WAcr\Credentials;
@@ -484,9 +497,28 @@ ok( 'an expired journey cannot be revived', ! Journey_State::can_transition( Jou
 ok( 'a cancelled journey cannot be revived', ! Journey_State::can_transition( Journey_State::CANCELLED, Journey_State::SCHEDULED ) );
 ok( 'an unknown state transitions nowhere', ! Journey_State::can_transition( 'wat', Journey_State::SCHEDULED ) );
 
+/*
+ * Every terminal state is a dead end EXCEPT failed, and the exception is the
+ * whole of what "retry" is allowed to mean. Recovered, expired, cancelled,
+ * opted-out and invalid each carry a decision about the customer; failed
+ * carries only "the machinery could not", which a person may reverse once they
+ * have fixed the cause. Nothing else may follow failed either -- least of all a
+ * jump straight back to message_sent, which would skip the send gate.
+ */
 foreach ( Journey_State::terminal() as $terminal_state ) {
+	if ( Journey_State::FAILED === $terminal_state ) {
+		check( 'a failed journey may be retried, and only into scheduled', Journey_State::transitions()[ $terminal_state ], array( Journey_State::SCHEDULED ) );
+
+		continue;
+	}
+
 	check( "nothing follows {$terminal_state}", Journey_State::transitions()[ $terminal_state ], array() );
 }
+
+ok( 'a failed journey can be put back in the queue', Journey_State::can_transition( Journey_State::FAILED, Journey_State::SCHEDULED ) );
+ok( 'but not straight back to sent, which would skip the send gate', ! Journey_State::can_transition( Journey_State::FAILED, Journey_State::MESSAGE_SENT ) );
+ok( 'and an opted-out journey is still never retryable', ! Journey_State::can_transition( Journey_State::OPTED_OUT, Journey_State::SCHEDULED ) );
+ok( 'nor an invalid one', ! Journey_State::can_transition( Journey_State::INVALID, Journey_State::SCHEDULED ) );
 foreach ( Journey_State::active() as $active_state ) {
 	foreach ( Journey_State::terminal() as $terminal_state ) {
 		ok( "{$active_state} can always stop at {$terminal_state}", Journey_State::can_transition( $active_state, $terminal_state ) );
@@ -1235,9 +1267,21 @@ foreach ( array( Email_Compliance::NO_POSTAL_ADDRESS, Email_Compliance::NO_POSTA
  * untouched -- and for a shopper who only ever gave an address, it would record
  * nothing at all while the page told them the reminders had stopped.
  */
-$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' );
+$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Suppressor.php', 'suppress' );
 
 ok( 'the opt-out routine can be read', strlen( $recoveryflow_suppress ) > 50 );
+
+// There must be exactly one of these. Three callers now say "stop messaging
+// me" -- the unsubscribe link, a shopkeeper acting on a phone call, and the
+// same act over REST -- and a second implementation is a second chance to
+// forget one of the identities, which is the bug this code already shipped.
+ok(
+	'and the link handler delegates to it rather than keeping a copy',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' ),
+		'suppressor->suppress('
+	)
+);
 ok( 'an opt-out silences the phone number', false !== strpos( $recoveryflow_suppress, 'Identity::E164' ) );
 ok( 'an opt-out silences the email address too, or an email-only shopper unsubscribes into a void', false !== strpos( $recoveryflow_suppress, 'Identity::EMAIL' ) );
 
@@ -1773,6 +1817,8 @@ $GLOBALS['recoveryflow_routes'] = array();
 $plugin->rest_journeys()->register_routes();
 $plugin->rest_status()->register_routes();
 $plugin->rest_settings()->register_routes();
+$plugin->rest_integrations()->register_routes();
+$plugin->rest_templates()->register_routes();
 
 $recoveryflow_routes = $GLOBALS['recoveryflow_routes'];
 
@@ -3059,12 +3105,24 @@ check( 'a job that runs after the setting was switched off does nothing', count(
  * whether it also reaches WA.cr is a setting and a network call, and neither
  * may stand between a customer and being left alone.
  */
-$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' );
+$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Suppressor.php', 'suppress' );
 
 ok( 'the opt-out path queues the sync', false !== strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' ) );
+
+/*
+ * Both halves have to be PRESENT before their order means anything. strpos()
+ * answers false for "not found", and false < 40 is true in PHP -- so this
+ * assertion used to pass when the local suppression had been deleted outright,
+ * which is the one arrangement it exists to forbid. A mutation survived and
+ * said so.
+ */
+$recoveryflow_local_at = strpos( $recoveryflow_suppress, '$this->consent->suppress(' );
+$recoveryflow_sync_at  = strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' );
+
+ok( 'the local suppression is recorded at all', false !== $recoveryflow_local_at );
 ok(
 	'and only after the local suppression is already recorded',
-	strpos( $recoveryflow_suppress, '$this->consent->suppress(' ) < strpos( $recoveryflow_suppress, 'Opt_Out_Sync::queue' )
+	false !== $recoveryflow_local_at && false !== $recoveryflow_sync_at && $recoveryflow_local_at < $recoveryflow_sync_at
 );
 
 update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_sync );
@@ -4165,6 +4223,959 @@ ok( 'closing stale events is addressed by primary key too', false !== stripos( $
 ok( 'and re-checks that they are still open and unclaimed', false !== stripos( $recoveryflow_sql[0], 'journey_id IS NULL' ) );
 
 $GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// Basket values, as a shopkeeper reads them.
+//
+// Amounts are decimal(13,4), so MySQL hands 18.99 back as "18.9900" -- and both
+// screens that showed a basket value printed exactly that next to the currency
+// code, on the queue a shop worker has open all day. Nothing was wrong with the
+// number; it had simply never been looked at.
+// ---------------------------------------------------------------------------
+
+check( 'a stored decimal is shown the way it is read, not the way it is stored', Money::format( '18.9900', 'GBP' ), '18.99 GBP' );
+check( 'and trailing places never leak onto the screen', Money::format( '128.0000', 'GBP' ), '128.00 GBP' );
+check( 'a whole amount still shows its pence', Money::format( '7', 'EUR' ), '7.00 EUR' );
+check( 'an amount with no currency is still readable', Money::format( '4.5000', '' ), '4.50' );
+check( 'and a currency is upper-cased, because the column does not promise it', Money::format( '4.5000', 'gbp' ), '4.50 GBP' );
+check( 'nothing is invented for an empty amount', Money::format( '', 'GBP' ), '' );
+check( 'nor for a value that is not a number at all', Money::format( 'lots', 'GBP' ), '' );
+
+// One home: both screens ask it rather than each formatting for itself.
+foreach ( array( 'Journeys_Table', 'Journey_Detail' ) as $recoveryflow_screen ) {
+	$recoveryflow_src = (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Pages/' . $recoveryflow_screen . '.php' );
+
+	ok( "{$recoveryflow_screen} formats money through Money", false !== strpos( $recoveryflow_src, 'Money::format(' ) );
+	ok(
+		"{$recoveryflow_screen} does not print a raw amount beside a currency",
+		false === strpos( $recoveryflow_src, "amount . ' ' . " )
+	);
+}
+
+
+// ---------------------------------------------------------------------------
+// The receipt ledger: the guarantee that a retry cannot do the work twice.
+//
+// This shipped BROKEN and no gate could see it. recoveryflow_receipts is keyed
+// on receipt_key itself, so it has no AUTO_INCREMENT column and MySQL leaves
+// insert_id at 0. claim() read the outcome of INSERT IGNORE as an id, so it
+// answered "somebody else got there first" to EVERY caller including the one
+// whose insert wrote the row -- and Order_Observer gates every order event on
+// it, so on a real install an order never stopped a recovery and never marked
+// one recovered. The fake database set insert_id for every insert, which is why
+// the suite stayed green. Found by running it against a real WordPress.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_ledger = $plugin->receipts();
+$recoveryflow_key    = 'wc_order:4242:completed';
+
+/*
+ * insert_id PERSISTS across statements -- it holds the last AUTO_INCREMENT
+ * value generated on the connection, and a natural-key table never updates it.
+ * That is what made the shipped bug nondeterministic rather than merely wrong:
+ * in a request that had already inserted something, claim() read a STALE id and
+ * answered "yes, it is yours" to every caller, so the dedupe was simply absent;
+ * in a request that had not, it answered "no" to everyone and the work was
+ * never done at all. Both are asserted, because a fix that only handles one of
+ * them is not a fix.
+ */
+$GLOBALS['wpdb']->insert_id = 7;
+
+ok(
+	'the first caller to claim an event gets it',
+	true === $recoveryflow_ledger->claim( $recoveryflow_key, Receipt_Repository::KIND_ORDER )
+);
+ok(
+	'and the second is turned away, which is the whole guarantee',
+	false === $recoveryflow_ledger->claim( $recoveryflow_key, Receipt_Repository::KIND_ORDER )
+);
+ok(
+	'a different event is not blocked by it',
+	true === $recoveryflow_ledger->claim( 'wc_order:4243:completed', Receipt_Repository::KIND_ORDER )
+);
+
+// And the other half: a request that has inserted nothing yet leaves insert_id
+// at zero, where the old reading answered "somebody else got there first" to
+// everybody and the work was never done by anyone.
+$GLOBALS['wpdb']->insert_id = 0;
+
+ok(
+	'the first caller still gets it when nothing has set an insert id',
+	true === $recoveryflow_ledger->claim( 'wc_order:4244:completed', Receipt_Repository::KIND_ORDER )
+);
+ok(
+	'and the second is still turned away',
+	false === $recoveryflow_ledger->claim( 'wc_order:4244:completed', Receipt_Repository::KIND_ORDER )
+);
+
+// The reason it broke, asserted directly: a natural-key table must not have its
+// outcome read as an id.
+ok(
+	'the ledger asks whether IT wrote the row, not what id the row was given',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Database/Receipt_Repository.php', 'claim' ),
+		'insert_ignore_wrote'
+	)
+);
+
+
+// ---------------------------------------------------------------------------
+// The webhook receiver an Auto Flow can call back into.
+//
+// Read the controller's own note for what this deliberately is NOT: WA.cr has
+// no outbound webhook subscription and its Auto Flow webhook node does not sign
+// the body, so a receiver verifying x-wacr-signature would verify a header
+// nothing sends. It is a shared secret because that is what the platform can
+// actually present.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_caps'] = null;
+
+// A flow reports whatever WhatsApp gave it, which is normally the full
+// international form -- but the resolver is given the shop's own country so a
+// local form resolves too, exactly as it does when erasing by phone.
+update_option(
+	Options::SETTINGS,
+	array_merge( (array) get_option( Options::SETTINGS, array() ), array( Email_Compliance::SETTING_COUNTRY => 'GB' ) )
+);
+
+$recoveryflow_hook = $plugin->rest_webhook();
+
+$recoveryflow_post = static function ( array $body, string $secret = '', string $type = 'application/json' ): WP_REST_Request {
+	$request = new WP_REST_Request( 'POST', '' );
+	$request->set_header( 'content-type', $type );
+
+	if ( '' !== $secret ) {
+		$request->set_header( Webhook_Secret::HEADER, $secret );
+	}
+
+	$request->set_body( wp_json_encode( $body ) );
+
+	return $request;
+};
+
+// Closed until configured. An endpoint that is open until somebody sets a
+// secret is open on every site that never got round to it.
+Webhook_Secret::forget();
+
+ok( 'the receiver is shut while no secret has been generated', ! Webhook_Secret::exists() );
+ok(
+	'and refuses a caller presenting nothing',
+	$recoveryflow_hook->authorised( $recoveryflow_post( array() ) ) instanceof WP_Error
+);
+$recoveryflow_unconfigured = $recoveryflow_hook->authorised( $recoveryflow_post( array(), 'guessed-it' ) );
+
+ok( 'and refuses a caller presenting anything', $recoveryflow_unconfigured instanceof WP_Error );
+
+$recoveryflow_secret = Webhook_Secret::generate();
+
+ok( 'generating a secret hands back a plaintext once', strlen( $recoveryflow_secret ) > 20 );
+ok( 'and the database keeps only its hash', (string) get_option( Options::WEBHOOK_SECRET, '' ) !== $recoveryflow_secret );
+ok( 'the right secret is accepted', true === $recoveryflow_hook->authorised( $recoveryflow_post( array(), $recoveryflow_secret ) ) );
+ok( 'a wrong one is not', $recoveryflow_hook->authorised( $recoveryflow_post( array(), 'not-the-secret' ) ) instanceof WP_Error );
+
+$recoveryflow_unauth = $recoveryflow_hook->authorised( $recoveryflow_post( array(), 'not-the-secret' ) );
+
+/*
+ * The comparison that matters is between a site with NO secret configured and a
+ * site with one where the caller guessed wrong. Telling those apart tells
+ * somebody probing which sites are worth coming back to. Both messages are
+ * captured from those two different states, not from the same one twice.
+ */
+check(
+	'a wrong secret and a site with none configured get the identical answer, so probing learns nothing',
+	$recoveryflow_unauth instanceof WP_Error ? $recoveryflow_unauth->get_error_message() : 'a',
+	$recoveryflow_unconfigured instanceof WP_Error ? $recoveryflow_unconfigured->get_error_message() : 'b'
+);
+
+// The refusals a flow author has to tell apart from their node log.
+$recoveryflow_form = $recoveryflow_post( array( 'event' => 'recovery.opt_out' ), $recoveryflow_secret, 'application/x-www-form-urlencoded' );
+
+$recoveryflow_wrong_type = $recoveryflow_hook->receive( $recoveryflow_form );
+
+check(
+	'a body that is not JSON is refused as unsupported media',
+	$recoveryflow_wrong_type instanceof WP_Error ? $recoveryflow_wrong_type->get_error_data()['status'] : 0,
+	415
+);
+
+$recoveryflow_big = $recoveryflow_post(
+	array(
+		'event' => 'recovery.opt_out',
+		'pad'   => str_repeat( 'x', Webhook_Controller::MAX_BODY ),
+	),
+	$recoveryflow_secret
+);
+
+$recoveryflow_oversize = $recoveryflow_hook->receive( $recoveryflow_big );
+
+check(
+	'an oversized body is refused rather than read',
+	$recoveryflow_oversize instanceof WP_Error ? $recoveryflow_oversize->get_error_data()['status'] : 0,
+	413
+);
+
+$recoveryflow_unknown_event = $recoveryflow_hook->receive( $recoveryflow_post( array( 'event' => 'message.delivered' ), $recoveryflow_secret ) );
+
+check(
+	'an event this site does not accept is refused',
+	$recoveryflow_unknown_event instanceof WP_Error ? $recoveryflow_unknown_event->get_error_data()['status'] : 0,
+	400
+);
+ok(
+	'and the refusal lists what it does accept, so a mistyped event is not a silent 200',
+	$recoveryflow_unknown_event instanceof WP_Error
+		&& false !== strpos( $recoveryflow_unknown_event->get_error_message(), 'recovery.opt_out' )
+);
+
+// A number nobody here has is a 200 with nothing matched -- the flow did
+// nothing wrong, and a 404 would answer "is this number one of your customers".
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array();
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array();
+
+$recoveryflow_nobody = $recoveryflow_hook->receive(
+	$recoveryflow_post(
+		array(
+			'event' => 'recovery.opt_out',
+			'id'    => 'evt-nobody-1',
+			'phone' => '+447700900999',
+		),
+		$recoveryflow_secret
+	)
+);
+
+ok( 'an unknown customer is accepted rather than refused', $recoveryflow_nobody instanceof WP_REST_Response );
+check(
+	'and reports nothing matched',
+	$recoveryflow_nobody instanceof WP_REST_Response ? $recoveryflow_nobody->get_data()['matched'] : -1,
+	0
+);
+
+// A STOP reported by a flow suppresses here and now. Every minute of waiting
+// for a poll is a minute another reminder can reach somebody who said stop.
+$recoveryflow_hook_hash = Identity_Repository::hash_for( Identity::E164, '+447700900123' );
+
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array( array( 'customer_id' => 91 ) );
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array(
+	array(
+		'id'            => 91,
+		'phone_hash'    => $recoveryflow_hook_hash,
+		'email_hash'    => '',
+		'anonymized_at' => null,
+	),
+);
+
+$GLOBALS['wpdb']->queries = array();
+
+$recoveryflow_stop = $recoveryflow_hook->receive(
+	$recoveryflow_post(
+		array(
+			'event' => 'recovery.opt_out',
+			'id'    => 'evt-stop-1',
+			'phone' => '07700 900123',
+		),
+		$recoveryflow_secret
+	)
+);
+
+ok( 'a STOP reported by a flow is accepted', $recoveryflow_stop instanceof WP_REST_Response );
+check(
+	'and matches the customer',
+	$recoveryflow_stop instanceof WP_REST_Response ? $recoveryflow_stop->get_data()['matched'] : -1,
+	1
+);
+
+/*
+ * And that it matched by the NORMALISED number. The fake database hands back a
+ * primed row for any query naming the table, so "matched: 1" says nothing about
+ * what was searched for -- a receiver that skipped normalisation would look
+ * identical here. The query itself is the only witness, so it is what is
+ * asserted. A mutation survived until this existed.
+ */
+ok(
+	'and searched for the international form, not the local one it was sent',
+	'' !== $recoveryflow_hook_hash
+		&& false !== strpos( implode( ' | ', $GLOBALS['wpdb']->queries ), $recoveryflow_hook_hash )
+);
+
+// The same event twice does what the first did, which is nothing. The node is
+// at-most-once, but a shared secret is replayable by whoever has seen it.
+$recoveryflow_replay = $recoveryflow_hook->receive(
+	$recoveryflow_post(
+		array(
+			'event' => 'recovery.opt_out',
+			'id'    => 'evt-stop-1',
+			'phone' => '07700 900123',
+		),
+		$recoveryflow_secret
+	)
+);
+
+ok(
+	'a replayed event is recognised',
+	$recoveryflow_replay instanceof WP_REST_Response && true === ( $recoveryflow_replay->get_data()['repeat'] ?? false )
+);
+check(
+	'and does nothing the first did not',
+	$recoveryflow_replay instanceof WP_REST_Response ? $recoveryflow_replay->get_data()['matched'] : -1,
+	0
+);
+
+// It must never accept a GET: WhatsApp's link-preview fetcher and every crawler
+// will GET any URL they find, and this one suppresses customers.
+$GLOBALS['recoveryflow_routes'] = array();
+$recoveryflow_hook->register_routes();
+
+$recoveryflow_hook_methods = array();
+
+foreach ( $GLOBALS['recoveryflow_routes'] as $recoveryflow_route ) {
+	foreach ( $recoveryflow_route['endpoints'] as $recoveryflow_endpoint ) {
+		$recoveryflow_hook_methods[] = (string) ( $recoveryflow_endpoint['methods'] ?? '' );
+	}
+}
+
+check( 'the receiver answers POST and nothing else', $recoveryflow_hook_methods, array( 'POST' ) );
+ok(
+	'and sits under this plugin\'s prefix in the shared KDC namespace',
+	0 === strpos( $GLOBALS['recoveryflow_routes'][0]['route'], '/' . Routes::PREFIX . '/' )
+);
+
+// No event here reports a delivery status, because WA.cr does not push them and
+// an event for one would document a capability that does not exist.
+foreach ( Webhook_Controller::EVENTS as $recoveryflow_event ) {
+	ok(
+		"{$recoveryflow_event} is not a delivery status this platform cannot send",
+		false === strpos( $recoveryflow_event, 'deliver' ) && false === strpos( $recoveryflow_event, 'read' )
+	);
+}
+
+// The address and the secret have to arrive together: a merchant types all
+// three of address, header name and secret into WA.cr by hand, and giving them
+// one while leaving the rest to the documentation is how this gets configured
+// wrongly and reported as broken.
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_SETTINGS );
+
+Webhook_Secret::forget();
+
+$recoveryflow_setup_html = recoveryflow_render_screen( array( Webhook_Setup::class, 'render' ) );
+
+ok( 'the setup card gives the address to post to', false !== strpos( $recoveryflow_setup_html, Routes::path( 'webhooks/wacr' ) ) );
+ok( 'and names the header the secret goes in', false !== strpos( $recoveryflow_setup_html, Webhook_Secret::HEADER ) );
+ok( 'and lists the events a flow may send', false !== strpos( $recoveryflow_setup_html, 'recovery.opt_out' ) );
+ok(
+	'and says the secret is shown once before it is generated, not after',
+	false !== strpos( $recoveryflow_setup_html, 'shown once' )
+);
+ok(
+	'and says the endpoint refuses everything until one exists',
+	false !== strpos( $recoveryflow_setup_html, 'refuses every request' )
+);
+
+Webhook_Secret::generate();
+
+$recoveryflow_setup_html = recoveryflow_render_screen( array( Webhook_Setup::class, 'render' ) );
+
+ok(
+	'once a secret exists the screen warns that replacing it breaks the flow',
+	false !== strpos( $recoveryflow_setup_html, 'will start being refused' )
+);
+ok(
+	'and never offers to show the existing one, because only its fingerprint is kept',
+	false === strpos( $recoveryflow_setup_html, (string) get_option( Options::WEBHOOK_SECRET, 'no-secret' ) )
+);
+
+Webhook_Secret::forget();
+$GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// Erasing a customer who only ever gave a phone number.
+//
+// Core's privacy eraser is keyed by email address. A shopper who typed a phone
+// number at the checkout and never an address could not be found by it at all,
+// so the honest answer to "please delete my data" was to open the database.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_SETTINGS );
+
+$recoveryflow_erase = $plugin->privacy_erase_phone();
+
+// The two refusals that look alike from outside and mean opposite things: one
+// says try again, the other says stop looking.
+check(
+	'an empty box is refused without pretending to search',
+	$recoveryflow_erase->erase( '' )['ok'],
+	false
+);
+
+$recoveryflow_unreadable = $recoveryflow_erase->erase( 'not a phone number' );
+
+ok( 'something that is not a number is refused', false === $recoveryflow_unreadable['ok'] );
+ok(
+	'and is told it could not be read, not that nobody has it',
+	false !== strpos( $recoveryflow_unreadable['message'], 'not a phone number RecoveryFlow can read' )
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array();
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array();
+
+$recoveryflow_absent = $recoveryflow_erase->erase( '+447700900123' );
+
+ok( 'a number nobody has is refused', false === $recoveryflow_absent['ok'] );
+ok(
+	'and is told nobody has it, not that it could not be read',
+	false !== strpos( $recoveryflow_absent['message'], 'No customer is recorded against that number' )
+);
+
+// The number is normalised before it is hashed. A customer reads their number
+// off their phone as 07700 900123; the identity was stored as +447700900123, so
+// hashing what was typed finds nobody who is certainly there.
+update_option(
+	Options::SETTINGS,
+	array_merge( (array) get_option( Options::SETTINGS, array() ), array( Email_Compliance::SETTING_COUNTRY => 'GB' ) )
+);
+
+$recoveryflow_local_hash = Identity_Repository::hash_for( Identity::E164, '+447700900123' );
+
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array( array( 'customer_id' => 77 ) );
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array(
+	array(
+		'id'            => 77,
+		'phone_hash'    => $recoveryflow_local_hash,
+		'anonymized_at' => null,
+	),
+);
+
+$recoveryflow_local = $recoveryflow_erase->erase( '07700 900123' );
+
+ok( 'a number typed the way a customer reads it is found', true === $recoveryflow_local['ok'] );
+ok(
+	'and the erasure says what was kept and why, rather than only that it is done',
+	false !== strpos( $recoveryflow_local['message'], 'stopped working' )
+);
+
+// It must go through the resolver, not the normaliser beneath it: a site that
+// filters how a number is stored has to be searched the same way.
+ok(
+	'the lookup normalises through the same path the checkout stored by',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Privacy/Erase_By_Phone.php', 'erase' ),
+		'Identity_Resolver::to_e164'
+	)
+);
+
+// One implementation of forgetting somebody. A second would eventually disagree
+// about what "erased" means, and the half nobody watched would forget something.
+ok(
+	'erasing by phone ends at the same anonymiser as everything else',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Privacy/Erase_By_Phone.php', 'erase' ),
+		'anonymizer->anonymize_customer'
+	)
+);
+
+// Erasing somebody already erased is not an error and is not work. Saying
+// "done" again would be a lie about something that did not happen.
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array( array( 'customer_id' => 78 ) );
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array(
+	array(
+		'id'            => 78,
+		'phone_hash'    => $recoveryflow_local_hash,
+		'anonymized_at' => '2026-01-01 00:00:00',
+	),
+);
+
+$recoveryflow_again = $recoveryflow_erase->erase( '+447700900123' );
+
+ok( 'erasing somebody already erased is not an error', true === $recoveryflow_again['ok'] );
+ok(
+	'and says nothing changed rather than claiming the work was done again',
+	false !== strpos( $recoveryflow_again['message'], 'already been erased' )
+);
+
+// The form never echoes back who was found: it would otherwise answer "does
+// this phone number belong to one of your customers" for anyone who can see it.
+$recoveryflow_erase_html = recoveryflow_render_screen( array( Erase_By_Phone::class, 'form' ) );
+
+ok( 'the erase form is a post', false !== strpos( $recoveryflow_erase_html, 'method="post"' ) );
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_erase_html, 'name="_wpnonce"' ) );
+ok( 'and says it cannot be undone before it is used', false !== strpos( $recoveryflow_erase_html, 'cannot be undone' ) );
+ok(
+	'and its box has a real label rather than a placeholder standing in for one',
+	false !== strpos( $recoveryflow_erase_html, 'for="' . Erase_By_Phone::FIELD . '"' )
+);
+
+$GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// Working a recovery: retry, revoke links, and an opt-out taken by telephone.
+//
+// Three of these could not be done from wp-admin at all, and cancelling had a
+// REST route with no control anywhere -- the same shape as the health check
+// that told merchants to press a button which did not exist.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_JOURNEYS, Capabilities::VIEW_JOURNEYS );
+
+$recoveryflow_journey_row = array(
+	'id'             => 900,
+	'journey_uid'    => 'rec-900-abcdef',
+	'status'         => Journey_State::FAILED,
+	'customer_id'    => 55,
+	'event_id'       => 0,
+	'current_step'   => 0,
+	'attempts_count' => 1,
+	'source_id'      => 'woocommerce',
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array( $recoveryflow_journey_row );
+$GLOBALS['wpdb']->rows['recoveryflow_attempts'] = array();
+
+$recoveryflow_act = static function ( string $uid, string $action ) use ( $plugin ) {
+	$request = new WP_REST_Request( 'POST', '' );
+	$request->set_param( 'uid', $uid );
+	$request->set_param( 'action', $action );
+
+	return $plugin->rest_journeys()->act( $request );
+};
+
+// Retry. It re-queues; it must never send, and must never be mistaken for
+// sending by whoever is watching the bill.
+$recoveryflow_retry = $recoveryflow_act( 'rec-900-abcdef', 'retry' );
+
+ok( 'a failed recovery can be retried', $recoveryflow_retry instanceof WP_REST_Response );
+check(
+	'and goes back to scheduled rather than straight to sent',
+	$recoveryflow_retry instanceof WP_REST_Response ? $recoveryflow_retry->get_data()['status'] : '',
+	Journey_State::SCHEDULED
+);
+ok(
+	'and says it was queued rather than sent',
+	$recoveryflow_retry instanceof WP_REST_Response && true === ( $recoveryflow_retry->get_data()['queued'] ?? false )
+);
+
+// The state machine is what enforces this, not the handler's own opinion.
+ok( 'retrying cannot skip the send gate', ! Journey_State::can_transition( Journey_State::FAILED, Journey_State::MESSAGE_SENT ) );
+
+// A recovery that did not fail is refused, and told what it actually is.
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array(
+	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::RECOVERED ) ),
+);
+
+$recoveryflow_refused = $recoveryflow_act( 'rec-900-abcdef', 'retry' );
+
+ok( 'a recovery that did not fail cannot be retried', $recoveryflow_refused instanceof WP_Error );
+check( 'and is refused as a conflict rather than a not-found', $recoveryflow_refused instanceof WP_Error ? $recoveryflow_refused->get_status() : 0, 409 );
+ok(
+	'and the refusal says what the recovery actually is, not merely that it is not failed',
+	$recoveryflow_refused instanceof WP_Error
+		&& false !== strpos( $recoveryflow_refused->get_error_message(), Journey_State::label( Journey_State::RECOVERED ) )
+);
+
+// An opted-out customer must never be retried back into the queue. This is the
+// one that would put a message in front of somebody who said stop.
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array(
+	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::OPTED_OUT ) ),
+);
+
+ok( 'an opted-out recovery cannot be retried', $recoveryflow_act( 'rec-900-abcdef', 'retry' ) instanceof WP_Error );
+
+// A step already at its attempt cap fails again the moment a pass reaches it,
+// so answering "queued" would be a lie with a delay on it.
+$GLOBALS['wpdb']->rows['recoveryflow_journeys'] = array( $recoveryflow_journey_row );
+$GLOBALS['wpdb']->vars['COUNT(*)'] = Attempt::MAX_PER_STEP;
+
+$recoveryflow_spent = $recoveryflow_act( 'rec-900-abcdef', 'retry' );
+
+ok( 'a step at its attempt cap is refused rather than queued to fail again', $recoveryflow_spent instanceof WP_Error );
+ok(
+	'and the refusal names the cap rather than saying only "no"',
+	$recoveryflow_spent instanceof WP_Error
+		&& false !== strpos( $recoveryflow_spent->get_error_message(), (string) Attempt::MAX_PER_STEP )
+);
+ok(
+	'and says what to do instead',
+	$recoveryflow_spent instanceof WP_Error
+		&& false !== strpos( $recoveryflow_spent->get_error_message(), 'Edit the workflow' )
+);
+
+$GLOBALS['wpdb']->vars = array();
+
+// Revoking links stops the links without stopping the recovery -- that is the
+// whole difference between it and cancelling.
+$recoveryflow_revoked = $recoveryflow_act( 'rec-900-abcdef', 'revoke_links' );
+
+ok( 'the links can be killed on their own', $recoveryflow_revoked instanceof WP_REST_Response );
+check(
+	'and the recovery itself is left running',
+	$recoveryflow_revoked instanceof WP_REST_Response ? $recoveryflow_revoked->get_data()['status'] : '',
+	Journey_State::FAILED
+);
+
+// Revoking nothing is an outcome, not a success. Saying "done" would leave
+// somebody believing a link they are worried about had just been killed.
+check(
+	'revoking no links says so rather than reporting a job done',
+	Journey_Actions::outcome( 'revoke_links', array( 'revoked' => 0 ) ),
+	__( 'There were no working links on this recovery, so nothing changed. Any link already sent for it had expired or been revoked already.', 'kdc-wacr-recoveryflow' )
+);
+
+// Which buttons are offered. Offering one that will certainly be refused
+// teaches somebody the screen is broken.
+$recoveryflow_failed_journey = Recovery_Journey::from_row( $recoveryflow_journey_row );
+
+ok( 'a failed recovery offers a retry', isset( Journey_Actions::available( $recoveryflow_failed_journey )['retry'] ) );
+ok( 'and no longer offers to stop something already stopped', ! isset( Journey_Actions::available( $recoveryflow_failed_journey )['cancel'] ) );
+
+$recoveryflow_live_journey = Recovery_Journey::from_row(
+	array_merge( $recoveryflow_journey_row, array( 'status' => Journey_State::SCHEDULED ) )
+);
+
+ok( 'a running recovery offers to stop it', isset( Journey_Actions::available( $recoveryflow_live_journey )['cancel'] ) );
+ok( 'and does not offer to retry something that has not failed', ! isset( Journey_Actions::available( $recoveryflow_live_journey )['retry'] ) );
+ok( 'the opt-out is offered whatever state the recovery is in, because the customer is not the recovery', isset( Journey_Actions::available( $recoveryflow_live_journey )['opt_out'] ) );
+
+// The admin buttons run the REST handler rather than a second implementation.
+ok(
+	'the admin buttons call the endpoint\'s own handler rather than repeating its rules',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Journey_Actions.php', 'run' ),
+		'controller->act('
+	)
+);
+check(
+	'and can only ask for something the endpoint accepts',
+	Journeys_Controller::ACTIONS,
+	array( 'cancel', 'retry', 'revoke_links', 'opt_out' )
+);
+
+$recoveryflow_bogus = $plugin->admin_journey_acts()->run( 'rec-900-abcdef', 'send_now' );
+
+ok( 'a hand-posted action the endpoint does not offer is refused', false === $recoveryflow_bogus['ok'] );
+
+// Row actions must not change anything: an anchor that cancels a recovery is
+// fetched by whatever follows links.
+$recoveryflow_row_body = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys_Table.php', 'column_reference' );
+
+ok( 'the row-action column can be read', strlen( $recoveryflow_row_body ) > 50 );
+
+foreach ( Journeys_Controller::ACTIONS as $recoveryflow_verb ) {
+	ok(
+		"no row action performs {$recoveryflow_verb} from a link",
+		false === strpos( $recoveryflow_row_body, "'" . $recoveryflow_verb . "'" )
+	);
+}
+
+ok( 'the row action only opens the recovery', false !== strpos( $recoveryflow_row_body, 'Screen::journey_url' ) );
+
+// And the things that DO change a recovery are posts carrying a nonce.
+$recoveryflow_buttons_html = recoveryflow_render_screen(
+	static function () use ( $recoveryflow_failed_journey ): void {
+		Journey_Actions::buttons( $recoveryflow_failed_journey );
+	}
+);
+
+ok( 'acting on a recovery is a form, not a link', false !== strpos( $recoveryflow_buttons_html, 'method="post"' ) );
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_buttons_html, 'name="_wpnonce"' ) );
+ok(
+	'and the irreversible ones say so before they are pressed',
+	false !== strpos( $recoveryflow_buttons_html, esc_html__( 'Nothing further is sent for it and its links stop working. This cannot be undone.', 'kdc-wacr-recoveryflow' ) )
+		|| false !== strpos( $recoveryflow_buttons_html, 'cannot be undone' )
+);
+ok(
+	'and the retry says plainly that it does not send',
+	false !== strpos( $recoveryflow_buttons_html, 'It does not send anything now' )
+);
+
+$GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// The /integrations and /templates collections.
+//
+// Both shipped as documented-but-absent for three slices. The security matrix
+// above already walks them; what is asserted here is that neither works its
+// answer out a second time -- the fault this plugin has shipped four times.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_SETTINGS, Capabilities::MANAGE_WORKFLOWS );
+
+$recoveryflow_integrations = $plugin->rest_integrations()->index()->get_data();
+
+ok( 'the integrations collection lists what is registered', count( $recoveryflow_integrations['integrations'] ) > 0 );
+check(
+	'and lists exactly the registry\'s sources, not a hand-kept list of its own',
+	count( $recoveryflow_integrations['integrations'] ),
+	count( $plugin->sources()->all() )
+);
+
+// Switch one source OFF first. Available-and-switched-off is the state where a
+// verdict derived from "is it installed" and the registry's real verdict
+// disagree -- so without it, an endpoint that worked the answer out for itself
+// would agree with the registry by luck and the assertion below would be
+// vacuous. It was, until a mutation survived and said so.
+$recoveryflow_first_source = '';
+
+foreach ( $plugin->sources()->all() as $recoveryflow_candidate ) {
+	if ( '' === $recoveryflow_first_source && $recoveryflow_candidate->is_available() ) {
+		$recoveryflow_first_source = $recoveryflow_candidate->get_id();
+	}
+}
+
+ok( 'there is an available source to switch off, so the assertions below are not vacuous', '' !== $recoveryflow_first_source );
+
+$plugin->sources()->set_enabled( $recoveryflow_first_source, false );
+
+$recoveryflow_integrations = $plugin->rest_integrations()->index()->get_data();
+
+$recoveryflow_row = array();
+
+foreach ( $recoveryflow_integrations['integrations'] as $recoveryflow_candidate ) {
+	if ( (string) $recoveryflow_candidate['id'] === $recoveryflow_first_source ) {
+		$recoveryflow_row = $recoveryflow_candidate;
+	}
+}
+
+check(
+	'a source that is installed but switched off is reported as switched off',
+	$recoveryflow_row['status'],
+	Source_Registry::SWITCHED_OFF
+);
+ok( 'and is still reported as available, because it is', true === $recoveryflow_row['available'] );
+ok( 'and as switched off', false === $recoveryflow_row['enabled'] );
+
+foreach ( array( 'id', 'name', 'status', 'message', 'available', 'enabled', 'built_in', 'settings' ) as $recoveryflow_key ) {
+	ok( "an integration row carries {$recoveryflow_key}", array_key_exists( $recoveryflow_key, $recoveryflow_row ) );
+}
+
+// The endpoint must not re-derive the verdict. Asked of the registry directly,
+// the two answers have to be the same object of truth.
+check(
+	'the verdict comes from the registry rather than being worked out again',
+	$recoveryflow_row['status'],
+	$plugin->sources()->status( (string) $recoveryflow_row['id'] )
+);
+check(
+	'and so does the sentence, so the API and the screen cannot disagree',
+	$recoveryflow_row['message'],
+	Source_Registry::status_message( (string) $recoveryflow_row['status'] )
+);
+ok(
+	'a machine code is never sent without the sentence that explains it',
+	'' !== (string) $recoveryflow_row['message']
+);
+ok(
+	'and every row links to the control that switches it',
+	false !== strpos( (string) $recoveryflow_row['settings'], Source_Registry::enabled_key( (string) $recoveryflow_row['id'] ) )
+);
+
+// Read-only, for the same reason the settings endpoint is: a second way to
+// write a setting is a second set of rules about what a valid setting is.
+$GLOBALS['recoveryflow_routes'] = array();
+$plugin->rest_integrations()->register_routes();
+
+$recoveryflow_methods = array();
+
+foreach ( $GLOBALS['recoveryflow_routes'] as $recoveryflow_route ) {
+	foreach ( $recoveryflow_route['endpoints'] as $recoveryflow_endpoint ) {
+		$recoveryflow_methods[] = (string) ( $recoveryflow_endpoint['methods'] ?? '' );
+	}
+}
+
+check( 'the integrations collection offers reading and nothing else', $recoveryflow_methods, array( 'GET' ) );
+
+// Templates. A refusal is not an empty list: no key, a plan below Scale, a dead
+// network and a workspace with no approved templates are four situations that
+// need four responses, and all four look identical as [].
+delete_transient( 'recoveryflow_wacr_templates' );
+
+set_transient(
+	'recoveryflow_wacr_templates',
+	array(
+		'waba'  => '',
+		'value' => array(
+			'ok'        => true,
+			'templates' => array(
+				array(
+					'name'      => 'usable_one',
+					'language'  => 'en',
+					'variables' => array(
+						array(
+							'id'       => 'body_1',
+							'required' => true,
+						),
+					),
+				),
+				array(
+					'name'      => 'needs_an_image',
+					'language'  => 'en',
+					'variables' => array(
+						array(
+							'id'       => 'header_media_image',
+							'required' => true,
+						),
+					),
+				),
+			),
+		),
+	),
+	900
+);
+
+$recoveryflow_tpl = $plugin->rest_templates()->index( new WP_REST_Request( array() ) )->get_data();
+
+ok( 'the templates collection reports success', true === $recoveryflow_tpl['ok'] );
+check( 'and lists every approved template, usable or not', count( $recoveryflow_tpl['templates'] ), 2 );
+check( 'while saying how many can actually be sent', $recoveryflow_tpl['usable'], 1 );
+ok(
+	'a template this plugin cannot fill is listed rather than hidden from whoever approved it',
+	in_array( 'needs_an_image', array_column( $recoveryflow_tpl['templates'], 'name' ), true )
+);
+
+// The same verdict the picker uses, not a second opinion.
+check(
+	'and the endpoint agrees with the catalogue the workflow editor reads',
+	array_column( $recoveryflow_tpl['templates'], 'usable' ),
+	array_column( $plugin->template_catalog()->all()['templates'], 'usable' )
+);
+
+$plugin->sources()->set_enabled( $recoveryflow_first_source, true );
+
+
+// ---------------------------------------------------------------------------
+// "Run now": running the background passes from the status screen.
+//
+// The button sends real reminders and bills a real account, so what is asserted
+// here is mostly about what it REFUSES and what it SAYS -- the counts are the
+// easy part. Note the harness detail that makes these honest: the stats are
+// built by the real Stage_Runner against the real stages, so a pass that is
+// removed from the runner changes these answers.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_caps_before = $GLOBALS['recoveryflow_caps'] ?? null;
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_JOURNEYS );
+
+$recoveryflow_run = $plugin->admin_run_now()->run();
+
+ok( 'running the passes by hand reports one row per pass that ran', count( $recoveryflow_run['rows'] ) > 0 );
+check(
+	'and runs the same five passes the scheduler does, not a set of its own',
+	array_column( $recoveryflow_run['rows'], 'pass' ),
+	array_values( Scheduler_Interface::STAGES )
+);
+ok(
+	'and really works the primed rows rather than reporting an idle queue',
+	false !== strpos( $recoveryflow_run['message'], 'It handled' )
+		&& 0 < array_sum( array_column( $recoveryflow_run['rows'], 'handled' ) )
+);
+
+// The idle wording matters most on a shop where nothing is wrong, which is the
+// hardest state to reach through the primed harness -- so it is asserted of the
+// decision directly.
+$recoveryflow_idle = Run_Now::describe(
+	array_combine(
+		Scheduler_Interface::STAGES,
+		array_map(
+			static fn ( string $stage ): Stage_Stats => new Stage_Stats( $stage ),
+			Scheduler_Interface::STAGES
+		)
+	)
+);
+
+ok( 'an idle run is reported as working, not as a fault', true === $recoveryflow_idle['ok'] );
+ok(
+	'and says plainly that nothing was waiting rather than leaving a row of zeroes to be read as a breakage',
+	false !== strpos( $recoveryflow_idle['message'], 'Nothing was waiting.' )
+);
+
+// The counts are summed from the stats, so a pass reporting work must show up
+// in the summary. Asserted by driving the real runner rather than by faking a
+// stats array, which would only test the formatter.
+$recoveryflow_run_html = recoveryflow_render_screen( array( Run_Now::class, 'button' ) );
+
+ok(
+	'the button warns that this really sends and really bills, before it is pressed',
+	false !== strpos(
+		$recoveryflow_run_html,
+		esc_html__( 'The dispatch pass is one of the five, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward.', 'kdc-wacr-recoveryflow' )
+	)
+);
+ok(
+	'and posts to admin-post.php under its own action',
+	false !== strpos( $recoveryflow_run_html, 'name="action" value="' . Run_Now::ACTION . '"' )
+);
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_run_html, 'name="_wpnonce"' ) );
+
+// Reading the status screen and making the shop send are separate permissions.
+// VIEW_STATUS falls back to manage_options, so an account holding only it is
+// exactly the case that must not get the button.
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::VIEW_STATUS );
+
+$recoveryflow_run_html = recoveryflow_render_screen( array( Run_Now::class, 'button' ) );
+
+ok(
+	'somebody who may read the status screen but not work the queue gets no button',
+	false === strpos( $recoveryflow_run_html, 'name="action" value="' . Run_Now::ACTION . '"' )
+);
+ok(
+	'and is told which permission is missing rather than finding a control silently absent',
+	false !== strpos( $recoveryflow_run_html, 'recoveryflow_manage_journeys' )
+);
+
+$GLOBALS['recoveryflow_caps'] = $recoveryflow_caps_before;
+
+// A pass that could not take its lock must not read as "there was nothing to
+// do" -- that is the opposite diagnosis on the one screen somebody uses to work
+// out why nothing is happening.
+$recoveryflow_locked             = new Stage_Stats( Scheduler_Interface::DISPATCH );
+$recoveryflow_locked->last_error = 'locked';
+
+$recoveryflow_busy = Run_Now::describe( array( Scheduler_Interface::DISPATCH => $recoveryflow_locked ) );
+
+ok( 'a pass that was already running is reported as skipped', false !== strpos( $recoveryflow_busy['rows'][0]['note'], 'Skipped' ) );
+ok( 'and says that is ordinary rather than reading as a fault', false !== strpos( $recoveryflow_busy['rows'][0]['note'], 'ordinary' ) );
+ok(
+	'and the summary counts it as skipped rather than as an idle queue',
+	false !== strpos( $recoveryflow_busy['message'], 'already running' )
+);
+ok(
+	'so it never claims nothing was waiting',
+	false === strpos( $recoveryflow_busy['message'], 'Nothing was waiting.' )
+);
+
+// A pass that failed is not a pass that succeeded quietly.
+$recoveryflow_broken         = new Stage_Stats( Scheduler_Interface::DISPATCH );
+$recoveryflow_broken->failed = 3;
+
+$recoveryflow_bad = Run_Now::describe( array( Scheduler_Interface::DISPATCH => $recoveryflow_broken ) );
+
+ok( 'a run with failures is not reported as ok', false === $recoveryflow_bad['ok'] );
+ok( 'and says how many failed', false !== strpos( $recoveryflow_bad['message'], '3 records failed' ) );
+
+// No passes at all is a fault, not an empty queue -- the two look identical in
+// a count and need opposite responses from whoever is reading.
+$recoveryflow_none = Run_Now::describe( array() );
+
+ok( 'no registered passes is reported as a fault', false === $recoveryflow_none['ok'] );
+ok(
+	'and is distinguished from an empty queue in words',
+	false !== strpos( $recoveryflow_none['message'], 'fault rather than an empty queue' )
+);
+
+// One rule, one home: both tables on the status screen name a pass the same way.
+check(
+	'the status table and the run-now table give a pass the same name',
+	Stage_Label::for_stage( Scheduler_Interface::DISPATCH ),
+	__( 'Sending reminders', 'kdc-wacr-recoveryflow' )
+);
+check(
+	'and a stage nobody here registered keeps its own key rather than becoming "Unknown"',
+	Stage_Label::for_stage( 'somebody-elses-pass' ),
+	'somebody-elses-pass'
+);
 
 
 echo "\n";

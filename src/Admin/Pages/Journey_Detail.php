@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Admin\Pages;
 
+use WAcr\RecoveryFlow\Admin\Journey_Actions;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
@@ -18,6 +19,7 @@ use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\Support\Money;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -141,9 +143,12 @@ final class Journey_Detail {
 			esc_html__( 'Back to all recoveries', 'kdc-wacr-recoveryflow' )
 		);
 
+		Journey_Actions::notice();
+
 		$this->summary_card( $journey );
 		$this->customer_card( $journey );
 		$this->messages_card( $journey );
+		Journey_Actions::buttons( $journey );
 
 		echo '</div>';
 	}
@@ -172,7 +177,7 @@ final class Journey_Detail {
 		}
 
 		if ( null !== $event ) {
-			$rows[] = array( __( 'Basket value', 'kdc-wacr-recoveryflow' ), $event->amount . ' ' . $event->currency );
+			$rows[] = array( __( 'Basket value', 'kdc-wacr-recoveryflow' ), Money::format( (string) $event->amount, (string) $event->currency ) );
 			$rows[] = array( __( 'What was in it', 'kdc-wacr-recoveryflow' ), '' === $event->items_summary( 20 ) ? __( 'No longer held', 'kdc-wacr-recoveryflow' ) : $event->items_summary( 20 ) );
 		}
 

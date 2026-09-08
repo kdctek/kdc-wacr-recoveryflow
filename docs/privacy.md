@@ -100,9 +100,15 @@ A customer is only anonymised when *every* journey they have is finished, so som
 
 **Uninstall.** `uninstall.php` always removes the API key, the signing and webhook secrets, the hash key, capabilities, scheduled actions and transients. Tables and options are dropped only when `delete_data_on_uninstall` is enabled (default off), so a merchant who removes the plugin by mistake does not lose their history — including the record of who opted out. On multisite it iterates every site.
 
-### Not built yet
+**A shopkeeper can record an opt-out taken by telephone.** It runs the same code as the unsubscribe link: every identity the customer has is suppressed, not merely the phone number, and every open recovery of theirs is stopped along with its links. The suppression survives a privacy erasure, because the hashes are the suppression list -- erasing them would forget that this person asked not to be messaged, and message them again the next time they typed the same number into a checkout.
 
-The plan also describes an erase-by-phone admin action for customers who never gave an email address. That does not exist yet; erasure today goes through WordPress's own privacy tools, which are keyed by email.
+**A customer who only ever gave a phone number can be erased too.** WordPress's own privacy tools find somebody by email address, which is the right key for almost every plugin and the wrong one for this: RecoveryFlow exists to recover people over WhatsApp, so a large share of the customers it holds typed a phone number at the checkout and never an address, and core's eraser has nothing to search on. Settings > Privacy > Erase one customer takes the number instead.
+
+It normalises what is typed before hashing it, through the same resolver the checkout used -- a customer reads their number off their phone as `07700 900123` while the identity was stored as `+447700900123`, and a lookup that skipped that step would report somebody as absent who is certainly there, on the one screen where that answer sends a person away believing their data has already gone. A site that filters `recoveryflow_normalize_phone` is searched through that filter too, for the same reason. A bare local number is read as belonging to the merchant's own postal country.
+
+It ends at the same `Anonymizer` as core's eraser and the retention clear-out. There is no second implementation of what "erased" means, and this route gets no exception: the same fields are blanked, the same links revoked, the same keyed hashes kept.
+
+Three answers are deliberately distinct, because two of them look alike and mean opposite things: a number that could not be read (try again), a number nobody has (stop looking), and a customer who had already been erased (nothing changed, and saying "done" again would be a lie about work that did not happen). The form never echoes back who was found -- an erasure box that returned a name would answer "does this phone number belong to one of your customers" for anyone who could reach the screen.
 
 ## Data minimisation rules
 

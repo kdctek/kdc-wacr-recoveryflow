@@ -10,7 +10,9 @@ namespace WAcr\RecoveryFlow\Customer;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Security\Hash_Key;
 use WAcr\RecoveryFlow\Jobs\Lock;
+use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Support\Logger;
+use WAcr\RecoveryFlow\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -350,6 +352,27 @@ final class Identity_Resolver {
 		$refreshed = $this->customers->find( $customer->id );
 
 		return null === $refreshed ? $customer : $refreshed;
+	}
+
+	/**
+	 * The country a number with no dialling code is read as belonging to.
+	 *
+	 * The merchant's own postal country, which they have already given for the
+	 * email footer. Two places outside the checkout now have to turn a typed
+	 * number back into an identity -- erasing a customer by phone, and an event
+	 * reported by an Auto Flow -- and a local number cannot be resolved without
+	 * one. Kept here rather than in each of them, because a lookup that guessed
+	 * a different country from the one the checkout used would search for
+	 * something this site never wrote and report the customer as absent.
+	 *
+	 * Empty is a valid answer and simply means a number without a country code
+	 * cannot be resolved, which each caller reports as unreadable rather than
+	 * as nobody having it.
+	 *
+	 * @return string ISO 3166-1 alpha-2, or empty.
+	 */
+	public static function site_country(): string {
+		return (string) Options::get( Email_Compliance::SETTING_COUNTRY, '' );
 	}
 
 	/**

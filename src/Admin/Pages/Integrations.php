@@ -107,7 +107,7 @@ final class Integrations {
 		printf(
 			'<p><strong>%1$s</strong> %2$s</p>',
 			esc_html__( 'Status:', 'kdc-wacr-recoveryflow' ),
-			esc_html( $this->status_sentence( $status ) )
+			esc_html( Source_Registry::status_message( $status ) )
 		);
 
 		$types = $source->get_event_types();
@@ -142,27 +142,5 @@ final class Integrations {
 		);
 
 		echo '</div>';
-	}
-
-	/**
-	 * What an integration's state means, in one sentence.
-	 *
-	 * @param string $status One of the Source_Registry constants.
-	 * @return string
-	 */
-	private function status_sentence( string $status ): string {
-		switch ( $status ) {
-			case Source_Registry::UNAVAILABLE:
-				return __( 'Not available. Whatever this integration needs is not installed or not active on this site.', 'kdc-wacr-recoveryflow' );
-
-			case Source_Registry::SWITCHED_OFF:
-				return __( 'Available, but switched off here. Nothing from this integration is being recorded.', 'kdc-wacr-recoveryflow' );
-
-			case Source_Registry::NOT_INCLUDED:
-				return __( 'Installed and switched on, but not included in this WA.cr plan, so nothing from it is being recorded. Integrations beyond WooCommerce are included with the WA.cr Scale plan and above.', 'kdc-wacr-recoveryflow' );
-
-			default:
-				return __( 'Active. Abandoned baskets from here are being recorded.', 'kdc-wacr-recoveryflow' );
-		}
 	}
 }

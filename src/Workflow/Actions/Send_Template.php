@@ -72,7 +72,7 @@ final class Send_Template implements Action_Interface {
 	/**
 	 * How many times one step may try before the journey is given up on.
 	 */
-	private const MAX_ATTEMPTS = 3;
+	private const MAX_ATTEMPTS = Attempt::MAX_PER_STEP;
 
 	/**
 	 * Backoff between tries: five minutes, doubling, capped at six hours.

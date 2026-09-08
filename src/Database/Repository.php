@@ -104,10 +104,33 @@ abstract class Repository {
 	 * racing to create the same journey or reserve the same send must produce
 	 * one of each, and the loser must be able to tell that it lost.
 	 *
+	 * **Only for tables with an AUTO_INCREMENT id.** It reports the outcome as
+	 * the new row's id, and a table whose primary key is a natural one has no
+	 * such id: MySQL leaves insert_id at 0, so this answers 0 -- "somebody else
+	 * got there first" -- for every caller including the one that actually
+	 * wrote the row. Use insert_ignore_wrote() for those. This is not
+	 * hypothetical: the receipt ledger is keyed on receipt_key, and until the
+	 * live environment showed it, every order event on every real install was
+	 * being discarded as a duplicate of itself.
+	 *
 	 * @param array<string,mixed> $data Column values, already sanitised.
 	 * @return int The new row id, or 0 when the row already existed.
 	 */
 	protected function insert_ignore( array $data ): int {
+		return 1 === $this->run_insert_ignore( $data ) ? (int) $this->db()->insert_id : 0;
+	}
+
+	/**
+	 * Run one INSERT IGNORE and report how many rows it wrote.
+	 *
+	 * The single place the statement is built, so the two questions asked of it
+	 * -- "what id did this get" and "was it me who wrote it" -- cannot drift
+	 * into two statements that behave differently.
+	 *
+	 * @param array<string,mixed> $data Column values, already sanitised.
+	 * @return int Rows written: 1, or 0 when the unique key turned it away.
+	 */
+	private function run_insert_ignore( array $data ): int {
 		$columns      = array_keys( $data );
 		$placeholders = array();
 
@@ -138,9 +161,23 @@ abstract class Repository {
 		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- prepared immediately above.
-		$rows = $this->db()->query( $prepared );
+		return (int) $this->db()->query( $prepared );
+	}
 
-		return 1 === $rows ? (int) $this->db()->insert_id : 0;
+	/**
+	 * Insert a row, and say whether THIS caller is the one that wrote it.
+	 *
+	 * The same INSERT IGNORE, answering the question a table with a natural
+	 * primary key can actually answer: MySQL reports one row affected when the
+	 * insert happened and zero when the unique key turned it away. That is the
+	 * whole idempotency guarantee for such a table, and it is what "may I be
+	 * the one to handle this event" means.
+	 *
+	 * @param array<string,mixed> $data Column values, already sanitised.
+	 * @return bool True only for the caller whose insert actually wrote a row.
+	 */
+	protected function insert_ignore_wrote( array $data ): bool {
+		return 1 === $this->run_insert_ignore( $data );
 	}
 
 	/**

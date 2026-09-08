@@ -8,8 +8,9 @@
 namespace WAcr\RecoveryFlow\Admin\Pages;
 
 use WAcr\RecoveryFlow\Admin\Diagnostics;
+use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Core\Health;
-use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
+use WAcr\RecoveryFlow\Jobs\Stage_Label;
 use WAcr\RecoveryFlow\Security\Capabilities;
 
 defined( 'ABSPATH' ) || exit;
@@ -65,8 +66,11 @@ final class System_Status {
 		echo '<div class="wrap recoveryflow-status">';
 		printf( '<h1>%s</h1>', esc_html__( 'RecoveryFlow status', 'kdc-wacr-recoveryflow' ) );
 
+		Run_Now::notice();
+
 		$this->checks();
 		$this->stages();
+		Run_Now::button();
 		$this->diagnostics->render();
 
 		echo '</div>';
@@ -129,7 +133,7 @@ final class System_Status {
 		foreach ( $this->health->stage_report() as $stage ) {
 			printf(
 				'<tr><th scope="row">%1$s</th><td>%2$s</td><td>%3$s</td><td>%4$s</td><td>%5$s</td></tr>',
-				esc_html( $this->stage_label( (string) $stage['stage'] ) ),
+				esc_html( Stage_Label::for_stage( (string) $stage['stage'] ) ),
 				esc_html( '' === (string) $stage['ran_at'] ? __( 'Not yet', 'kdc-wacr-recoveryflow' ) : (string) $stage['ran_at'] ),
 				esc_html( number_format_i18n( (int) $stage['processed'] ) ),
 				esc_html( number_format_i18n( (int) $stage['failed'] ) ),
@@ -159,34 +163,6 @@ final class System_Status {
 
 			default:
 				return _x( 'Working', 'the result of a system check', 'kdc-wacr-recoveryflow' );
-		}
-	}
-
-	/**
-	 * What one background pass is for, in words.
-	 *
-	 * @param string $stage Stage key.
-	 * @return string
-	 */
-	private function stage_label( string $stage ): string {
-		switch ( $stage ) {
-			case Scheduler_Interface::EVALUATE:
-				return __( 'Finding abandoned baskets', 'kdc-wacr-recoveryflow' );
-
-			case Scheduler_Interface::DISPATCH:
-				return __( 'Sending reminders', 'kdc-wacr-recoveryflow' );
-
-			case Scheduler_Interface::POLL:
-				return __( 'Checking for replies', 'kdc-wacr-recoveryflow' );
-
-			case Scheduler_Interface::EXPIRE:
-				return __( 'Closing recoveries that ran out of time', 'kdc-wacr-recoveryflow' );
-
-			case Scheduler_Interface::RETENTION:
-				return __( 'Clearing out old data', 'kdc-wacr-recoveryflow' );
-
-			default:
-				return $stage;
 		}
 	}
 }

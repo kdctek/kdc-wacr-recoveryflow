@@ -46,7 +46,14 @@ final class Receipt_Repository extends Repository {
 	 * @return bool True for the one caller that may act; false for every repeat.
 	 */
 	public function claim( string $key, string $kind ): bool {
-		return 0 !== $this->insert_ignore(
+		// insert_ignore_wrote(), not insert_ignore(): this table's primary key
+		// is receipt_key itself, so there is no AUTO_INCREMENT id and MySQL
+		// leaves insert_id at 0. Reading the outcome as an id therefore
+		// answered "somebody else got there first" to EVERY caller, including
+		// the one whose insert actually wrote the row -- so no claim here has
+		// ever succeeded on a real database, and every order event was being
+		// discarded as a duplicate of itself.
+		return $this->insert_ignore_wrote(
 			array(
 				'receipt_key' => substr( $key, 0, 128 ),
 				'kind'        => substr( $kind, 0, 24 ),

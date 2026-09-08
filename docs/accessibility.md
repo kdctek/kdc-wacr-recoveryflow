@@ -47,7 +47,11 @@ The workflows screen and its editor are built. Each step is a native `<details>`
 
 The diagnostic report is built. It is a read-only `<textarea>` with a real label, which can be selected and copied by hand in any browser with scripts switched off; the "Copy the report" button is an enhancement on top of that and announces success or failure through the same live region the rest of the screen uses.
 
-Not built yet: bulk actions and row actions on the queue, and the WP-Cron "Run now" button.
+The "Run now" button on the status screen is built. It is an ordinary form posting to `admin-post.php`, so it works with scripts blocked, and its result is announced through a `role="status"` notice rather than by moving focus away from somebody who had already started reading. What it does is stated in prose beside it before it is pressed -- including that it really sends and really bills -- because the alternative safeguard, a confirmation dialog, only exists when a script loads and so is no safeguard at all on this screen. Somebody who may read the status screen but not work the queue is told which permission is missing rather than finding the control silently absent.
+
+The queue's row action opens a recovery and changes nothing. The four things that DO change one -- stop it, try it again, stop its links working, never message this customer again -- are POST buttons on the recovery's own screen, each with a sentence saying what it will do before it is pressed, because three of them cannot be undone. They are not row actions on the list on purpose: a row action is an anchor, and an anchor that cancels somebody's recovery is fetched by anything that follows links -- a prefetcher, a crawler, the antivirus proxy that opens every URL in an incoming email. A nonce is no defence, because the link in the page carries a valid one. Somebody who may read the queue but not change it is told which permission is missing rather than finding the buttons silently absent.
+
+Not built yet: bulk actions on the queue.
 
 The setup screen has one step rather than four on purpose. Every later thing a wizard would ask -- which channel, how messages are sent, consent, retention -- already has a control on the settings screen with its own deeplink, and a wizard whose remaining steps restate settings that exist elsewhere is a wizard people learn to click through without reading. Connecting a workspace is the only thing on it because it is the only thing RecoveryFlow cannot do for itself.
 

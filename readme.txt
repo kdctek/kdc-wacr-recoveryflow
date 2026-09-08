@@ -181,9 +181,23 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 == Changelog ==
 
 = 0.1.0 =
-* Initial development release: core engine, WooCommerce integration, WA.cr client.
+First release.
+
+* Detects abandoned WooCommerce carts and checkouts, on both the classic and the block checkout, and records one recovery per shopping session.
+* Picks up a phone number and email address as they are typed at the checkout, and records whether the shopper agreed to be messaged. Explicit consent is the default.
+* Recovers through WA.cr: either by handing the journey to an Auto Flow, which works on every WA.cr plan and needs no API key, or by sending approved WhatsApp templates on a schedule this plugin decides. The second is included with WA.cr Scale and above.
+* Recovery links that rebuild the basket without wiping what the shopper has now, and stop working the moment the order is placed.
+* A form-based workflow editor with no JavaScript in it at all, a template picker that shows each blank in the template's own words, and quiet hours and frequency caps.
+* Admin screens built from core WordPress components: an overview, the recovery queue, one screen per recovery, integrations, six tabs of settings with linkable addresses, and a system status screen with a diagnostic report safe to paste into a support thread.
+* Acting on a recovery: stop it, try a failed one again, stop its links working, or record that a customer asked by telephone never to be messaged again.
+* Opt-out honoured from every direction -- the unsubscribe link, an opt-out recorded in WA.cr, a STOP reported by an Auto Flow, or a shopkeeper acting on a phone call -- and the suppression survives a privacy erasure.
+* WordPress privacy export and erasure, plus erasure by phone number for the customers core's tools cannot find, and a scheduled clear-out of data nobody has a reason to keep.
+* A REST API under `/wp-json/kdc/v1/wacr/recoveryflow/`, capability-gated, with customer contact details masked unless revealing them is both permitted and asked for, and every reveal recorded.
+* WP-CLI: `wp recoveryflow status`, `tick`, `journeys` and `sources`. Contact details are always masked.
+* A Gravity Forms integration for save-and-continue drafts and entries whose payment never went through, and a documented interface for building your own.
+* Fully translatable, with the .pot shipped.
 
 == Upgrade Notice ==
 
 = 0.1.0 =
-Initial development release.
+First release.

@@ -402,15 +402,66 @@ class WP_List_Table {
  */
 class WP_REST_Request {
 	private $params;
+	private $method;
+	private $route;
 
-	public function __construct( array $params = array() ) {
-		$this->params = $params;
+	/*
+	 * The real constructor is ( $method = '', $route = '', $attributes = [] ).
+	 * This stub used to take an array of params instead, so production code
+	 * building a request the way WordPress documents it fataled here -- and a
+	 * fatal reads as a failing suite rather than as "the double is wrong".
+	 * It now accepts BOTH: the real three-argument form, and the array-of-params
+	 * shorthand the existing tests were written against.
+	 */
+	public function __construct( $method = '', $route = '', $attributes = array() ) {
+		if ( is_array( $method ) ) {
+			$this->params = $method;
+			$this->method = '';
+			$this->route  = '';
+
+			return;
+		}
+
+		$this->params = array();
+		$this->method = (string) $method;
+		$this->route  = (string) $route;
+	}
+	public function get_method() {
+		return $this->method;
+	}
+	public function get_route() {
+		return $this->route;
+	}
+	public function get_params() {
+		return $this->params;
 	}
 	public function get_param( $key ) {
 		return $this->params[ $key ] ?? null;
 	}
 	public function set_param( $key, $value ) {
 		$this->params[ $key ] = $value;
+	}
+
+	/*
+	 * Headers and a body, without which no test could reach a controller that
+	 * reads either -- which is every webhook receiver there will ever be here.
+	 * Header names are matched case-insensitively, as WordPress does, because
+	 * the case a caller sends is not the case anybody writes in a test.
+	 */
+	private $headers = array();
+	private $body    = '';
+
+	public function set_header( $name, $value ) {
+		$this->headers[ strtolower( (string) $name ) ] = $value;
+	}
+	public function get_header( $name ) {
+		return $this->headers[ strtolower( (string) $name ) ] ?? null;
+	}
+	public function set_body( $body ) {
+		$this->body = (string) $body;
+	}
+	public function get_body() {
+		return $this->body;
 	}
 }
 
@@ -689,8 +740,51 @@ class Fake_Wpdb extends wpdb {
 	public function esc_like( $text ) {
 		return addcslashes( (string) $text, '_%\\' );
 	}
+	/**
+	 * Rows an INSERT IGNORE has already claimed, keyed by table and first value.
+	 *
+	 * MySQL's INSERT IGNORE writes nothing and reports zero rows when it would
+	 * break a UNIQUE key, and the whole point of the receipt ledger is that
+	 * second write failing. This stub used to report one row for every insert,
+	 * so a duplicate always looked claimed: the dedupe guarantee this plugin
+	 * leans on for "a retry cannot double-send" could not be exercised by any
+	 * test, and every assertion about it passed because the fake always said
+	 * yes. The first column carries the unique value in every such table here.
+	 *
+	 * @var array<string,bool>
+	 */
+	public $claimed = array();
+
+	/**
+	 * Tables whose primary key is a natural one, so MySQL sets no insert_id.
+	 *
+	 * Mirrors Schema.php. A table listed here that gains an AUTO_INCREMENT id,
+	 * or one that loses it and is not listed, makes this stub disagree with the
+	 * database in exactly the way that hid a shipped bug.
+	 *
+	 * @var string[]
+	 */
+	const NATURAL_KEY_TABLES = array( 'recoveryflow_receipts', 'recoveryflow_locks' );
+
 	public function query( $sql ) {
 		$this->queries[] = $sql;
+
+		$rows_written = 1;
+
+		if ( 0 === stripos( ltrim( (string) $sql ), 'INSERT IGNORE' ) ) {
+			if ( preg_match( '/INTO\s+`([^`]+)`.*?VALUES\s*\(\s*(\'[^\']*\'|[^,)]+)/is', (string) $sql, $m ) ) {
+				$key = $m[1] . '|' . trim( $m[2] );
+
+				if ( isset( $this->claimed[ $key ] ) ) {
+					// MySQL reports zero rows affected when the unique key
+					// turns the insert away. That zero IS the idempotency
+					// guarantee, so it must reach the caller.
+					return 0;
+				}
+
+				$this->claimed[ $key ] = true;
+			}
+		}
 
 		// Real wpdb sets insert_id on an INSERT, and repositories here read it
 		// straight back to learn the new row's id. A stub that leaves it at
@@ -698,10 +792,23 @@ class Fake_Wpdb extends wpdb {
 		// create path looks like a lost race and no test can reach the code
 		// after it.
 		if ( 0 === stripos( ltrim( (string) $sql ), 'INSERT' ) ) {
+			// Only a table with an AUTO_INCREMENT column gets an insert_id.
+			// MySQL leaves it alone for a table whose primary key is a natural
+			// one, and a stub that sets it for every insert cannot reproduce
+			// the bug that caused: reading the outcome of INSERT IGNORE as an
+			// id answers "somebody else got there first" to every caller,
+			// including the one that wrote the row. That shipped, and only a
+			// real database showed it.
+			foreach ( self::NATURAL_KEY_TABLES as $natural ) {
+				if ( false !== strpos( (string) $sql, $natural ) ) {
+					return $rows_written;
+				}
+			}
+
 			$this->insert_id = ++$GLOBALS['__fake_insert_id'];
 		}
 
-		return 1;
+		return $rows_written;
 	}
 	public function get_row( $sql, $output = null ) {
 		$this->queries[] = $sql;
@@ -734,8 +841,29 @@ class Fake_Wpdb extends wpdb {
 
 		return array();
 	}
+	/**
+	 * Scalars to hand back, keyed by a fragment of the query that asks for them.
+	 *
+	 * Every COUNT(*) in this plugin comes back through get_var, and this stub
+	 * used to answer null to all of them -- so an attempt cap, a queue depth or
+	 * any other "how many" was permanently zero and the code that acts on a
+	 * non-zero answer could not be reached by any test. The same family of
+	 * fault as the missing insert() and get_col(): the suite stayed green
+	 * because the branch was never entered.
+	 *
+	 * @var array<string,mixed>
+	 */
+	public $vars = array();
+
 	public function get_var( $sql ) {
 		$this->queries[] = $sql;
+
+		foreach ( $this->vars as $fragment => $value ) {
+			if ( false !== strpos( (string) $sql, (string) $fragment ) ) {
+				return $value;
+			}
+		}
+
 		return null;
 	}
 	/*

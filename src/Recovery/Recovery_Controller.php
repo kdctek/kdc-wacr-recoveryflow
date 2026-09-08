@@ -10,16 +10,12 @@ namespace WAcr\RecoveryFlow\Recovery;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Core\Rewrites;
-use WAcr\RecoveryFlow\Customer\Consent_Store;
-use WAcr\RecoveryFlow\Customer\Customer_Repository;
-use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Security\Hash_Key;
 use WAcr\RecoveryFlow\Security\Rate_Limiter;
 use WAcr\RecoveryFlow\Security\Token_Service;
 use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\Support\User_Agent;
-use WAcr\RecoveryFlow\WAcr\Opt_Out_Sync;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -102,20 +98,6 @@ final class Recovery_Controller {
 	private Event_Repository $events;
 
 	/**
-	 * Customer storage.
-	 *
-	 * @var Customer_Repository
-	 */
-	private Customer_Repository $customers;
-
-	/**
-	 * Consent and suppression.
-	 *
-	 * @var Consent_Store
-	 */
-	private Consent_Store $consent;
-
-	/**
 	 * The registered sources.
 	 *
 	 * @var Source_Registry
@@ -137,6 +119,13 @@ final class Recovery_Controller {
 	private Logger $logger;
 
 	/**
+	 * The one implementation of "stop messaging me".
+	 *
+	 * @var Suppressor
+	 */
+	private Suppressor $suppressor;
+
+	/**
 	 * Clock.
 	 *
 	 * @var Clock
@@ -146,36 +135,33 @@ final class Recovery_Controller {
 	/**
 	 * Constructor.
 	 *
-	 * @param Attempt_Repository  $attempts  Attempt ledger.
-	 * @param Journey_Repository  $journeys  Journey storage.
-	 * @param Event_Repository    $events    Event storage.
-	 * @param Customer_Repository $customers Customer storage.
-	 * @param Consent_Store       $consent   Consent and suppression.
-	 * @param Source_Registry     $sources   Registered sources.
-	 * @param Rate_Limiter        $limiter   Request throttle.
-	 * @param Logger              $logger    Logger.
-	 * @param Clock               $clock     Clock.
+	 * @param Attempt_Repository $attempts  Attempt ledger.
+	 * @param Journey_Repository $journeys  Journey storage.
+	 * @param Event_Repository   $events    Event storage.
+	 * @param Source_Registry    $sources   Registered sources.
+	 * @param Rate_Limiter       $limiter   Request throttle.
+	 * @param Logger             $logger    Logger.
+	 * @param Clock              $clock     Clock.
+	 * @param Suppressor         $suppressor The one implementation of "stop messaging me".
 	 */
 	public function __construct(
 		Attempt_Repository $attempts,
 		Journey_Repository $journeys,
 		Event_Repository $events,
-		Customer_Repository $customers,
-		Consent_Store $consent,
 		Source_Registry $sources,
 		Rate_Limiter $limiter,
 		Logger $logger,
-		Clock $clock
+		Clock $clock,
+		Suppressor $suppressor
 	) {
-		$this->attempts  = $attempts;
-		$this->journeys  = $journeys;
-		$this->events    = $events;
-		$this->customers = $customers;
-		$this->consent   = $consent;
-		$this->sources   = $sources;
-		$this->limiter   = $limiter;
-		$this->logger    = $logger;
-		$this->clock     = $clock;
+		$this->attempts   = $attempts;
+		$this->journeys   = $journeys;
+		$this->events     = $events;
+		$this->sources    = $sources;
+		$this->limiter    = $limiter;
+		$this->logger     = $logger;
+		$this->clock      = $clock;
+		$this->suppressor = $suppressor;
 	}
 
 	/**
@@ -406,69 +392,21 @@ final class Recovery_Controller {
 	}
 
 	/**
-	 * Record the suppression and end every journey for that person.
+	 * Stop every recovery for the person who asked.
 	 *
-	 * Keyed on the identity hashes rather than the customer row, because that is
-	 * what survives an erasure request: forgetting that somebody asked not to
-	 * be messaged is the one thing an erasure must never do.
+	 * The work itself lives in Suppressor, because there are now three ways to
+	 * say "stop messaging me" -- this link, a shopkeeper acting on a phone
+	 * call, and the same act over REST -- and three implementations of what
+	 * happens next is three chances to forget one of the identities. That is
+	 * not hypothetical: suppression used to be written against the phone number
+	 * alone here, so a shopper who had given an address and no number was told
+	 * their reminders had stopped while nothing at all was recorded.
 	 *
-	 * **Every identity the person has, not the one the message went out on.**
-	 * Suppression is stored per identity, so silencing only the phone would
-	 * leave the email address untouched and the next reminder would arrive by
-	 * email from the same shop -- and for somebody who only ever gave an
-	 * address, silencing the phone silences nothing at all, which is how an
-	 * unsubscribe link comes to render a page saying the reminders have stopped
-	 * while nothing has been recorded anywhere. That is also the reason the
-	 * pages this endpoint renders no longer name a single channel: what is
-	 * being switched off is the reminders, not one way of delivering them.
-	 *
-	 * @param Recovery_Journey $journey The journey the link belonged to.
+	 * @param Recovery_Journey $journey The journey whose link was used.
 	 * @return void
 	 */
 	private function suppress( Recovery_Journey $journey ): void {
-		$customer = $this->customers->find( $journey->customer_id );
-
-		$identities = null === $customer
-			? array()
-			: array_filter(
-				array(
-					Identity::E164  => $customer->phone_hash,
-					Identity::EMAIL => $customer->email_hash,
-				)
-			);
-
-		if ( null === $customer || array() === $identities ) {
-			$this->logger->warning(
-				'recovery',
-				'An opt-out arrived for a journey with no contact left to suppress.',
-				array(),
-				$journey->id
-			);
-
-			return;
-		}
-
-		foreach ( $identities as $kind => $hash ) {
-			$this->consent->suppress( (string) $kind, (string) $hash, $customer->id, 'link' );
-		}
-
-		/*
-		 * Queued after the suppression above is recorded, and never before it.
-		 * "Stop messaging me" is answered here first; whether it also reaches
-		 * WA.cr is a merchant setting and a network call, and neither may stand
-		 * between a customer and being left alone.
-		 */
-		Opt_Out_Sync::queue( $customer->id );
-
-		foreach ( $this->journeys->active_for_customer( $customer->id, 100 ) as $active ) {
-			if ( ! $this->journeys->transition( $active->id, $active->status, Journey_State::OPTED_OUT, array(), 'link' ) ) {
-				continue;
-			}
-
-			// The links die with the journey. One of them is the link this
-			// person just used to ask to be left alone.
-			$this->attempts->revoke_tokens( $active->id );
-		}
+		$this->suppressor->suppress( $journey->customer_id, Suppressor::SOURCE_LINK );
 	}
 
 	/**

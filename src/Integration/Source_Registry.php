@@ -271,6 +271,35 @@ final class Source_Registry {
 	}
 
 	/**
+	 * What a status means, in a sentence somebody can act on.
+	 *
+	 * Kept beside status() rather than in the screen that first printed it. The
+	 * REST collection and the Integrations screen now both answer "is this
+	 * integration working", and a status code carried in two places with the
+	 * wording in only one is how an API and a screen end up giving different
+	 * accounts of the same site -- which is the exact fault this plugin has
+	 * already shipped four times.
+	 *
+	 * @param string $status One of the class constants.
+	 * @return string
+	 */
+	public static function status_message( string $status ): string {
+		switch ( $status ) {
+			case self::UNAVAILABLE:
+				return __( 'Not available. Whatever this integration needs is not installed or not active on this site.', 'kdc-wacr-recoveryflow' );
+
+			case self::SWITCHED_OFF:
+				return __( 'Available, but switched off here. Nothing from this integration is being recorded.', 'kdc-wacr-recoveryflow' );
+
+			case self::NOT_INCLUDED:
+				return __( 'Installed and switched on, but not included in this WA.cr plan, so nothing from it is being recorded. Integrations beyond WooCommerce are included with the WA.cr Scale plan and above.', 'kdc-wacr-recoveryflow' );
+
+			default:
+				return __( 'Active. Abandoned baskets from here are being recorded.', 'kdc-wacr-recoveryflow' );
+		}
+	}
+
+	/**
 	 * Whether a source ships inside the plugin.
 	 *
 	 * @param string $id Source id.

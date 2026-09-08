@@ -44,6 +44,15 @@ jobs:
       - name: Schema and repositories agree
         run: composer schema:audit
 
+      # What ships is decided by .distignore, which is a deny-list: a new
+      # top-level directory ships by accident, and a newly-ignored one vanishes
+      # silently. Both have nearly happened here -- assets/ holds the checkout
+      # script and is deliberately NOT ignored. This also catches a release
+      # whose six version strings have drifted apart, which no other gate sees
+      # and which WordPress.org rejects or serves wrongly.
+      - name: The zip carries what it must and nothing it must not
+        run: composer dist:check
+
   i18n:
     name: Translation readiness
     runs-on: ubuntu-latest
