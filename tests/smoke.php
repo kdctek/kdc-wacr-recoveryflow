@@ -764,9 +764,10 @@ ok(
 ok( 'an unusable value has no hash', '' === Identity_Repository::hash_for( Identity::EMAIL, '  ' ) );
 ok( 'the same address hashes the same either way', Identity_Repository::hash_for( Identity::EMAIL, 'Asha@Example.com' ) === Identity_Repository::hash_for( Identity::EMAIL, 'asha@example.com' ) );
 
-// The kind is part of the hashed material, so the same string used as two
-// different kinds does not collide into one identity.
-ok( 'kind is part of the hash', Identity_Repository::hash_for( Identity::EMAIL, 'a@b.co' ) !== Identity_Repository::hash_for( Identity::EXTERNAL_ID, 'a@b.co' ) );
+// The hash must agree with how the rest of the plugin already hashes an
+// identifier, or lookups from the order observer would silently never match.
+ok( 'the email hash matches Hash_Key::email()', Identity_Repository::hash_for( Identity::EMAIL, 'Asha@Example.com' ) === Hash_Key::email( 'Asha@Example.com' ) );
+ok( 'the phone hash matches Hash_Key::hash()', Identity_Repository::hash_for( Identity::E164, '+919876543210' ) === Hash_Key::hash( '+919876543210' ) );
 
 echo "\n";
 echo "\n";

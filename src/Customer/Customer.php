@@ -128,20 +128,6 @@ final class Customer {
 	public ?string $wacr_synced_at = null;
 
 	/**
-	 * Cached verdict from the consent ledger.
-	 *
-	 * @var string
-	 */
-	public string $consent_status = self::CONSENT_UNKNOWN;
-
-	/**
-	 * When the customer opted out, UTC.
-	 *
-	 * @var string|null
-	 */
-	public ?string $opted_out_at = null;
-
-	/**
 	 * When the record was anonymised, UTC.
 	 *
 	 * @var string|null
@@ -173,19 +159,11 @@ final class Customer {
 
 		$customer->id              = isset( $row['id'] ) ? (int) $row['id'] : 0;
 		$customer->wp_user_id      = isset( $row['wp_user_id'] ) ? (int) $row['wp_user_id'] : null;
-		$customer->email           = (string) ( $row['email'] ?? '' );
-		$customer->email_hash      = (string) ( $row['email_hash'] ?? '' );
-		$customer->phone_e164      = (string) ( $row['phone_e164'] ?? '' );
-		$customer->phone_raw       = (string) ( $row['phone_raw'] ?? '' );
-		$customer->phone_status    = (string) ( $row['phone_status'] ?? self::PHONE_UNKNOWN );
-		$customer->phone_hash      = (string) ( $row['phone_hash'] ?? '' );
 		$customer->first_name      = (string) ( $row['first_name'] ?? '' );
 		$customer->last_name       = (string) ( $row['last_name'] ?? '' );
 		$customer->country_iso2    = (string) ( $row['country_iso2'] ?? '' );
 		$customer->wacr_contact_id = (string) ( $row['wacr_contact_id'] ?? '' );
 		$customer->wacr_synced_at  = isset( $row['wacr_synced_at'] ) ? (string) $row['wacr_synced_at'] : null;
-		$customer->consent_status  = (string) ( $row['consent_status'] ?? self::CONSENT_UNKNOWN );
-		$customer->opted_out_at    = isset( $row['opted_out_at'] ) ? (string) $row['opted_out_at'] : null;
 		$customer->anonymized_at   = isset( $row['anonymized_at'] ) ? (string) $row['anonymized_at'] : null;
 		$customer->created_at      = (string) ( $row['created_at'] ?? '' );
 		$customer->updated_at      = (string) ( $row['updated_at'] ?? '' );
@@ -194,12 +172,63 @@ final class Customer {
 	}
 
 	/**
-	 * Whether there is a number that can actually be messaged.
+	 * Fill in the ways of reaching this person from their identity rows.
+	 *
+	 * The phone and email properties are no longer columns on the customer:
+	 * identity lives in rows of its own, because a person may be reachable in
+	 * several ways and the set changes over the relationship. They are kept as
+	 * properties, and populated here, because they are what the code that
+	 * actually sends a message reads -- composing a template, prefilling a
+	 * checkout, syncing a contact -- and making every one of those callers
+	 * assemble the set itself would spread the schema through the whole plugin
+	 * for no gain.
+	 *
+	 * Read them, do not write them: the identity rows are the record.
+	 *
+	 * @param array<int,array<string,mixed>> $rows Identity rows for this customer.
+	 * @return void
+	 */
+	public function with_identities( array $rows ): void {
+		foreach ( $rows as $row ) {
+			$kind  = (string) ( $row['kind'] ?? '' );
+			$value = (string) ( $row['value_raw'] ?? '' );
+			$hash  = (string) ( $row['value_hash'] ?? '' );
+
+			if ( Identity::E164 === $kind ) {
+				$this->phone_e164   = $value;
+				$this->phone_hash   = $hash;
+				$this->phone_status = (string) ( $row['status'] ?? self::PHONE_UNKNOWN );
+				continue;
+			}
+
+			if ( Identity::EMAIL === $kind ) {
+				$this->email      = $value;
+				$this->email_hash = $hash;
+			}
+		}
+	}
+
+	/**
+	 * Whether there is any identity a recovery message could be addressed to.
+	 *
+	 * Deliberately says nothing about consent. Whether this person may be
+	 * messaged is a separate question, decided per channel against the consent
+	 * ledger, and answering both here is what previously made "no phone number"
+	 * and "not allowed" indistinguishable.
 	 *
 	 * @return bool
 	 */
 	public function is_messageable(): bool {
-		return self::PHONE_VALID === $this->phone_status && '' !== $this->phone_e164 && null === $this->opted_out_at;
+		return $this->has_valid_phone() || '' !== $this->email;
+	}
+
+	/**
+	 * Whether there is a number a WhatsApp message could be addressed to.
+	 *
+	 * @return bool
+	 */
+	public function has_valid_phone(): bool {
+		return self::PHONE_VALID === $this->phone_status && '' !== $this->phone_e164;
 	}
 
 	/**

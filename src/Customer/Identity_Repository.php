@@ -48,6 +48,15 @@ final class Identity_Repository extends Repository {
 	}
 
 	/**
+	 * The prefixed table name, for callers that need to join against it.
+	 *
+	 * @return string
+	 */
+	public function table_name(): string {
+		return $this->table();
+	}
+
+	/**
 	 * The lock key that guards creating a customer for this identity.
 	 *
 	 * Deliberately short. recoveryflow_locks.lock_key is varchar(64) and is the
@@ -66,18 +75,23 @@ final class Identity_Repository extends Repository {
 	/**
 	 * Hash a value the way this table stores it.
 	 *
+	 * The kind is deliberately NOT part of the hashed material, even though
+	 * that would be the tidier construction. The rest of the plugin already
+	 * hashes an identifier as Hash_Key::hash( normalised value ) -- the order
+	 * observer looks a buyer up with Hash_Key::email(), and the phone hash is a
+	 * plain hash of the E.164 form -- and a hash that quietly disagreed with
+	 * those would not error, it would simply never match, which is the kind of
+	 * bug that presents as "returning customers are not recognised".
+	 *
+	 * Nothing is lost by it: every lookup filters on kind as well as hash, so
+	 * two kinds sharing a value never collide in practice.
+	 *
 	 * @param string $kind  Identity kind.
 	 * @param string $value Raw value.
 	 * @return string Keyed hash, or '' when the value is unusable.
 	 */
 	public static function hash_for( string $kind, string $value ): string {
-		$value = Identity::normalize_value( $kind, $value );
-
-		if ( '' === $value ) {
-			return '';
-		}
-
-		return Hash_Key::hash( $kind . ':' . $value );
+		return Hash_Key::hash( Identity::normalize_value( $kind, $value ) );
 	}
 
 	/**

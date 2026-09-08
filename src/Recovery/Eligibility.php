@@ -24,6 +24,16 @@ final class Eligibility {
 	public const DISABLED       = 'mode_disabled';
 	public const NOT_IDENTIFIED = 'not_identified';
 	public const NO_PHONE       = 'no_phone';
+
+	/**
+	 * Reachable on no channel the site has switched on.
+	 *
+	 * Distinct from NO_PHONE, which now means only that a WhatsApp message has
+	 * nowhere to go. Somebody who gave an address and no number is not
+	 * unreachable, they are reachable by email, and collapsing the two is what
+	 * made an email-only customer look unrecoverable.
+	 */
+	public const NO_CHANNEL     = 'no_channel';
 	public const INVALID_PHONE  = 'invalid_phone';
 	public const NO_CONSENT     = 'no_consent';
 	public const SUPPRESSED     = 'suppressed';

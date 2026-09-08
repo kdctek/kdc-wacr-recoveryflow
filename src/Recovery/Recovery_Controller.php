@@ -12,6 +12,7 @@ use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Core\Rewrites;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
+use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Security\Hash_Key;
 use WAcr\RecoveryFlow\Security\Rate_Limiter;
@@ -427,7 +428,7 @@ final class Recovery_Controller {
 			return;
 		}
 
-		$this->consent->suppress( $customer->phone_hash, $customer->id, 'link' );
+		$this->consent->suppress( Identity::E164, $customer->phone_hash, $customer->id, 'link' );
 
 		foreach ( $this->journeys->active_for_customer( $customer->id, 100 ) as $active ) {
 			if ( ! $this->journeys->transition( $active->id, $active->status, Journey_State::OPTED_OUT, array(), 'link' ) ) {

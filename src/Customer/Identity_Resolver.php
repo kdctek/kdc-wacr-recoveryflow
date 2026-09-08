@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Customer;
 
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Security\Hash_Key;
+use WAcr\RecoveryFlow\Jobs\Lock;
 use WAcr\RecoveryFlow\Support\Logger;
 
 defined( 'ABSPATH' ) || exit;
@@ -45,6 +46,20 @@ final class Identity_Resolver {
 	private Customer_Repository $customers;
 
 	/**
+	 * The ways of reaching people.
+	 *
+	 * @var Identity_Repository
+	 */
+	private Identity_Repository $identities;
+
+	/**
+	 * Serialises the create path where no unique index can.
+	 *
+	 * @var Lock
+	 */
+	private Lock $lock;
+
+	/**
 	 * Logger.
 	 *
 	 * @var Logger
@@ -54,12 +69,16 @@ final class Identity_Resolver {
 	/**
 	 * Constructor.
 	 *
-	 * @param Customer_Repository $customers Customer storage.
-	 * @param Logger              $logger    Logger.
+	 * @param Customer_Repository $customers  Customer storage.
+	 * @param Identity_Repository $identities Identity storage.
+	 * @param Lock                $lock       Lock for the create path.
+	 * @param Logger              $logger     Logger.
 	 */
-	public function __construct( Customer_Repository $customers, Logger $logger ) {
-		$this->customers = $customers;
-		$this->logger    = $logger;
+	public function __construct( Customer_Repository $customers, Identity_Repository $identities, Lock $lock, Logger $logger ) {
+		$this->customers  = $customers;
+		$this->identities = $identities;
+		$this->lock       = $lock;
+		$this->logger     = $logger;
 	}
 
 	/**
@@ -147,33 +166,117 @@ final class Identity_Resolver {
 	}
 
 	/**
-	 * Create a customer from hints.
+	 * Create a customer from hints, and attach the ways of reaching them.
+	 *
+	 * Two requests can arrive at this at the same time for the same person --
+	 * a checkout that fires twice, two tabs, a retried request -- and what stops
+	 * that becoming two customers differs by identity kind.
+	 *
+	 * For a strong kind the UNIQUE index does it: attaching the identity is an
+	 * INSERT IGNORE, the loser of the race is handed the winner's customer, and
+	 * the customer row it created for itself is abandoned rather than used.
+	 *
+	 * An email has no such index, deliberately, because two people may share
+	 * one. That leaves nothing for the database to arbitrate with, so the
+	 * email-only path is serialised on a bucketed lock instead and re-checks for
+	 * an existing customer once it holds it. The check has to be inside the
+	 * lock: outside it, it is the same race with extra steps.
 	 *
 	 * @param Identity_Hints                                          $hints Hints.
 	 * @param array{e164:string,status:string,hash:string,raw:string} $phone Normalised phone.
 	 * @return Customer|null
 	 */
 	private function create( Identity_Hints $hints, array $phone ): ?Customer {
-		$data = array(
-			'wp_user_id'   => $hints->wp_user_id,
-			'email'        => '' === $hints->email ? null : $hints->email,
-			'email_hash'   => '' === $hints->email ? null : Hash_Key::email( $hints->email ),
-			'phone_e164'   => '' === $phone['e164'] ? null : $phone['e164'],
-			'phone_raw'    => '' === $phone['raw'] ? null : $phone['raw'],
-			'phone_status' => $phone['status'],
-			'phone_hash'   => '' === $phone['hash'] ? null : $phone['hash'],
-			'first_name'   => '' === $hints->first_name ? null : $hints->first_name,
-			'last_name'    => '' === $hints->last_name ? null : $hints->last_name,
-			'country_iso2' => '' === $hints->country ? null : $hints->country,
-		);
-
-		$customer = $this->customers->create_or_get( $data );
-
-		if ( null === $customer ) {
-			$this->logger->warning( 'identity', 'Could not create a customer record.' );
+		if ( '' !== $phone['hash'] || null !== $hints->wp_user_id ) {
+			return $this->create_now( $hints, $phone );
 		}
 
-		return $customer;
+		if ( '' === $hints->email ) {
+			return $this->create_now( $hints, $phone );
+		}
+
+		$email_hash = Identity_Repository::hash_for( Identity::EMAIL, $hints->email );
+
+		$created = $this->lock->with(
+			Identity_Repository::lock_key( $email_hash ),
+			function () use ( $hints, $phone, $email_hash ): ?Customer {
+				$existing = $this->customers->find_by_identity( Identity::EMAIL, $email_hash );
+
+				return null === $existing ? $this->create_now( $hints, $phone ) : $existing;
+			}
+		);
+
+		if ( $created instanceof Customer ) {
+			return $created;
+		}
+
+		/*
+		 * The lock was not granted -- another request is enrolling this address
+		 * right now. Creating anyway is the one thing that must not happen, so
+		 * take whatever they created, and only fall back to creating if they
+		 * failed too.
+		 */
+		$existing = $this->customers->find_by_identity( Identity::EMAIL, $email_hash );
+
+		return null === $existing ? $this->create_now( $hints, $phone ) : $existing;
+	}
+
+	/**
+	 * Insert the customer and attach every identity the hints carry.
+	 *
+	 * @param Identity_Hints                                          $hints Hints.
+	 * @param array{e164:string,status:string,hash:string,raw:string} $phone Normalised phone.
+	 * @return Customer|null
+	 */
+	private function create_now( Identity_Hints $hints, array $phone ): ?Customer {
+		$id = $this->customers->create(
+			array(
+				'wp_user_id'   => $hints->wp_user_id,
+				'first_name'   => '' === $hints->first_name ? null : $hints->first_name,
+				'last_name'    => '' === $hints->last_name ? null : $hints->last_name,
+				'country_iso2' => '' === $hints->country ? null : $hints->country,
+			)
+		);
+
+		if ( 0 === $id ) {
+			$this->logger->warning( 'identity', 'Could not create a customer record.' );
+
+			return null;
+		}
+
+		$owner = $this->attach_all( $id, $hints, $phone );
+
+		return $this->customers->find( $owner );
+	}
+
+	/**
+	 * Attach the hinted identities, and report who ends up holding them.
+	 *
+	 * A strong identity that already belongs to somebody else wins: the number
+	 * is what a message is addressed to, so the journey belongs to whoever owns
+	 * it, not to the row we happened to have in hand.
+	 *
+	 * @param int                                                     $customer_id Customer to attach to.
+	 * @param Identity_Hints                                          $hints       Hints.
+	 * @param array{e164:string,status:string,hash:string,raw:string} $phone       Normalised phone.
+	 * @return int Customer id that holds the identities.
+	 */
+	private function attach_all( int $customer_id, Identity_Hints $hints, array $phone ): int {
+		$owner = $customer_id;
+
+		if ( '' !== $phone['e164'] ) {
+			$owner = $this->identities->attach( $customer_id, Identity::E164, $phone['e164'], $phone['status'], 'resolver' );
+		}
+
+		if ( '' !== $hints->email ) {
+			$this->identities->attach( $owner, Identity::EMAIL, $hints->email, Identity::STATUS_VALID, 'resolver' );
+		}
+
+		if ( null !== $hints->wp_user_id ) {
+			$this->identities->attach( $owner, Identity::WP_USER, (string) $hints->wp_user_id, Identity::STATUS_VALID, 'resolver' );
+		}
+
+		return $owner;
 	}
 
 	/**
@@ -197,39 +300,34 @@ final class Identity_Resolver {
 			$patch['wp_user_id'] = $hints->wp_user_id;
 		}
 
+		// New ways of reaching them are added, never overwritten: somebody who
+		// gives a second address has two, and dropping the first would lose the
+		// consent recorded against it.
 		if ( '' !== $hints->email && $hints->email !== $customer->email ) {
-			$patch['email']      = $hints->email;
-			$patch['email_hash'] = Hash_Key::email( $hints->email );
+			$this->identities->attach( $customer->id, Identity::EMAIL, $hints->email, Identity::STATUS_VALID, 'resolver' );
 		}
 
 		if ( '' !== $phone['hash'] && $phone['hash'] !== $customer->phone_hash ) {
 			// The number we matched on cannot have changed, so this is a record
-			// found by user id or email that has now produced a number. Claiming
-			// it is only safe if nobody else already holds that number.
-			$owner = $this->customers->find_by_phone_hash( $phone['hash'] );
+			// found by user id or email that has now produced a number. The
+			// number decides: attach() hands back whoever holds it, which is
+			// them if nobody did and the existing owner if somebody did.
+			$owner = $this->identities->attach( $customer->id, Identity::E164, $phone['e164'], $phone['status'], 'resolver' );
 
-			if ( null !== $owner && $owner->id !== $customer->id ) {
+			if ( $owner !== $customer->id ) {
 				$this->logger->info(
 					'identity',
 					'A recognised visitor supplied a number that belongs to another record; the number decided.',
-					array( 'customer_id' => $owner->id )
+					array( 'customer_id' => $owner )
 				);
 
-				return $this->reconcile( $owner, $hints, $phone );
+				$owner_customer = $this->customers->find( $owner );
+
+				if ( null !== $owner_customer ) {
+					return $this->reconcile( $owner_customer, $hints, $phone );
+				}
 			}
-
-			$patch['phone_e164']   = $phone['e164'];
-			$patch['phone_raw']    = $phone['raw'];
-			$patch['phone_status'] = $phone['status'];
-			$patch['phone_hash']   = $phone['hash'];
 		}//end if
-
-		if ( '' === $phone['hash'] && Customer::PHONE_INVALID === $phone['status'] && '' === $customer->phone_e164 ) {
-			// Keep an unparseable number so it can be corrected later rather
-			// than making the visitor type it again.
-			$patch['phone_raw']    = $phone['raw'];
-			$patch['phone_status'] = Customer::PHONE_INVALID;
-		}
 
 		if ( '' !== $hints->first_name && '' === $customer->first_name ) {
 			$patch['first_name'] = $hints->first_name;

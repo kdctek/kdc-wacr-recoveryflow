@@ -128,6 +128,7 @@ final class Event_Ingest {
 		if ( null !== $customer && null !== $draft->identity->consent ) {
 			$this->consent->record(
 				$customer,
+				Channel::WHATSAPP,
 				$draft->identity->consent,
 				'' === $draft->identity->consent_source ? $draft->source_id : $draft->identity->consent_source,
 				$draft->identity->consent_text_version,

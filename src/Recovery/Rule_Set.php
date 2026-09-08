@@ -170,6 +170,28 @@ final class Rule_Set {
 	}
 
 	/**
+	 * Whether the site sends on this channel at all.
+	 *
+	 * WhatsApp defaults on because it is what the plugin is for. Email defaults
+	 * OFF, and that is deliberate rather than cautious: a recovery email is
+	 * commercial mail, which in most jurisdictions has to carry the sender's
+	 * postal address and a working unsubscribe, and a site that has not been
+	 * asked for either cannot lawfully send one. Turning it on is a decision
+	 * the merchant makes with that in front of them, not a default they
+	 * discover afterwards.
+	 *
+	 * @param string $channel Channel name.
+	 * @return bool
+	 */
+	public function channel_enabled( string $channel ): bool {
+		if ( ! Channel::is_channel( $channel ) ) {
+			return false;
+		}
+
+		return (bool) $this->get( 'channel_' . $channel . '_enabled', Channel::WHATSAPP === $channel );
+	}
+
+	/**
 	 * Whether quiet hours are observed.
 	 *
 	 * @return bool
