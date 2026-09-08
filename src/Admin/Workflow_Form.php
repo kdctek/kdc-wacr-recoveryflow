@@ -11,6 +11,7 @@ use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Workflow\Message_Composer;
 use WAcr\RecoveryFlow\Workflow\Workflow;
+use WAcr\RecoveryFlow\Workflow\Step_Registry;
 use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
@@ -68,12 +69,27 @@ final class Workflow_Form {
 	private Workflow_Repository $workflows;
 
 	/**
+	 * The actions a step may name.
+	 *
+	 * Held so a step's channel can be taken from the action that will run it
+	 * rather than from the form. An action IS a way of reaching somebody, so
+	 * the two cannot be chosen separately without being able to contradict each
+	 * other -- and a contradiction would be stored, shown back as valid, and
+	 * refused only at three in the morning when the step ran.
+	 *
+	 * @var Step_Registry
+	 */
+	private Step_Registry $steps;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Workflow_Repository $workflows The workflow store.
+	 * @param Step_Registry       $steps     The actions a step may name.
 	 */
-	public function __construct( Workflow_Repository $workflows ) {
+	public function __construct( Workflow_Repository $workflows, Step_Registry $steps ) {
 		$this->workflows = $workflows;
+		$this->steps     = $steps;
 	}
 
 	/**
@@ -108,14 +124,14 @@ final class Workflow_Form {
 		$command = self::command( $posted );
 
 		if ( 'save' !== $command['name'] ) {
-			$this->remember_draft( self::rearrange( self::read( $posted ), $command ) );
+			$this->remember_draft( self::rearrange( self::read( $posted, $this->steps ), $command ) );
 
 			wp_safe_redirect( Screen::workflow_url( $id ) );
 
 			exit;
 		}
 
-		$outcome = $this->store( $id, self::read( $posted ), $posted );
+		$outcome = $this->store( $id, self::read( $posted, $this->steps ), $posted );
 
 		self::remember(
 			array(
@@ -125,7 +141,7 @@ final class Workflow_Form {
 		);
 
 		if ( ! $outcome['ok'] ) {
-			$this->remember_draft( self::read( $posted ) );
+			$this->remember_draft( self::read( $posted, $this->steps ) );
 		}
 
 		wp_safe_redirect( Screen::workflow_url( $outcome['id'] ) );
@@ -179,10 +195,11 @@ final class Workflow_Form {
 	/**
 	 * Build a definition from a posted form.
 	 *
-	 * @param array<string,mixed> $posted The unslashed post.
+	 * @param array<string,mixed> $posted   The unslashed post.
+	 * @param Step_Registry       $registry The actions a step may name.
 	 * @return array<string,mixed>
 	 */
-	public static function read( array $posted ): array {
+	public static function read( array $posted, Step_Registry $registry ): array {
 		$steps = array();
 		$rows  = isset( $posted['step'] ) && is_array( $posted['step'] ) ? $posted['step'] : array();
 
@@ -191,7 +208,7 @@ final class Workflow_Form {
 				continue;
 			}
 
-			$step = self::read_step( $row );
+			$step = self::read_step( $row, $registry );
 
 			if ( array() !== $step ) {
 				$steps[] = $step;
@@ -212,10 +229,11 @@ final class Workflow_Form {
 	/**
 	 * Read one posted step row.
 	 *
-	 * @param array<string,mixed> $row The row.
+	 * @param array<string,mixed> $row      The row.
+	 * @param Step_Registry       $registry The actions a step may name.
 	 * @return array<string,mixed> Empty when the type is not one we know.
 	 */
-	private static function read_step( array $row ): array {
+	private static function read_step( array $row, Step_Registry $registry ): array {
 		$type = isset( $row['type'] ) ? (string) $row['type'] : '';
 
 		if ( Workflow_Definition::TYPE_CONDITION === $type ) {
@@ -245,14 +263,23 @@ final class Workflow_Form {
 
 		if ( Workflow_Definition::TYPE_ACTION === $type ) {
 			$action  = sanitize_text_field( (string) ( $row['do'] ?? '' ) );
-			$channel = (string) ( $row['channel'] ?? '' );
+			$handler = $registry->action( $action );
 
+			/*
+			 * Taken from the action, never from the form. The channel is not a
+			 * choice beside the action, it is a property of it: a WA.cr
+			 * template goes over WhatsApp because that is what one is. Reading
+			 * a posted value here would let a hand-edited form store a step
+			 * whose two halves disagree -- accepted, shown back as valid, and
+			 * refused only when it ran. An action nothing has registered keeps
+			 * the default; the validator refuses it by name a moment later.
+			 */
 			$step = array(
 				'type'    => Workflow_Definition::TYPE_ACTION,
 				'do'      => $action,
-				'channel' => in_array( $channel, Workflow_Definition::CHANNELS, true )
-					? $channel
-					: Workflow_Definition::CHANNEL_WHATSAPP,
+				'channel' => null === $handler
+					? Workflow_Definition::CHANNEL_WHATSAPP
+					: $handler->get_channel(),
 			);
 
 			$with = self::read_action_arguments( $action, $row );
@@ -262,7 +289,7 @@ final class Workflow_Form {
 			}
 
 			return $step;
-		}
+		}//end if
 
 		return array();
 	}
@@ -282,6 +309,24 @@ final class Workflow_Form {
 	 * @return array<string,mixed>
 	 */
 	private static function read_action_arguments( string $action, array $row ): array {
+		if ( 'wacr.send_email' === $action ) {
+			/*
+			 * Only the subject is length-capped here, because it is the one a
+			 * mail header carries; the body's cap belongs to the composer,
+			 * which is also what strips the trailing whitespace and collapses
+			 * the blank lines a placeholder leaves behind when its value is
+			 * empty. Neither is sanitised into HTML safety: the message goes
+			 * out as text/plain and is escaped at the point of output when the
+			 * step is shown back on the screen.
+			 */
+			$with = array(
+				'subject' => sanitize_text_field( (string) ( $row['subject'] ?? '' ) ),
+				'body'    => trim( (string) wp_unslash( $row['body'] ?? '' ) ),
+			);
+
+			return array_filter( $with, static fn ( string $value ): bool => '' !== $value );
+		}
+
 		if ( 'wacr.send_template' === $action ) {
 			$with = array(
 				'template' => sanitize_text_field( (string) ( $row['template'] ?? '' ) ),

@@ -303,7 +303,7 @@ final class Plugin {
 			'template_catalog'    => static fn ( Plugin $c ): Template_Catalog => new Template_Catalog( $c->wacr() ),
 			'opt_out_sync'        => static fn ( Plugin $c ): Opt_Out_Sync => new Opt_Out_Sync( $c->wacr(), $c->customers(), $c->logger() ),
 			'admin_workflow'      => static fn ( Plugin $c ): Workflow_Edit => new Workflow_Edit( $c->workflows(), $c->steps(), $c->template_catalog() ),
-			'admin_workflow_form' => static fn ( Plugin $c ): Workflow_Form => new Workflow_Form( $c->workflows() ),
+			'admin_workflow_form' => static fn ( Plugin $c ): Workflow_Form => new Workflow_Form( $c->workflows(), $c->steps() ),
 			'admin_setup'         => static fn ( Plugin $c ): Setup => new Setup( $c->wacr(), $c->credentials() ),
 			'admin_menu'          => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
 				$c->admin_overview(),

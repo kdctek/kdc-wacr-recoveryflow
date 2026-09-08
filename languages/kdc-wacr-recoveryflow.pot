@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T14:50:44+00:00\n"
+"POT-Creation-Date: 2026-09-08T14:57:25+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -246,7 +246,7 @@ msgstr ""
 
 #: src/Admin/Menu.php:198
 #: src/Admin/Menu.php:199
-#: src/Admin/Pages/Workflow_Edit.php:112
+#: src/Admin/Pages/Workflow_Edit.php:113
 msgid "Edit workflow"
 msgstr ""
 
@@ -490,7 +490,7 @@ msgid "Removed on"
 msgstr ""
 
 #: src/Admin/Pages/Journey_Detail.php:220
-#: src/Admin/Pages/Workflow_Edit.php:228
+#: src/Admin/Pages/Workflow_Edit.php:229
 msgid "Name"
 msgstr ""
 
@@ -686,7 +686,7 @@ msgid "You do not have permission to manage recovery workflows."
 msgstr ""
 
 #: src/Admin/Pages/Workflows.php:77
-#: src/Admin/Pages/Workflow_Edit.php:111
+#: src/Admin/Pages/Workflow_Edit.php:112
 msgid "Add workflow"
 msgstr ""
 
@@ -742,130 +742,130 @@ msgstr ""
 msgid "Active, but not the one new recoveries start on"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:90
+#: src/Admin/Pages/Workflow_Edit.php:91
 msgid "You do not have permission to edit recovery workflows."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:120
+#: src/Admin/Pages/Workflow_Edit.php:121
 msgid "The steps run in order, from the top, once a basket has been abandoned long enough to count. A recovery that is already running keeps the version of this workflow it started on, so saving here never changes what is already in flight."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:147
+#: src/Admin/Pages/Workflow_Edit.php:148
 msgid "Workflow not found"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:150
+#: src/Admin/Pages/Workflow_Edit.php:151
 msgid "This workflow no longer exists. It may have been deleted since the link you followed was made."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:155
-#: src/Admin/Pages/Workflow_Edit.php:814
+#: src/Admin/Pages/Workflow_Edit.php:156
+#: src/Admin/Pages/Workflow_Edit.php:887
 msgid "Back to workflows"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:224
+#: src/Admin/Pages/Workflow_Edit.php:225
 msgid "This workflow"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:236
+#: src/Admin/Pages/Workflow_Edit.php:237
 msgid "Only you and your colleagues see this. It appears on the workflows list and on each recovery, so name it after what it does."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:240
+#: src/Admin/Pages/Workflow_Edit.php:241
 msgid "When it runs"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:246
+#: src/Admin/Pages/Workflow_Edit.php:247
 msgid "Active. An inactive workflow is kept but never runs."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:252
+#: src/Admin/Pages/Workflow_Edit.php:253
 msgid "Use this for new recoveries. Only one workflow can be, so choosing this takes it off whichever has it now."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:270
+#: src/Admin/Pages/Workflow_Edit.php:271
 msgid "Steps"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:275
+#: src/Admin/Pages/Workflow_Edit.php:276
 msgid "This workflow has no steps yet, so it would do nothing. Add one below."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:285
+#: src/Admin/Pages/Workflow_Edit.php:286
 msgid "Add a step"
 msgstr ""
 
 #. translators: 1: a step number, 2: what the step does, in a sentence.
-#: src/Admin/Pages/Workflow_Edit.php:308
+#: src/Admin/Pages/Workflow_Edit.php:309
 #, php-format
 msgid "Step %1$d. %2$s"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:321
+#: src/Admin/Pages/Workflow_Edit.php:322
 msgid "This step"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:328
+#: src/Admin/Pages/Workflow_Edit.php:329
 msgid "Checks something, and can stop the recovery"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:329
+#: src/Admin/Pages/Workflow_Edit.php:330
 msgid "Waits"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:330
+#: src/Admin/Pages/Workflow_Edit.php:331
 msgid "Sends something"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:336
+#: src/Admin/Pages/Workflow_Edit.php:337
 msgid "Change this, then use Save to redraw the step with the right settings."
 msgstr ""
 
 #. translators: %d: a step number.
-#: src/Admin/Pages/Workflow_Edit.php:359
+#: src/Admin/Pages/Workflow_Edit.php:360
 #, php-format
 msgid "Move step %d up"
 msgstr ""
 
 #. translators: %d: a step number.
-#: src/Admin/Pages/Workflow_Edit.php:373
+#: src/Admin/Pages/Workflow_Edit.php:374
 #, php-format
 msgid "Move step %d down"
 msgstr ""
 
 #. translators: %d: a step number.
-#: src/Admin/Pages/Workflow_Edit.php:386
+#: src/Admin/Pages/Workflow_Edit.php:387
 #, php-format
 msgid "Remove step %d"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:411
+#: src/Admin/Pages/Workflow_Edit.php:412
 msgid "Carry on to the next step"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:418
+#: src/Admin/Pages/Workflow_Edit.php:419
 msgid "Check that"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:429
+#: src/Admin/Pages/Workflow_Edit.php:430
 msgid "If it is not true"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:451
+#: src/Admin/Pages/Workflow_Edit.php:452
 msgid "Wait for"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:462
+#: src/Admin/Pages/Workflow_Edit.php:463
 #: src/Admin/Settings/Schema.php:174
 msgid "minutes"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:463
+#: src/Admin/Pages/Workflow_Edit.php:464
 #: src/Admin/Settings/Schema.php:208
 msgid "hours"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:464
+#: src/Admin/Pages/Workflow_Edit.php:465
 #: src/Admin/Settings/Schema.php:182
 #: src/Admin/Settings/Schema.php:271
 #: src/Admin/Settings/Schema.php:299
@@ -874,162 +874,186 @@ msgstr ""
 msgid "days"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:467
+#: src/Admin/Pages/Workflow_Edit.php:468
 msgid "Unit of time"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:472
+#: src/Admin/Pages/Workflow_Edit.php:473
 msgid "At least one minute and at most 30 days. Quiet hours can push a send later than this, but never earlier."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:496
+#: src/Admin/Pages/Workflow_Edit.php:497
 msgid "Send by"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:508
+#: src/Admin/Pages/Workflow_Edit.php:509
 msgid "Only handing the recovery to a WA.cr Auto Flow can be saved on this workspace's plan. It needs no API key and works on every plan."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:516
+#: src/Admin/Pages/Workflow_Edit.php:527
 msgid "Over"
 msgstr ""
 
 #: src/Admin/Pages/Workflow_Edit.php:534
+msgid "This site cannot send on that channel yet, so steps using it will wait rather than send. The Channels tab says what is missing."
+msgstr ""
+
+#: src/Admin/Pages/Workflow_Edit.php:551
 msgid "Auto Flow hook"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:544
+#: src/Admin/Pages/Workflow_Edit.php:561
 msgid "Which configured hook to push to. Leave this as primary unless you have set up more than one."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:569
-msgid "Template"
+#: src/Admin/Pages/Workflow_Edit.php:583
+msgid "Subject"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:582
-msgid "Type the name of an approved template instead. It is checked when the message is sent."
+#: src/Admin/Pages/Workflow_Edit.php:594
+msgid "What the customer sees before they open it. Placeholders work here too."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:602
-msgid "Your WA.cr workspace has no approved templates yet, so there is nothing to choose from. Approve one in the WA.cr console, or type its name here if you know it."
+#: src/Admin/Pages/Workflow_Edit.php:599
+msgid "Message"
 msgstr ""
 
 #: src/Admin/Pages/Workflow_Edit.php:609
+msgid "Plain text. Your postal address and an unsubscribe link are added to the foot of every message automatically -- do not type them here, and they cannot be removed."
+msgstr ""
+
+#: src/Admin/Pages/Workflow_Edit.php:612
+msgid "Placeholders you can use:"
+msgstr ""
+
+#: src/Admin/Pages/Workflow_Edit.php:642
+msgid "Template"
+msgstr ""
+
+#: src/Admin/Pages/Workflow_Edit.php:655
+msgid "Type the name of an approved template instead. It is checked when the message is sent."
+msgstr ""
+
+#: src/Admin/Pages/Workflow_Edit.php:675
+msgid "Your WA.cr workspace has no approved templates yet, so there is nothing to choose from. Approve one in the WA.cr console, or type its name here if you know it."
+msgstr ""
+
+#: src/Admin/Pages/Workflow_Edit.php:682
 msgid "Choose a template"
 msgstr ""
 
 #. translators: %s: a message template name.
-#: src/Admin/Pages/Workflow_Edit.php:617
+#: src/Admin/Pages/Workflow_Edit.php:690
 #, php-format
 msgid "%s -- cannot be used"
 msgstr ""
 
 #. translators: %s: a message template name.
-#: src/Admin/Pages/Workflow_Edit.php:629
+#: src/Admin/Pages/Workflow_Edit.php:702
 #, php-format
 msgid "%s -- no longer in your workspace"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:644
+#: src/Admin/Pages/Workflow_Edit.php:717
 msgid "Only templates WA.cr has approved are listed. One that RecoveryFlow cannot fill is listed too, and says so, rather than being hidden from somebody looking for it."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:685
-#: src/Admin/Pages/Workflow_Edit.php:702
+#: src/Admin/Pages/Workflow_Edit.php:758
+#: src/Admin/Pages/Workflow_Edit.php:775
 msgid "What goes in it"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:688
+#: src/Admin/Pages/Workflow_Edit.php:761
 msgid "This template has no blanks to fill, so it sends as written."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:696
+#: src/Admin/Pages/Workflow_Edit.php:769
 msgid "Leave empty"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:704
+#: src/Admin/Pages/Workflow_Edit.php:777
 msgid "Where in the message"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:705
+#: src/Admin/Pages/Workflow_Edit.php:778
 msgid "What to put there"
 msgstr ""
 
 #. translators: %s: whatever the merchant typed into this slot, shown verbatim.
-#: src/Admin/Pages/Workflow_Edit.php:721
+#: src/Admin/Pages/Workflow_Edit.php:794
 #, php-format
 msgid "%s (kept as written)"
 msgstr ""
 
 #. translators: %s: the example value WhatsApp holds for this blank.
-#: src/Admin/Pages/Workflow_Edit.php:757
+#: src/Admin/Pages/Workflow_Edit.php:830
 #, php-format
 msgid "the blank shown as \"%s\""
 msgstr ""
 
 #. translators: 1: the template wording before the blank, 2: the wording after it.
-#: src/Admin/Pages/Workflow_Edit.php:767
+#: src/Admin/Pages/Workflow_Edit.php:840
 #, php-format
 msgid "%1$s ____ %2$s"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:781
+#: src/Admin/Pages/Workflow_Edit.php:854
 msgid "The customer's first name"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:782
+#: src/Admin/Pages/Workflow_Edit.php:855
 msgid "The customer's last name"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:783
+#: src/Admin/Pages/Workflow_Edit.php:856
 msgid "What the basket comes to, as a number"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:784
+#: src/Admin/Pages/Workflow_Edit.php:857
 msgid "What the basket comes to, with the currency"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:785
+#: src/Admin/Pages/Workflow_Edit.php:858
 msgid "The currency code"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:786
+#: src/Admin/Pages/Workflow_Edit.php:859
 msgid "How many items are in the basket"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:787
+#: src/Admin/Pages/Workflow_Edit.php:860
 msgid "A short list of what is in the basket"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:788
+#: src/Admin/Pages/Workflow_Edit.php:861
 msgid "The name of the first item"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:789
+#: src/Admin/Pages/Workflow_Edit.php:862
 msgid "The link that restores the basket"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:790
+#: src/Admin/Pages/Workflow_Edit.php:863
 msgid "The basket link's code, for a button URL"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:791
+#: src/Admin/Pages/Workflow_Edit.php:864
 msgid "The link to stop receiving these"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:792
+#: src/Admin/Pages/Workflow_Edit.php:865
 msgid "The shop's name"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:793
+#: src/Admin/Pages/Workflow_Edit.php:866
 msgid "The shop's address"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:794
+#: src/Admin/Pages/Workflow_Edit.php:867
 msgid "Where the basket was left, such as WooCommerce"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:809
+#: src/Admin/Pages/Workflow_Edit.php:882
 msgid "Save workflow"
 msgstr ""
 
@@ -2220,20 +2244,20 @@ msgstr ""
 msgid "Copy it into the webhook step of your Auto Flow now. If you lose it, generate another and update the flow."
 msgstr ""
 
-#: src/Admin/Workflow_Form.php:96
+#: src/Admin/Workflow_Form.php:112
 msgid "You are not allowed to edit recovery workflows on this site."
 msgstr ""
 
-#: src/Admin/Workflow_Form.php:541
+#: src/Admin/Workflow_Form.php:586
 msgid "The workflow could not be saved. Somebody else may have changed it while you were editing; reopen it and try again."
 msgstr ""
 
-#: src/Admin/Workflow_Form.php:548
+#: src/Admin/Workflow_Form.php:593
 msgid "Workflow saved. Recoveries already running keep the version they started on."
 msgstr ""
 
 #. translators: %s: a sentence explaining why the WA.cr developer API is unavailable.
-#: src/Admin/Workflow_Form.php:574
+#: src/Admin/Workflow_Form.php:619
 #, php-format
 msgid "This workflow was not saved, because one of its steps sends a message from WordPress and this site cannot do that yet. %s Until then, a step can hand the recovery to a WA.cr Auto Flow instead, which needs no API key and works on every plan."
 msgstr ""

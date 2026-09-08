@@ -2284,7 +2284,7 @@ $recoveryflow_posted = array(
 	),
 );
 
-$recoveryflow_definition = Workflow_Form::read( $recoveryflow_posted );
+$recoveryflow_definition = Workflow_Form::read( $recoveryflow_posted, $plugin->steps() );
 
 check( 'the form reads the name a merchant typed', $recoveryflow_definition['name'], 'Two touches' );
 check( 'and keeps the steps in the order they were posted', count( $recoveryflow_definition['steps'] ), 3 );
@@ -2311,7 +2311,7 @@ check( 'and keeps its value', $recoveryflow_split['amount'], 90 );
 // merchant can no longer see.
 $recoveryflow_switched                     = $recoveryflow_posted;
 $recoveryflow_switched['step'][2]['do']    = 'wacr.start_flow';
-$recoveryflow_handoff                      = Workflow_Form::read( $recoveryflow_switched );
+$recoveryflow_handoff                      = Workflow_Form::read( $recoveryflow_switched, $plugin->steps() );
 
 ok( 'switching an action drops the old action\'s arguments', ! isset( $recoveryflow_handoff['steps'][2]['with']['template'] ) );
 ok( 'and supplies the new one\'s default', 'primary' === $recoveryflow_handoff['steps'][2]['with']['hook'] );
@@ -2323,14 +2323,14 @@ $recoveryflow_junk['step'][]        = array(
 	'type' => 'exec',
 	'do'   => 'rm -rf',
 );
-$recoveryflow_read                  = Workflow_Form::read( $recoveryflow_junk );
+$recoveryflow_read                  = Workflow_Form::read( $recoveryflow_junk, $plugin->steps() );
 
 check( 'a step type the plugin does not know is dropped, not stored', count( $recoveryflow_read['steps'] ), 3 );
 
 // A channel nobody offers falls back rather than being written through.
 $recoveryflow_junk                          = $recoveryflow_posted;
 $recoveryflow_junk['step'][2]['channel']    = 'carrier-pigeon';
-$recoveryflow_read                          = Workflow_Form::read( $recoveryflow_junk );
+$recoveryflow_read                          = Workflow_Form::read( $recoveryflow_junk, $plugin->steps() );
 
 check( 'an unknown channel falls back to WhatsApp', $recoveryflow_read['steps'][2]['channel'], 'whatsapp' );
 
@@ -2580,7 +2580,7 @@ foreach ( $recoveryflow_selects as $recoveryflow_select ) {
  * matching -- or a field that stops being rendered -- would turn this whole
  * block green while checking nothing at all.
  */
-foreach ( array( 'type', 'if', 'do', 'else', 'channel' ) as $recoveryflow_group ) {
+foreach ( array( 'type', 'if', 'do', 'else' ) as $recoveryflow_group ) {
 	ok( "the editor offers at least one {$recoveryflow_group} to choose from", count( $recoveryflow_offered[ $recoveryflow_group ] ?? array() ) > 0 );
 }
 
@@ -2603,9 +2603,16 @@ foreach ( ( $recoveryflow_offered['else'] ?? array() ) as $recoveryflow_value ) 
 	);
 }
 
-foreach ( ( $recoveryflow_offered['channel'] ?? array() ) as $recoveryflow_value ) {
-	ok( "the channel select only offers {$recoveryflow_value}, which is a real channel", in_array( $recoveryflow_value, Workflow_Definition::CHANNELS, true ) );
-}
+/*
+ * There is deliberately no channel select any more, and this is the assertion
+ * that keeps it that way. It used to offer WhatsApp or email beside a WA.cr
+ * template -- a choice that was never real: a template cannot arrive as email,
+ * and whichever was picked a WhatsApp message went out and was billed as one.
+ * The channel is a property of the action, so the editor states it instead of
+ * asking. Putting the select back would reinstate the contradiction.
+ */
+check( 'the editor no longer offers a channel to choose beside the action', $recoveryflow_offered['channel'] ?? array(), array() );
+ok( 'and states the channel instead, from the action that will run', false !== strpos( $recoveryflow_html, esc_html( Step_Describer::channel( Workflow_Definition::CHANNEL_WHATSAPP ) ) ) );
 
 // Every wait unit the screen offers must be one the form can actually build.
 // The unit select is the one place a value goes to the form reader rather than
@@ -2919,7 +2926,8 @@ $recoveryflow_vars = Workflow_Form::read(
 				),
 			),
 		),
-	)
+	),
+	$plugin->steps()
 );
 
 $recoveryflow_slots = $recoveryflow_vars['steps'][0]['with']['variables'];
@@ -5783,6 +5791,171 @@ ok(
 		)
 	)
 );
+
+// ---------------------------------------------------------------------------
+// Building an email step on the screen.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_email_post = array(
+	'workflow_name' => 'Email only',
+	'step'          => array(
+		array(
+			'type'    => 'action',
+			'do'      => 'wacr.send_email',
+			'subject' => 'Your basket, {{ customer.first_name }}',
+			'body'    => "Hello.\n\nHere is your basket: {{ recovery.recovery_url }}",
+		),
+	),
+);
+
+$recoveryflow_email_saved = Workflow_Form::read( $recoveryflow_email_post, $plugin->steps() );
+
+check( 'an email step stores the subject the merchant typed', $recoveryflow_email_saved['steps'][0]['with']['subject'] ?? '', 'Your basket, {{ customer.first_name }}' );
+ok( 'and the body', false !== strpos( (string) ( $recoveryflow_email_saved['steps'][0]['with']['body'] ?? '' ), 'Here is your basket' ) );
+check( 'and the channel comes from the action, without the form being asked', $recoveryflow_email_saved['steps'][0]['channel'] ?? '', Workflow_Definition::CHANNEL_EMAIL );
+
+/*
+ * The forged post, the same shape as the header_media_image one: the editor
+ * renders no channel field at all, so anything arriving in that slot came from
+ * somebody posting straight to admin-post.php. It must not be able to store a
+ * step whose channel and action disagree -- which the engine would then refuse
+ * at three in the morning, on a workflow the merchant was shown as valid.
+ */
+$recoveryflow_forged = $recoveryflow_email_post;
+$recoveryflow_forged['step'][0]['channel'] = 'whatsapp';
+
+check(
+	'a forged channel posted past the form is ignored, not stored',
+	Workflow_Form::read( $recoveryflow_forged, $plugin->steps() )['steps'][0]['channel'] ?? '',
+	Workflow_Definition::CHANNEL_EMAIL
+);
+
+$recoveryflow_forged_other = array(
+	'workflow_name' => 'Forged the other way',
+	'step'          => array(
+		array(
+			'type'     => 'action',
+			'do'       => 'wacr.send_template',
+			'channel'  => 'email',
+			'template' => 'cart_reminder',
+		),
+	),
+);
+
+check(
+	'and neither is one claiming a WA.cr template goes by email',
+	Workflow_Form::read( $recoveryflow_forged_other, $plugin->steps() )['steps'][0]['channel'] ?? '',
+	Workflow_Definition::CHANNEL_WHATSAPP
+);
+
+// A template's own arguments must not be written onto an email step, and the
+// other way about: changing a step's action and submitting before the fields
+// are redrawn posts both sets at once.
+$recoveryflow_mixed = array(
+	'workflow_name' => 'Mixed',
+	'step'          => array(
+		array(
+			'type'     => 'action',
+			'do'       => 'wacr.send_email',
+			'subject'  => 'S',
+			'body'     => 'B',
+			'template' => 'cart_reminder',
+		),
+	),
+);
+
+$recoveryflow_mixed_read = Workflow_Form::read( $recoveryflow_mixed, $plugin->steps() )['steps'][0]['with'] ?? array();
+
+ok( 'an email step keeps its subject', isset( $recoveryflow_mixed_read['subject'] ) );
+ok( 'and is not given a WhatsApp template it has no use for', ! isset( $recoveryflow_mixed_read['template'] ) );
+
+// An empty subject is not stored as an empty string: the composer refuses on
+// the value being absent, and a stored blank would be a step that looks
+// configured on the screen and refuses every time it runs.
+$recoveryflow_blank = $recoveryflow_email_post;
+$recoveryflow_blank['step'][0]['subject'] = '   ';
+
+ok(
+	'a blank subject is left out rather than stored as emptiness',
+	! isset( Workflow_Form::read( $recoveryflow_blank, $plugin->steps() )['steps'][0]['with']['subject'] )
+);
+
+// And the screen the merchant types it on. There is no template picker here and
+// nothing to approve -- the whole difference from a WhatsApp step is that the
+// merchant writes the words.
+$recoveryflow_rows_kept = $GLOBALS['wpdb']->rows;
+
+$GLOBALS['wpdb']->rows = array(
+	'recoveryflow_workflows' => array(
+		array(
+			'id'              => 77,
+			'name'            => 'Email only',
+			'slug'            => 'email-only',
+			'source_id'       => '',
+			'status'          => 'active',
+			'definition_json' => wp_json_encode(
+				array(
+					'name'    => 'Email only',
+					'version' => 1,
+					'trigger' => array(
+						'event'  => Workflow_Definition::TRIGGER_EVENT,
+						'source' => Workflow_Definition::ANY_SOURCE,
+					),
+					'steps'   => array(
+						array(
+							'type'    => Workflow_Definition::TYPE_ACTION,
+							'do'      => 'wacr.send_email',
+							'channel' => Workflow_Definition::CHANNEL_EMAIL,
+							'with'    => array(
+								'subject' => 'Your basket',
+								'body'    => 'Hello there.',
+							),
+						),
+					),
+				)
+			),
+			'definition_hash' => '',
+			'version'         => 1,
+			'is_default'      => 0,
+			'created_at'      => '2026-01-01 00:00:00',
+			'updated_at'      => '2026-01-01 00:00:00',
+		),
+	),
+);
+
+$_GET['workflow']        = 77;
+$recoveryflow_email_html = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'the editor draws a subject field for an email step', false !== strpos( $recoveryflow_email_html, 'name="step[0][subject]"' ) );
+ok( 'and a body to write the message in', false !== strpos( $recoveryflow_email_html, 'name="step[0][body]"' ) );
+ok( 'with what the merchant stored already in them', false !== strpos( $recoveryflow_email_html, 'Your basket' ) && false !== strpos( $recoveryflow_email_html, 'Hello there.' ) );
+ok( 'and no WhatsApp template picker, which an email has no use for', false === strpos( $recoveryflow_email_html, 'name="step[0][template]"' ) );
+
+// The placeholders are listed rather than left to be guessed, and every one
+// listed is one the renderer will actually substitute.
+$recoveryflow_listed = 0;
+
+foreach ( Variable_Context::keys() as $recoveryflow_key ) {
+	if ( false !== strpos( $recoveryflow_email_html, esc_html( '{{ ' . $recoveryflow_key . ' }}' ) ) ) {
+		++$recoveryflow_listed;
+	}
+}
+
+check( 'every placeholder the renderer knows is offered on the screen', $recoveryflow_listed, count( Variable_Context::keys() ) );
+
+// The two things the merchant must NOT be asked to type, because they are
+// appended to every message and cannot be removed.
+ok(
+	'the screen says the address and unsubscribe are added automatically',
+	false !== strpos( $recoveryflow_email_html, esc_html__( 'Plain text. Your postal address and an unsubscribe link are added to the foot of every message automatically -- do not type them here, and they cannot be removed.', 'kdc-wacr-recoveryflow' ) )
+);
+
+// It still ships no JavaScript. A merchant configuring the one feature that
+// messages their customers must not lose it to a blocked script.
+ok( 'and the editor still ships no inline script', false === stripos( $recoveryflow_email_html, '<script' ) );
+
+$GLOBALS['wpdb']->rows = $recoveryflow_rows_kept;
 
 // The gate's rate budget is WA.cr's allowance, and email does not spend it.
 // Holding a free message back because a paid channel hit its ceiling would stop
