@@ -114,7 +114,20 @@ final class Workflow_Form {
 			exit;
 		}
 
-		$this->save( $id, self::read( $posted ), $posted );
+		$outcome = $this->store( $id, self::read( $posted ), $posted );
+
+		self::remember(
+			array(
+				'ok'      => $outcome['ok'],
+				'message' => $outcome['message'],
+			)
+		);
+
+		if ( ! $outcome['ok'] ) {
+			$this->remember_draft( self::read( $posted ) );
+		}
+
+		wp_safe_redirect( Screen::workflow_url( $outcome['id'] ) );
 
 		exit;
 	}
@@ -430,44 +443,39 @@ final class Workflow_Form {
 	}
 
 	/**
-	 * Validate and store, then say what happened.
+	 * Decide whether a definition may be stored, store it, and say what happened.
+	 *
+	 * Deliberately free of redirects and transients: those are handle()'s, and
+	 * a decision tangled up with them is a decision no test can reach. The
+	 * previous shape of this method had exactly that problem -- the refusal
+	 * message could be swapped for a worse one and every assertion stayed
+	 * green, because the assertions could only see the message-building
+	 * function, never the branch that chose to use it.
 	 *
 	 * @param int                 $id         Workflow id, 0 for a new one.
 	 * @param array<string,mixed> $definition The rebuilt definition.
 	 * @param array<string,mixed> $posted     The unslashed post, for the two switches.
-	 * @return void
+	 * @return array{ok:bool,message:string,id:int} Where to go back to, and what to say.
 	 */
-	private function save( int $id, array $definition, array $posted ): void {
+	public function store( int $id, array $definition, array $posted ): array {
 		$existing = 0 === $id ? null : $this->workflows->find( $id );
 
 		if ( ! self::may_write( $definition ) ) {
-			self::remember(
-				array(
-					'ok'      => false,
-					'message' => Feature_Gate::unavailable_reason(),
-				)
+			return array(
+				'ok'      => false,
+				'message' => self::refusal(),
+				'id'      => $id,
 			);
-			$this->remember_draft( $definition );
-
-			wp_safe_redirect( Screen::workflow_url( $id ) );
-
-			return;
 		}
 
 		$valid = Workflow_Definition::validate( $definition );
 
 		if ( true !== $valid ) {
-			self::remember(
-				array(
-					'ok'      => false,
-					'message' => $valid->get_error_message(),
-				)
+			return array(
+				'ok'      => false,
+				'message' => $valid->get_error_message(),
+				'id'      => $id,
 			);
-			$this->remember_draft( $definition );
-
-			wp_safe_redirect( Screen::workflow_url( $id ) );
-
-			return;
 		}
 
 		$saved = $this->workflows->save(
@@ -483,27 +491,44 @@ final class Workflow_Form {
 		);
 
 		if ( 0 === $saved ) {
-			self::remember(
-				array(
-					'ok'      => false,
-					'message' => __( 'The workflow could not be saved. Somebody else may have changed it while you were editing; reopen it and try again.', 'kdc-wacr-recoveryflow' ),
-				)
+			return array(
+				'ok'      => false,
+				'message' => __( 'The workflow could not be saved. Somebody else may have changed it while you were editing; reopen it and try again.', 'kdc-wacr-recoveryflow' ),
+				'id'      => $id,
 			);
-			$this->remember_draft( $definition );
-
-			wp_safe_redirect( Screen::workflow_url( $id ) );
-
-			return;
 		}
 
-		self::remember(
-			array(
-				'ok'      => true,
-				'message' => __( 'Workflow saved. Recoveries already running keep the version they started on.', 'kdc-wacr-recoveryflow' ),
-			)
+		return array(
+			'ok'      => true,
+			'message' => __( 'Workflow saved. Recoveries already running keep the version they started on.', 'kdc-wacr-recoveryflow' ),
+			'id'      => $saved,
 		);
+	}
 
-		wp_safe_redirect( Screen::workflow_url( $saved ) );
+	/**
+	 * Why a workflow that sends from WordPress cannot be saved here.
+	 *
+	 * Feature_Gate::unavailable_reason() alone is a true sentence about the
+	 * stored credential and an answer to a question nobody asked. Somebody who
+	 * pressed Save on a workflow with a send step in it and read "No WA.cr API
+	 * key is connected yet" has been told a fact, not what they did, what was
+	 * refused, or what to do instead -- which is the same failure as a screen
+	 * that says "A key is saved" above "No key is connected": each sentence
+	 * true of its own value, neither an answer.
+	 *
+	 * So the refusal names the step that caused it, then gives the reason, then
+	 * gives the way forward that works on every plan.
+	 *
+	 * @return string
+	 */
+	public static function refusal(): string {
+		$reason = Feature_Gate::unavailable_reason();
+
+		return sprintf(
+			/* translators: %s: a sentence explaining why the WA.cr developer API is unavailable. */
+			__( 'This workflow was not saved, because one of its steps sends a message from WordPress and this site cannot do that yet. %s Until then, a step can hand the recovery to a WA.cr Auto Flow instead, which needs no API key and works on every plan.', 'kdc-wacr-recoveryflow' ),
+			$reason
+		);
 	}
 
 	/**

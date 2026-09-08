@@ -2342,6 +2342,119 @@ update_option(
 ok( 'and on Scale both are allowed', Workflow_Form::may_write( $recoveryflow_definition ) && Workflow_Form::may_write( $recoveryflow_handoff ) );
 
 /*
+ * Found by saving one on a real install: the refusal said "No WA.cr API key is
+ * connected yet" and nothing else. True of the stored credential, and an answer
+ * to a question nobody asked -- somebody who pressed Save on a workflow with a
+ * send step in it has not been told what they did, what was refused, or what to
+ * do instead. So the message must name all three.
+ */
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => false,
+		'reason' => 'plan_upgrade_required',
+	)
+);
+
+$recoveryflow_refusal = Workflow_Form::refusal();
+
+ok( 'a refused save says a step of THIS workflow is what was refused', false !== strpos( $recoveryflow_refusal, 'sends a message from WordPress' ) );
+ok( 'and says the workflow was not saved, rather than leaving it ambiguous', false !== strpos( $recoveryflow_refusal, 'was not saved' ) );
+ok( 'and carries the reason the connection cannot do it', false !== strpos( $recoveryflow_refusal, Feature_Gate::unavailable_reason() ) );
+ok( 'and offers the way forward that works on every plan', false !== strpos( $recoveryflow_refusal, 'Auto Flow' ) );
+ok( 'and is more than the bare reason on its own', Feature_Gate::unavailable_reason() !== $recoveryflow_refusal );
+
+/*
+ * The branch that CHOOSES that message, not just the function that builds it.
+ * Asserting only on the message let the whole refusal be swapped for the bare
+ * reason with every test still green -- the same shape of gap that Setup's
+ * plan-upgrade branch had, and the reason store() is free of redirects.
+ */
+$recoveryflow_outcome = $plugin->admin_workflow_form()->store( 2, $recoveryflow_definition, array( 'workflow_active' => '1' ) );
+
+ok( 'saving a sending workflow below Scale is refused', ! $recoveryflow_outcome['ok'] );
+check( 'and the refusal is the one that explains itself', $recoveryflow_outcome['message'], Workflow_Form::refusal() );
+check( 'and the merchant is sent back to what they were editing', $recoveryflow_outcome['id'], 2 );
+
+// A definition the validator refuses must be reported in the validator's own
+// words, not in the gate's -- they are different problems with different fixes.
+$recoveryflow_broken          = $recoveryflow_handoff;
+$recoveryflow_broken['name']  = '';
+$recoveryflow_outcome         = $plugin->admin_workflow_form()->store( 2, $recoveryflow_broken, array() );
+
+ok( 'a workflow with no name is refused', ! $recoveryflow_outcome['ok'] );
+ok( 'and is refused in the validator\'s words, not the gate\'s', Workflow_Form::refusal() !== $recoveryflow_outcome['message'] );
+ok( 'which say what to do about it', false !== strpos( $recoveryflow_outcome['message'], 'name' ) );
+
+/*
+ * And the path where it works. Every branch above is a refusal, so without
+ * this one the gate could stop being consulted altogether and the only thing
+ * that changed would be a test going green -- which is what happened when this
+ * was first written: the mutation that skipped the gate FATALED on an
+ * unstubbed sanitize_title(), and a fatal reads as a failing suite, so it was
+ * recorded as caught while nothing had exercised a successful save at all.
+ */
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send' ),
+	)
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_workflows'] = array(
+	$recoveryflow_row( 2, Workflow_Repository::SLUG_HANDOFF, $recoveryflow_seeded( 'handoff_definition' ), true ),
+);
+
+$recoveryflow_outcome = $plugin->admin_workflow_form()->store( 2, $recoveryflow_definition, array( 'workflow_active' => '1' ) );
+
+ok( 'on Scale the same workflow saves', $recoveryflow_outcome['ok'] );
+ok( 'and the merchant is told what saving did NOT do to journeys already running', false !== strpos( $recoveryflow_outcome['message'], 'version they started on' ) );
+check( 'and lands back on the workflow they just saved, not on a blank new one', $recoveryflow_outcome['id'], 2 );
+
+// A new workflow lands on the row it just created, which is the only way the
+// merchant can see that it exists.
+$recoveryflow_outcome = $plugin->admin_workflow_form()->store( 0, $recoveryflow_definition, array( 'workflow_active' => '1' ) );
+
+ok( 'a brand new workflow saves', $recoveryflow_outcome['ok'] );
+ok( 'and lands on the row it created rather than back on an empty form', $recoveryflow_outcome['id'] > 0 );
+
+/*
+ * The two switches, asserted on what reaches the database rather than on what
+ * the screen drew. Unticking "Active" and being told the workflow saved, while
+ * it goes on sending, is the worst failure this screen has available to it --
+ * somebody deliberately stopping messages to their customers and being told
+ * they had.
+ */
+$recoveryflow_insert = static function ( array $posted ) use ( $plugin, $recoveryflow_definition ): string {
+	$GLOBALS['wpdb']->queries = array();
+
+	$plugin->admin_workflow_form()->store( 0, $recoveryflow_definition, $posted );
+
+	foreach ( $GLOBALS['wpdb']->queries as $recoveryflow_sql ) {
+		if ( 0 === stripos( ltrim( (string) $recoveryflow_sql ), 'INSERT' ) && false !== strpos( (string) $recoveryflow_sql, 'recoveryflow_workflows' ) ) {
+			return (string) $recoveryflow_sql;
+		}
+	}
+
+	return '';
+};
+
+$recoveryflow_sql = $recoveryflow_insert( array( 'workflow_active' => '1' ) );
+
+ok( 'saving writes a row to the workflows table', '' !== $recoveryflow_sql );
+ok( 'ticking Active stores it as active', false !== strpos( $recoveryflow_sql, "'active'" ) );
+
+$recoveryflow_sql = $recoveryflow_insert( array() );
+
+ok( 'and unticking it stores a draft, which never runs', false !== strpos( $recoveryflow_sql, "'draft'" ) );
+ok( 'rather than storing it active anyway', false === strpos( $recoveryflow_sql, "'active'" ) );
+
+$GLOBALS['wpdb']->queries = array();
+
+$GLOBALS['wpdb']->rows = array();
+
+/*
  * The editor's own round trip, asserted on the rendered HTML rather than on
  * the form reader alone: every value the screen offers in a select must be one
  * the validator accepts. A screen that offers a choice its own validator

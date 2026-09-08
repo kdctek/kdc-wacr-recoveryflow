@@ -186,6 +186,13 @@ function wp_strip_all_tags( $value, $remove_breaks = false ) {
 
 	return trim( $value );
 }
+function sanitize_title( $value ) {
+	$value = strtolower( trim( strip_tags( (string) $value ) ) );
+	$value = preg_replace( '/[^a-z0-9\s\-_]/', '', $value );
+	$value = preg_replace( '/[\s_]+/', '-', (string) $value );
+
+	return trim( preg_replace( '/-+/', '-', (string) $value ), '-' );
+}
 function sanitize_key( $value ) {
 	return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $value ) );
 }
@@ -651,6 +658,16 @@ class Fake_Wpdb extends wpdb {
 	}
 	public function query( $sql ) {
 		$this->queries[] = $sql;
+
+		// Real wpdb sets insert_id on an INSERT, and repositories here read it
+		// straight back to learn the new row's id. A stub that leaves it at
+		// zero reports an insert that worked and produced no row, so every
+		// create path looks like a lost race and no test can reach the code
+		// after it.
+		if ( 0 === stripos( ltrim( (string) $sql ), 'INSERT' ) ) {
+			$this->insert_id = ++$GLOBALS['__fake_insert_id'];
+		}
+
 		return 1;
 	}
 	public function get_row( $sql, $output = null ) {
@@ -677,6 +694,31 @@ class Fake_Wpdb extends wpdb {
 		$this->queries[] = $sql;
 		return null;
 	}
+	/*
+	 * The write half. Without these, every repository path that ends in a write
+	 * fatals rather than fails -- and a fatal reads as a failing suite, so a
+	 * mutation that reached one was recorded as caught while nothing had
+	 * exercised a successful write at all. They record the call and report one
+	 * row affected, which is enough to let the code above the database run.
+	 */
+	public $writes = array();
+	public function insert( $table, $data, $format = null ) {
+		$this->writes[]  = array( 'insert', $table, $data );
+		$this->insert_id = count( $this->writes );
+
+		return 1;
+	}
+	public function update( $table, $data, $where, $format = null, $where_format = null ) {
+		$this->writes[] = array( 'update', $table, $data, $where );
+
+		return 1;
+	}
+	public function delete( $table, $where, $where_format = null ) {
+		$this->writes[] = array( 'delete', $table, $where );
+
+		return 1;
+	}
 }
 
-$GLOBALS['wpdb'] = new Fake_Wpdb();
+$GLOBALS['__fake_insert_id'] = 0;
+$GLOBALS['wpdb']            = new Fake_Wpdb();

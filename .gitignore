@@ -12,3 +12,8 @@ node_modules/
 .cache/
 coverage/
 .env
+
+# wp-env's per-developer overrides: ports and mounts belong to whoever is
+# running it, not to the repository. Several worktrees of this plugin run at
+# once and each needs its own port.
+.wp-env.override.json
