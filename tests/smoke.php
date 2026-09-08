@@ -58,8 +58,10 @@ use WAcr\RecoveryFlow\Security\Token_Service;
 use WAcr\RecoveryFlow\Support\Options;
 use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
+use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\WAcr\Credentials;
 use WAcr\RecoveryFlow\WAcr\Error;
+use WAcr\RecoveryFlow\WAcr\Result;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 use WAcr\RecoveryFlow\WAcr\Send_Request;
 use WAcr\RecoveryFlow\WAcr\Transport;
@@ -1480,6 +1482,108 @@ ok( 'every control names its own description', false !== strpos( $recoveryflow_h
 ok( 'the tab in view is marked for a screen reader too, not only by colour', false !== strpos( $recoveryflow_html, 'aria-current="page"' ) );
 ok( 'the form posts to core, so the nonce and the capability check are WordPress\'s', false !== strpos( $recoveryflow_html, 'options.php' ) );
 ok( 'and says which tab it is, or the sanitiser cannot tell what to leave alone', false !== strpos( $recoveryflow_html, 'name="' . Settings_Sanitizer::TAB_FIELD . '" value="channels"' ) );
+
+// ------------------------------------------------------ First-run setup.
+
+/*
+ * Connecting a workspace is the one thing the plugin cannot do for itself, so
+ * activation asks for the setup screen once. The flag is an option rather than
+ * a transient because an object cache may evict a transient, and the single
+ * chance to greet somebody is a poor thing to leave to an eviction policy.
+ */
+delete_option( Setup::PENDING_OPTION );
+ok( 'a plugin that has been running is not greeted', ! get_option( Setup::PENDING_OPTION ) );
+Setup::mark_pending();
+ok( 'a fresh activation asks for the setup screen', (bool) get_option( Setup::PENDING_OPTION ) );
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_SETTINGS );
+ok( 'and an administrator activating one plugin is sent there', Setup::may_greet() );
+
+$_GET['activate-multi'] = '1';
+ok(
+	'but activating several at once is left alone, or the other plugins\' notices are lost',
+	! Setup::may_greet()
+);
+unset( $_GET['activate-multi'] );
+
+$GLOBALS['__network_admin'] = true;
+ok( 'and a network activation is not the person who will type a key', ! Setup::may_greet() );
+$GLOBALS['__network_admin'] = false;
+
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::VIEW_JOURNEYS );
+ok( 'somebody who could not act on it is not sent there', ! Setup::may_greet() );
+$GLOBALS['recoveryflow_caps'] = null;
+
+$recoveryflow_setup = Plugin::instance()->admin_setup();
+
+ob_start();
+$recoveryflow_setup->render();
+$recoveryflow_html = (string) ob_get_clean();
+
+ok( 'the setup screen offers the one step it has', false !== strpos( $recoveryflow_html, 'name="action" value="' . Setup::ACTION . '"' ) );
+ok( 'the key box is a password box, so it is not read over a shoulder', false !== strpos( $recoveryflow_html, 'type="password" id="recoveryflow-setup-key"' ) );
+ok( 'and its help is associated with it rather than merely near it', false !== strpos( $recoveryflow_html, 'aria-describedby="recoveryflow-setup-key-help"' ) );
+ok( 'skipping is offered, because recovery already works without a key', false !== strpos( $recoveryflow_html, 'Skip for now' ) );
+ok( 'and says so, so skipping does not read as giving up', false !== strpos( $recoveryflow_html, 'go on being recorded' ) );
+
+/*
+ * The product decision this screen exists to get right. GET /v1/me answers 403
+ * plan_upgrade_required for a workspace below Scale, and answers it AFTER
+ * authenticating the credential -- so that refusal proves the key is real.
+ * Reporting it as a failed connection would send a merchant whose key is
+ * perfectly good to go and find a better one, and would dead-end the entire
+ * free path, which is the one that works on every plan.
+ */
+check(
+	'a working key is a connection',
+	Setup::describe( Result::success( array( 'tenant_name' => 'Acme Retail' ) ) )['state'],
+	'connected'
+);
+ok(
+	'and it names the workspace, so somebody can see they connected the right one',
+	false !== strpos( Setup::describe( Result::success( array( 'tenant_name' => 'Acme Retail' ) ) )['message'], 'Acme Retail' )
+);
+check(
+	'a key WA.cr refuses is not a connection',
+	Setup::describe( Result::failure( Error::from_response( 401, array( 'error' => array( 'code' => 'invalid_key' ) ) ) ) )['state'],
+	'refused'
+);
+check(
+	'but a plan too small for the developer API is an ACCEPTED key, not a refused one',
+	Setup::describe( Result::failure( Error::from_response( 403, array( 'error' => array( 'code' => 'plan_upgrade_required' ) ) ) ) )['state'],
+	'handoff'
+);
+ok(
+	'because /v1/me authenticates before it consults the plan, so the refusal proves the key is real',
+	false !== strpos(
+		Setup::describe( Result::failure( Error::from_response( 403, array( 'error' => array( 'code' => 'plan_upgrade_required' ) ) ) ) )['message'],
+		'Your key works'
+	)
+);
+
+set_transient(
+	'recoveryflow_setup_result_' . get_current_user_id(),
+	array(
+		'state'   => 'handoff',
+		'message' => 'Your key works.',
+	),
+	60
+);
+
+ob_start();
+$recoveryflow_setup->render();
+$recoveryflow_html = (string) ob_get_clean();
+
+ok( 'a plan that is too small is reported as an accepted key', false !== strpos( $recoveryflow_html, 'Key accepted.' ) );
+ok( 'never as a failed connection', false === strpos( $recoveryflow_html, 'Not connected.' ) );
+ok( 'and it points at the hand-off, which works on every plan', false !== strpos( $recoveryflow_html, 'field=wacr_hook_url' ) );
+ok( 'naming what to do rather than telling them to upgrade', false !== strpos( $recoveryflow_html, 'Auto Flow' ) );
+
+ob_start();
+$recoveryflow_setup->render();
+$recoveryflow_html = (string) ob_get_clean();
+
+ok( 'an outcome is shown once and not again on the next visit', false === strpos( $recoveryflow_html, 'Key accepted.' ) );
 
 $recoveryflow_html = recoveryflow_render_settings( 'privacy' );
 

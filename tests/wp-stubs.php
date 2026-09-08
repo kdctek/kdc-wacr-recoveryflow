@@ -437,6 +437,12 @@ function wp_nonce_field( $action = -1, $name = '_wpnonce', $referer = true, $dis
 function check_admin_referer( $action = -1, $name = '_wpnonce' ) {
 	return 1;
 }
+function wp_doing_ajax() {
+	return ! empty( $GLOBALS['__doing_ajax'] );
+}
+function is_network_admin() {
+	return ! empty( $GLOBALS['__network_admin'] );
+}
 function wp_safe_redirect( $location, $status = 302 ) {
 	$GLOBALS['__redirect'] = $location;
 

@@ -40,9 +40,12 @@ Each item is checked in code review and, where a tool can catch it, by `tests/a1
 | Integrations | Cards with status in a sentence rather than a badge; unavailable ones are shown with the reason, not hidden |
 | Settings | Tabs, sections, cards, fields (below) |
 | System Status | `widefat` tables with row headers, and a Result column stating Working, Check this or Stopped in words. Each failing check links to the setting that fixes it |
+| Set RecoveryFlow up | The screen a fresh activation lands on. One `.card` with one step -- the API key field, labelled, `type="password"`, its help associated by `aria-describedby` -- plus a "Skip for now" link. The outcome of a connect attempt is a `role="status"` notice, so it is announced after the page loads without moving anybody's focus |
 | Public pages | Opt-out confirmation, opt-out done and invalid-link templates: single heading, plain text, one form with one button, no scripts |
 
 Not built yet: the workflows screen (slice 2), bulk actions and row actions on the queue, "Copy diagnostic report", and the WP-Cron "Run now" button.
+
+The setup screen has one step rather than four on purpose. Every later thing a wizard would ask -- which channel, how messages are sent, consent, retention -- already has a control on the settings screen with its own deeplink, and a wizard whose remaining steps restate settings that exist elsewhere is a wizard people learn to click through without reading. Connecting a workspace is the only thing on it because it is the only thing RecoveryFlow cannot do for itself.
 
 ## Settings deeplinks
 

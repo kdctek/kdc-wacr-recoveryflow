@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T04:48:58+00:00\n"
+"POT-Creation-Date: 2026-09-08T05:00:30+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -91,53 +91,59 @@ msgstr ""
 msgid "Connection test failed."
 msgstr ""
 
-#: src/Admin/Menu.php:118
-#: src/Admin/Menu.php:119
-#: src/Admin/Menu.php:167
+#: src/Admin/Menu.php:128
+#: src/Admin/Menu.php:129
+#: src/Admin/Menu.php:195
 #: src/Admin/Pages/Overview.php:70
 msgid "RecoveryFlow"
 msgstr ""
 
-#: src/Admin/Menu.php:150
-#: src/Admin/Menu.php:151
+#: src/Admin/Menu.php:160
+#: src/Admin/Menu.php:161
 #: src/Admin/Settings/Schema.php:75
 #: src/Admin/Settings/Schema.php:105
 msgid "Recovery"
 msgstr ""
 
-#: src/Admin/Menu.php:168
+#: src/Admin/Menu.php:178
+#: src/Admin/Menu.php:179
+#: src/Admin/Setup.php:298
+msgid "Set RecoveryFlow up"
+msgstr ""
+
+#: src/Admin/Menu.php:196
 msgid "Overview"
 msgstr ""
 
-#: src/Admin/Menu.php:172
-#: src/Admin/Menu.php:173
+#: src/Admin/Menu.php:200
+#: src/Admin/Menu.php:201
 #: src/Admin/Pages/Journeys.php:81
 #: src/Admin/Pages/Overview.php:170
 msgid "Recoveries"
 msgstr ""
 
-#: src/Admin/Menu.php:177
-#: src/Admin/Menu.php:178
+#: src/Admin/Menu.php:205
+#: src/Admin/Menu.php:206
 #: src/Admin/Pages/Integrations.php:55
 msgid "Integrations"
 msgstr ""
 
-#: src/Admin/Menu.php:182
+#: src/Admin/Menu.php:210
 #: src/Admin/Settings/Page.php:179
 msgid "RecoveryFlow settings"
 msgstr ""
 
-#: src/Admin/Menu.php:183
+#: src/Admin/Menu.php:211
 #: src/Admin/Pages/Overview.php:195
 msgid "Settings"
 msgstr ""
 
-#: src/Admin/Menu.php:187
+#: src/Admin/Menu.php:215
 #: src/Admin/Pages/System_Status.php:56
 msgid "RecoveryFlow status"
 msgstr ""
 
-#: src/Admin/Menu.php:188
+#: src/Admin/Menu.php:216
 #: src/Admin/Pages/Journeys_Table.php:88
 #: src/Admin/Pages/Journey_Detail.php:161
 msgid "Status"
@@ -954,6 +960,7 @@ msgid "API key"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:383
+#: src/Admin/Setup.php:424
 msgid "WA.cr API key"
 msgstr ""
 
@@ -1195,6 +1202,100 @@ msgstr ""
 
 #: src/Admin/Settings/Schema.php:575
 msgid "Older entries are removed by the daily clear-out."
+msgstr ""
+
+#: src/Admin/Setup.php:184
+msgid "You are not allowed to connect a WA.cr workspace on this site."
+msgstr ""
+
+#: src/Admin/Setup.php:212
+msgid "Enter the API key from your WA.cr workspace, then choose Connect."
+msgstr ""
+
+#: src/Admin/Setup.php:219
+msgid "That does not look like a WA.cr API key. Copy it again from WA.cr, under Developers."
+msgstr ""
+
+#: src/Admin/Setup.php:249
+msgid "Connected. RecoveryFlow can send reminders from this site."
+msgstr ""
+
+#. translators: %s: the name of the connected WA.cr workspace.
+#: src/Admin/Setup.php:252
+#, php-format
+msgid "Connected to %s. RecoveryFlow can send reminders from this site."
+msgstr ""
+
+#: src/Admin/Setup.php:267
+msgid "Your key works. This workspace's plan does not include sending from WordPress, so RecoveryFlow will hand each abandoned basket to a WA.cr Auto Flow instead -- which works on every plan and needs no API key."
+msgstr ""
+
+#: src/Admin/Setup.php:274
+msgid "WA.cr could not be reached, so the key could not be checked. It has been saved; check the site can make outbound requests and try again."
+msgstr ""
+
+#: src/Admin/Setup.php:286
+msgid "You are not allowed to set RecoveryFlow up on this site."
+msgstr ""
+
+#: src/Admin/Setup.php:302
+msgid "RecoveryFlow is already watching for abandoned baskets. Connecting a WA.cr workspace is what lets it send the reminders."
+msgstr ""
+
+#: src/Admin/Setup.php:333
+msgid "Connected."
+msgstr ""
+
+#: src/Admin/Setup.php:334
+msgid "Key accepted."
+msgstr ""
+
+#: src/Admin/Setup.php:335
+msgid "Not connected."
+msgstr ""
+
+#: src/Admin/Setup.php:336
+msgid "Nothing to connect."
+msgstr ""
+
+#: src/Admin/Setup.php:364
+msgid "Choose how reminders are sent"
+msgstr ""
+
+#: src/Admin/Setup.php:380
+msgid "In WA.cr, create an Auto Flow that starts from a webhook and sends your reminder."
+msgstr ""
+
+#: src/Admin/Setup.php:381
+msgid "Copy its hook address into RecoveryFlow, and set reminders to be sent by handing the journey over."
+msgstr ""
+
+#: src/Admin/Setup.php:383
+msgid "Set up the hand-off"
+msgstr ""
+
+#: src/Admin/Setup.php:399
+msgid "Connect WA.cr"
+msgstr ""
+
+#: src/Admin/Setup.php:404
+msgid "This site is connected to WA.cr. You can change the key at any time on the settings screen."
+msgstr ""
+
+#: src/Admin/Setup.php:425
+msgid "In WA.cr, open Developers and copy an API key. RecoveryFlow stores it encrypted and never shows it again."
+msgstr ""
+
+#: src/Admin/Setup.php:426
+msgid "Connect"
+msgstr ""
+
+#: src/Admin/Setup.php:428
+msgid "Skip for now"
+msgstr ""
+
+#: src/Admin/Setup.php:435
+msgid "Skipping changes nothing that is already running: abandoned baskets go on being recorded, and nothing is sent until a workspace is connected."
 msgstr ""
 
 #: src/Core/Feature_Gate.php:119

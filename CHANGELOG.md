@@ -10,6 +10,11 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+### Added
+
+- **Switching RecoveryFlow on now leads somewhere.** Activation opens a setup screen whose single step is connecting a WA.cr workspace -- the one thing the plugin cannot do for itself. Entering the key saves and checks it in one action, so a merchant is told which workspace they connected rather than being left holding a key of unknown quality. It is offered once, never during a bulk activation of several plugins, and never to somebody without the permission to act on it. Skipping is offered plainly, because abandoned baskets are already being recorded and skipping costs nothing.
+- **A WA.cr plan too small for the developer API is no longer reported as a broken connection.** A workspace below Scale cannot call the developer API, and asking it to answers with a refusal -- but that refusal arrives *after* WA.cr has authenticated the key, so it is positive proof the key is good. RecoveryFlow now says so: the key is accepted, this plan does not include sending from WordPress, and here is the hand-off to a WA.cr Auto Flow, which works on every plan and needs no API key at all. Telling a merchant their working key had failed would have dead-ended the one path that was open to them.
+
 ### Fixed
 
 - **A saved WA.cr key can now actually be connected, and the settings screen stops contradicting itself.** Entering a key and saving it left the screen saying "A key is saved" directly above "No WA.cr API key is connected yet". Both sentences were true of their own stored value and neither was true of the site: whether a key *works* is only learned by asking WA.cr, and nothing in wp-admin could ask. The status screen had been telling merchants to "use Test connection" since the admin screens shipped, and no such button existed anywhere. There is now one, on the WA.cr tab beside the key: it is an ordinary form that works with scripts switched off, and it says which workspace the key belongs to and what it may do. A key that is saved but not yet checked is now described as unchecked rather than as absent.
