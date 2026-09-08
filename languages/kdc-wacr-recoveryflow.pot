@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T10:42:44+00:00\n"
+"POT-Creation-Date: 2026-09-08T14:38:54+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -3116,11 +3116,11 @@ msgstr ""
 msgid "RecoveryFlow cannot send this template, because it needs values it has no way to supply: %s. A recovery message is text and a link back to the basket, so a template with an image header, a button payload or a carousel cannot be used. Choose another, or approve one with text and a URL button."
 msgstr ""
 
-#: src/Workflow/Actions/Send_Template.php:203
+#: src/Workflow/Actions/Send_Template.php:204
 msgid "Send an approved WhatsApp template from WordPress"
 msgstr ""
 
-#: src/Workflow/Actions/Start_Flow.php:194
+#: src/Workflow/Actions/Start_Flow.php:195
 msgid "Hand the journey to a WA.cr Auto Flow"
 msgstr ""
 

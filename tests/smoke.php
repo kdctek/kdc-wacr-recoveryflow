@@ -42,6 +42,7 @@ use WAcr\RecoveryFlow\Privacy\Redactor;
 use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
 use WAcr\RecoveryFlow\Recovery\Attempt;
 use WAcr\RecoveryFlow\Recovery\Channel;
+use WAcr\RecoveryFlow\Recovery\Eligibility;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Customer\Customer;
@@ -94,6 +95,8 @@ use WAcr\RecoveryFlow\Admin\Journey_Actions;
 use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
+use WAcr\RecoveryFlow\Workflow\Actions\Send_Template;
+use WAcr\RecoveryFlow\Workflow\Step_Outcome;
 use WAcr\RecoveryFlow\WAcr\Credentials;
 use WAcr\RecoveryFlow\WAcr\Opt_Out_Sync;
 use WAcr\RecoveryFlow\WAcr\Template_Catalog;
@@ -5176,6 +5179,296 @@ check(
 	Stage_Label::for_stage( 'somebody-elses-pass' ),
 	'somebody-elses-pass'
 );
+
+
+// ---------------------------------------------------------------------------
+// The channel a step says it sends on is the channel it sends on.
+//
+// This is the fifth dead contract of the same shape, and the largest. The
+// per-step channel was stored, validated, defaulted, described on screen and
+// offered in the editor's dropdown -- and NOTHING in the execution path read
+// it. channel_for() had two callers and both only drew the step; both send
+// actions hardcoded 'whatsapp' into the attempt row; for_send() took no channel
+// at all and allowed a person if ANY channel allowed them, so switching email
+// on WIDENED eligibility and let an email-only customer reach a step that then
+// ran a WhatsApp action. A merchant who configured email got WhatsApp.
+//
+// Every gate was green on it for four slices. The only channel assertion in
+// this suite tested a STORAGE round-trip, which is a different claim, and the
+// engine had no test of any kind. That is the hole these fill.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_reachable = array_merge(
+	$recoveryflow_compliant,
+	array(
+		'enabled'               => true,
+		'eligibility_mode'      => 'identified_contact',
+		'channel_email_enabled' => true,
+		'frequency_cap_hours'   => 0,
+	)
+);
+
+$recoveryflow_both_on = new Rule_Set( $recoveryflow_reachable );
+
+ok( 'the fixture really has both channels open, or nothing below means anything', $recoveryflow_both_on->channel_enabled( Channel::EMAIL ) && $recoveryflow_both_on->channel_enabled( Channel::WHATSAPP ) );
+
+// Somebody who gave an address and never a number.
+$recoveryflow_email_only = Customer::from_row( array( 'id' => 8801 ) );
+$recoveryflow_email_only->with_identities(
+	array(
+		array(
+			'kind'       => Identity::EMAIL,
+			'value_raw'  => 'nobody@example.test',
+			'value_hash' => 'email-hash-8801',
+		),
+	)
+);
+
+// And somebody who gave a number and never an address.
+$recoveryflow_phone_only = Customer::from_row( array( 'id' => 8802 ) );
+$recoveryflow_phone_only->with_identities(
+	array(
+		array(
+			'kind'       => Identity::E164,
+			'value_raw'  => '+447700900123',
+			'value_hash' => 'phone-hash-8802',
+			'status'     => Customer::PHONE_VALID,
+		),
+	)
+);
+
+$recoveryflow_eligibility = $plugin->eligibility();
+
+ok( 'the fixture customers are what they claim to be', '' !== $recoveryflow_email_only->email_hash && ! $recoveryflow_email_only->has_valid_phone() && $recoveryflow_phone_only->has_valid_phone() && '' === $recoveryflow_phone_only->email_hash );
+
+/*
+ * Asked nothing in particular, the any-channel answer stands: both of these
+ * people are reachable somehow, which is the right question when deciding
+ * whether a journey is worth starting at all.
+ */
+ok( 'an email-only customer is reachable on some channel', $recoveryflow_eligibility->for_send( $recoveryflow_email_only, $recoveryflow_both_on )->allowed );
+ok( 'so is a phone-only customer', $recoveryflow_eligibility->for_send( $recoveryflow_phone_only, $recoveryflow_both_on )->allowed );
+
+/*
+ * Asked about ONE channel, the answer narrows -- and this is the whole fix. A
+ * step sending email must be refused for somebody who left no address, and a
+ * step sending WhatsApp refused for somebody who left no number, even though
+ * the any-channel answer above allows both of them.
+ */
+$recoveryflow_verdict = $recoveryflow_eligibility->for_send( $recoveryflow_email_only, $recoveryflow_both_on, Channel::WHATSAPP );
+
+ok( 'but an email-only customer may NOT be sent a WhatsApp message', ! $recoveryflow_verdict->allowed );
+check( 'and the refusal names the missing number rather than the channel', $recoveryflow_verdict->reason, Eligibility::NO_PHONE );
+ok( 'while the same person may be sent an email', $recoveryflow_eligibility->for_send( $recoveryflow_email_only, $recoveryflow_both_on, Channel::EMAIL )->allowed );
+
+$recoveryflow_verdict = $recoveryflow_eligibility->for_send( $recoveryflow_phone_only, $recoveryflow_both_on, Channel::EMAIL );
+
+ok( 'and a phone-only customer may NOT be sent an email', ! $recoveryflow_verdict->allowed );
+check( 'because there is no address to send it to', $recoveryflow_verdict->reason, Eligibility::NO_CHANNEL );
+ok( 'while the same person may be sent a WhatsApp message', $recoveryflow_eligibility->for_send( $recoveryflow_phone_only, $recoveryflow_both_on, Channel::WHATSAPP )->allowed );
+
+// A channel the site has switched off refuses every send on it, however
+// reachable the person is. This is what makes the default-off email channel
+// mean something at send time rather than only on the settings screen.
+$recoveryflow_email_off = new Rule_Set( array_merge( $recoveryflow_reachable, array( 'channel_email_enabled' => false ) ) );
+
+ok( 'a step sending email on a site with email switched off is refused', ! $recoveryflow_eligibility->for_send( $recoveryflow_email_only, $recoveryflow_email_off, Channel::EMAIL )->allowed );
+
+// An action declares the channel it sends on, and the ledger records THAT
+// rather than a literal typed beside it.
+check( 'a WA.cr template says it goes over WhatsApp', ( new ReflectionClass( Send_Template::class ) )->newInstanceWithoutConstructor()->get_channel(), Channel::WHATSAPP );
+check( 'and so does a hand-off to an Auto Flow', ( new ReflectionClass( Start_Flow::class ) )->newInstanceWithoutConstructor()->get_channel(), Channel::WHATSAPP );
+
+foreach ( array( 'Send_Template', 'Start_Flow' ) as $recoveryflow_action_file ) {
+	$recoveryflow_src = (string) file_get_contents( dirname( __DIR__ ) . '/src/Workflow/Actions/' . $recoveryflow_action_file . '.php' );
+
+	ok(
+		"{$recoveryflow_action_file} records the channel it declares, not a hardcoded one",
+		false === strpos( $recoveryflow_src, "'channel'          => 'whatsapp'" )
+			&& false !== strpos( $recoveryflow_src, "'channel'          => \$this->get_channel()" )
+	);
+}
+
+// Every registered action must answer the question, or the engine's comparison
+// below is against a value somebody forgot to supply. Asked of the registry
+// rather than of a list written here, so an action registered by another plugin
+// is held to it too.
+$recoveryflow_action_channels = 0;
+
+foreach ( $plugin->steps()->actions() as $recoveryflow_name => $recoveryflow_action ) {
+	++$recoveryflow_action_channels;
+
+	ok(
+		"the registered action {$recoveryflow_name} declares a real channel",
+		Channel::is_channel( $recoveryflow_action->get_channel() )
+	);
+}
+
+ok( 'and there really were actions to ask -- an empty loop asserts nothing', $recoveryflow_action_channels > 0 );
+
+/*
+ * And now the engine itself, which had no test of any kind -- which is the
+ * reason a step could name one channel and send on another for four slices.
+ *
+ * The fixture is primed on `definition_json`, a fragment unique to the workflow
+ * version query: the fake matches the FIRST primed fragment found in the SQL,
+ * and that query names both the versions table and the workflows table, so
+ * priming on a table name alone would answer whichever was declared first.
+ */
+$recoveryflow_rows_before = $GLOBALS['wpdb']->rows;
+$recoveryflow_vars_before = $GLOBALS['wpdb']->vars;
+
+$recoveryflow_engine_steps = static function ( string $channel ): array {
+	return array(
+		'steps' => array(
+			array(
+				'type'    => Workflow_Definition::TYPE_ACTION,
+				'do'      => 'wacr.send_template',
+				'channel' => $channel,
+				'with'    => array(
+					'template' => 'cart_reminder',
+					'language' => 'en',
+				),
+			),
+		),
+	);
+};
+
+$recoveryflow_run_step = static function ( string $channel, array $extra_rows = array() ) use ( $plugin, $recoveryflow_engine_steps ): Step_Outcome {
+	// The workflow and event rows are replaced on every call so one scenario
+	// cannot inherit another's, and anything the caller needs on top is merged
+	// in rather than assigned over the top of them.
+	$GLOBALS['wpdb']->rows = $extra_rows + array(
+		'definition_json'     => array(
+			array(
+				'id'              => 3300,
+				'name'            => 'Channel fixture',
+				'slug'            => 'channel-fixture',
+				'source_id'       => 'woocommerce',
+				'status'          => 'active',
+				'definition_json' => wp_json_encode( $recoveryflow_engine_steps( $channel ) ),
+				'version'         => 1,
+			),
+		),
+		'recoveryflow_events' => array(
+			array(
+				'id'       => 4400,
+				'status'   => Recovery_Event::OPEN,
+				'currency' => 'GBP',
+				'amount'   => '25.0000',
+			),
+		),
+	);
+
+	$journey = Recovery_Journey::from_row(
+		array(
+			'id'               => 5500,
+			'journey_uid'      => 'rec-5500-channel',
+			'status'           => Journey_State::SCHEDULED,
+			'customer_id'      => 8801,
+			'event_id'         => 4400,
+			'workflow_id'      => 3300,
+			'workflow_version' => 1,
+			'current_step'     => 0,
+			'source_id'        => 'woocommerce',
+		)
+	);
+
+	return $plugin->engine()->run( $journey, 'claim-token-for-the-channel-test' );
+};
+
+/*
+ * The contrast is the assertion, and it is built this way deliberately.
+ *
+ * Recovery is switched off in the settings for this fixture, so a step that
+ * gets PAST the channel check runs on into the ELIGIBILITY guard and is
+ * deferred there. A step that fails the channel check never reaches it. So the
+ * two runs stop at measurably different distances through run_action, and that
+ * is what proves the refusal happens before anything could be sent -- which a
+ * bare "no attempt row was written" cannot show, because this fixture writes no
+ * attempt row either way. That weaker assertion was written here first and
+ * SURVIVED its mutation, which is how the fixture problem was found.
+ */
+update_option( Options::SETTINGS, array_merge( Options::defaults(), array( 'eligibility_mode' => 'disabled' ) ) );
+
+$recoveryflow_agreeing = $recoveryflow_run_step( Workflow_Definition::CHANNEL_WHATSAPP );
+
+check( 'a step whose channel agrees with its action gets past the channel check', $recoveryflow_agreeing->reason, Eligibility::DISABLED );
+check( 'and is held back by a later guard instead, rather than sent', $recoveryflow_agreeing->status, Step_Outcome::WAITING );
+
+// The one that matters. A WA.cr template cannot arrive as email, so a step
+// asking for that is refused rather than quietly sent over WhatsApp.
+$GLOBALS['wpdb']->writes = array();
+
+$recoveryflow_mismatched = $recoveryflow_run_step( Workflow_Definition::CHANNEL_EMAIL );
+
+check( 'a step naming a channel its action cannot send on fails', $recoveryflow_mismatched->status, Step_Outcome::FAILED );
+check( 'and says which of the two things disagreed', $recoveryflow_mismatched->reason, 'channel_mismatch' );
+
+// And belt and braces: whatever else happened, no attempt was reserved, so
+// nothing went out and nothing was billed.
+$recoveryflow_wrote_attempt = false;
+
+// Writes are recorded positionally -- array( 'insert', $table, $data ) -- so
+// reading a 'table' key here would be unset on every row, and the assertion
+// below would pass without ever looking at anything.
+foreach ( $GLOBALS['wpdb']->writes as $recoveryflow_write ) {
+	if ( false !== strpos( (string) ( $recoveryflow_write[1] ?? '' ), 'recoveryflow_attempts' ) ) {
+		$recoveryflow_wrote_attempt = true;
+	}
+}
+
+ok( 'and reserves no attempt, so nothing was sent and nothing was billed', ! $recoveryflow_wrote_attempt );
+
+/*
+ * And the other half of honouring the channel: the step's channel must reach
+ * the ELIGIBILITY guard, not merely the action. Dropping it there survived its
+ * first mutation -- every assertion above still passed -- because nothing
+ * exercised a customer for whom the two answers differ. This is that customer.
+ *
+ * She gave an email address and never a phone number, on a site where both
+ * channels are open. Asked "can she be reached at all", the answer is yes, via
+ * email. Asked "may this WhatsApp step send to her", the answer is no. Before
+ * the fix the engine asked the first question and acted on it, which is how a
+ * WhatsApp send got attempted for somebody with no number.
+ */
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::defaults(),
+		$recoveryflow_compliant,
+		array(
+			'enabled'               => true,
+			'eligibility_mode'      => 'identified_contact',
+			'channel_email_enabled' => true,
+		)
+	)
+);
+
+$recoveryflow_wrong_channel = $recoveryflow_run_step(
+	Workflow_Definition::CHANNEL_WHATSAPP,
+	array(
+		'recoveryflow_customers'  => array( array( 'id' => 8801 ) ),
+		'recoveryflow_identities' => array(
+			array(
+				'customer_id' => 8801,
+				'kind'        => Identity::EMAIL,
+				'value_raw'   => 'nobody@example.test',
+				'value_hash'  => 'email-hash-8801',
+			),
+		),
+	)
+);
+
+check(
+	'a WhatsApp step is refused for a customer who left only an email address',
+	$recoveryflow_wrong_channel->reason,
+	Eligibility::NO_PHONE
+);
+check( 'and the journey is closed rather than retried forever', $recoveryflow_wrong_channel->status, Step_Outcome::STOPPED );
+
+$GLOBALS['wpdb']->rows = $recoveryflow_rows_before;
+$GLOBALS['wpdb']->vars = $recoveryflow_vars_before;
 
 
 echo "\n";

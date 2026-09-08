@@ -111,12 +111,21 @@ final class Eligibility_Evaluator {
 	 * when the journey started are not re-litigated, but consent, opt-out and
 	 * the frequency cap are, because all three can change while a journey waits.
 	 *
+	 * A channel narrows it further. A workflow step names the channel it sends
+	 * on, and the question at that moment is not "could this person be reached
+	 * somehow" but "may this message go out on THIS channel" -- so a step
+	 * sending email must be refused for somebody who only ever agreed to
+	 * WhatsApp, even though the any-channel answer would allow them. Passing
+	 * nothing keeps the broader meaning, which is the right one when deciding
+	 * whether a journey is worth starting at all.
+	 *
 	 * @param Customer|null $customer Who would be messaged.
 	 * @param Rule_Set      $rules    The thresholds in force.
+	 * @param string        $channel  The channel this send would use, or '' for any.
 	 * @return Eligibility
 	 */
-	public function for_send( ?Customer $customer, Rule_Set $rules ): Eligibility {
-		$basic = $this->check_person( $customer, $rules );
+	public function for_send( ?Customer $customer, Rule_Set $rules, string $channel = '' ): Eligibility {
+		$basic = $this->check_person( $customer, $rules, $channel );
 
 		if ( ! $basic->allowed ) {
 			return $basic;
@@ -144,9 +153,10 @@ final class Eligibility_Evaluator {
 	 *
 	 * @param Customer|null $customer The person.
 	 * @param Rule_Set      $rules    The thresholds in force.
+	 * @param string        $channel  One channel to decide on, or '' for any.
 	 * @return Eligibility
 	 */
-	private function check_person( ?Customer $customer, Rule_Set $rules ): Eligibility {
+	private function check_person( ?Customer $customer, Rule_Set $rules, string $channel = '' ): Eligibility {
 		if ( ! $rules->is_enabled() || 'disabled' === $rules->eligibility_mode() ) {
 			return Eligibility::deny( Eligibility::DISABLED );
 		}
@@ -170,7 +180,14 @@ final class Eligibility_Evaluator {
 		 */
 		$reason = Eligibility::NO_CHANNEL;
 
-		foreach ( Channel::all() as $channel ) {
+		// Asked about one channel, answer about that channel. The "closest
+		// reason" logic below exists only because the any-channel question has
+		// several refusals to choose between; with one channel there is exactly
+		// one, and reporting anything else would name a channel nobody asked
+		// about.
+		$considering = '' === $channel ? Channel::all() : array( $channel );
+
+		foreach ( $considering as $channel ) {
 			$verdict = $this->check_channel( $customer, $rules, $channel );
 
 			if ( '' === $verdict ) {

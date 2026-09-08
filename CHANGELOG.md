@@ -10,7 +10,9 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **A workflow step now sends on the channel it says it sends on.** The step editor offered a channel for each message and nothing that actually sent one ever read it: both send actions recorded every message as WhatsApp whatever the step said, and the eligibility check asked whether the customer could be reached on *any* channel rather than on the one the step had chosen. So a shop that switched the email channel on and built a step to use it got WhatsApp instead -- and a customer who had given an email address and no phone number could be picked out as reachable and then have a WhatsApp message attempted for a number that was never there. An action now declares the channel it can send on, the step is refused outright if it names a different one rather than being sent over whichever of the two was read last, and consent, opt-out and eligibility are all decided about the channel the step actually uses.
 
 ## [0.1.0] - 2026-09-08
 

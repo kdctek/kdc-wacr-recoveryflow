@@ -14,6 +14,7 @@ use WAcr\RecoveryFlow\Core\Rewrites;
 use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
 use WAcr\RecoveryFlow\Recovery\Attempt;
+use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
@@ -204,6 +205,15 @@ final class Send_Template implements Action_Interface {
 	}
 
 	/**
+	 * The channel this action sends on.
+	 *
+	 * @return string
+	 */
+	public function get_channel(): string {
+		return Channel::WHATSAPP;
+	}
+
+	/**
 	 * Whether this site can send directly.
 	 *
 	 * @return bool
@@ -279,7 +289,7 @@ final class Send_Template implements Action_Interface {
 				'attempt_no'       => $attempt_no,
 				'idempotency_key'  => Attempt::key( $journey->journey_uid, $step, $attempt_no ),
 				'action_type'      => self::ID,
-				'channel'          => 'whatsapp',
+				'channel'          => $this->get_channel(),
 				'template_name'    => substr( trim( (string) ( $parameters['template'] ?? '' ) ), 0, 191 ),
 				'language_code'    => substr( trim( (string) ( $parameters['language'] ?? 'en' ) ), 0, 12 ),
 				'token_hash'       => Token_Service::hash( $token ),
