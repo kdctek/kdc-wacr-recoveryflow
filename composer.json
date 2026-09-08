@@ -1,6 +1,6 @@
 {
 	"name": "kdctek/kdc-wacr-recoveryflow",
-	"description": "RecoveryFlow by WA.cr — a conversion recovery engine for WordPress. Composer is a development dependency only; the shipped plugin needs no vendor directory.",
+	"description": "RecoveryFlow by WA.cr \u2014 a conversion recovery engine for WordPress. Composer is a development dependency only; the shipped plugin needs no vendor directory.",
 	"type": "wordpress-plugin",
 	"license": "GPL-2.0-or-later",
 	"require": {
@@ -26,6 +26,9 @@
 	"config": {
 		"allow-plugins": {
 			"dealerdirect/phpcodesniffer-composer-installer": true
+		},
+		"platform": {
+			"php": "8.0"
 		},
 		"sort-packages": true
 	},
