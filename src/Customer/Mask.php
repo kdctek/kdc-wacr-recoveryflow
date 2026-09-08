@@ -87,6 +87,16 @@ final class Mask {
 			return $last;
 		}
 
-		return $first . ' ' . mb_substr( $last, 0, 1 ) . '.';
+		/*
+		 * Not concatenated: which name comes first, whether an initial is
+		 * abbreviated with a full stop, and whether a space separates them at
+		 * all are all decisions a translator has to be able to make.
+		 */
+		return sprintf(
+			/* translators: 1: the customer's first name. 2: the first letter of their last name. */
+			_x( '%1$s %2$s.', 'customer name shortened to a first name and a last initial', 'kdc-wacr-recoveryflow' ),
+			$first,
+			mb_substr( $last, 0, 1 )
+		);
 	}
 }

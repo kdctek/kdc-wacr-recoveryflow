@@ -83,7 +83,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 ├── languages/       kdc-wacr-recoveryflow.pot
 ├── templates/       recovery-invalid.php, opt-out-confirm.php, opt-out-done.php
 ├── tests/           bootstrap.php, unit/, integration/, security/, failure/, a11y/, fixtures/
-└── docs/            architecture, integrations, developer-api, security, privacy, wa-cr-integration, testing, accessibility
+└── docs/            architecture, integrations, developer-api, security, privacy, wa-cr-integration, testing, accessibility, internationalization
 ```
 
 ## Conventions
@@ -106,6 +106,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 | [`docs/wa-cr-integration.md`](docs/wa-cr-integration.md) | Connection and scopes, dispatch actions, template mapping, Auto Flow hand-off, polling, rate limits, errors |
 | [`docs/testing.md`](docs/testing.md) | Test suites, how to run them, fixtures, failure simulations, security matrix, accessibility runs |
 | [`docs/accessibility.md`](docs/accessibility.md) | The WCAG 2.2 checklist, settings deeplinks, how pa11y-ci is run |
+| [`docs/internationalization.md`](docs/internationalization.md) | The translation rules every string follows, the three checks that enforce them, why nothing is translated before `init` |
 
 ## Status
 

@@ -32,6 +32,9 @@
 	"scripts": {
 		"lint": "phpcs",
 		"lint:fix": "phpcbf",
+		"i18n": "bin/i18n.sh",
+		"i18n:check": "bin/i18n.sh --check",
+		"i18n:audit": "php tests/i18n-audit.php",
 		"analyse": "phpstan analyse --memory-limit=1G",
 		"test": "@test:unit",
 		"test:unit": "phpunit --testsuite unit",

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T00:56:34+00:00\n"
+"POT-Creation-Date: 2026-09-08T02:29:35+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -26,7 +26,7 @@ msgstr ""
 
 #. Description of the plugin
 #: kdc-wacr-recoveryflow.php
-msgid "Turn lost conversions into conversations that convert. RecoveryFlow detects abandoned journeys across your WordPress commerce, forms, ticketing and booking systems, and recovers them through WA.cr on WhatsApp."
+msgid "Turn lost conversions into conversations that convert. RecoveryFlow detects abandoned journeys across your WordPress commerce, forms, ticketing and booking systems, and recovers them through WA.cr on WhatsApp. Requires an active WA.cr account."
 msgstr ""
 
 #. Author of the plugin
@@ -60,13 +60,13 @@ msgid "WA.cr could not confirm this connection. Check the connection on the Sett
 msgstr ""
 
 #. translators: 1: required PHP version, 2: the PHP version running now.
-#: src/Core/Requirements.php:40
+#: src/Core/Requirements.php:76
 #, php-format
 msgid "RecoveryFlow needs PHP %1$s or newer. This site runs PHP %2$s."
 msgstr ""
 
 #. translators: 1: required WordPress version, 2: the WordPress version running now.
-#: src/Core/Requirements.php:49
+#: src/Core/Requirements.php:86
 #, php-format
 msgid "RecoveryFlow needs WordPress %1$s or newer. This site runs WordPress %2$s."
 msgstr ""
@@ -75,57 +75,191 @@ msgstr ""
 msgid "Unnamed customer"
 msgstr ""
 
-#: src/Recovery/Journey_State.php:182
-msgid "New"
+#. translators: 1: the customer's first name. 2: the first letter of their last name.
+#: src/Customer/Mask.php:97
+#, php-format
+msgctxt "customer name shortened to a first name and a last initial"
+msgid "%1$s %2$s."
 msgstr ""
 
-#: src/Recovery/Journey_State.php:183
-msgid "Identified"
+#: src/Integration/WooCommerce/Cart_Restorer.php:97
+msgid "The shop is not available right now."
 msgstr ""
 
-#: src/Recovery/Journey_State.php:184
+#: src/Integration/WooCommerce/Cart_Restorer.php:121
+msgid "We could not rebuild your basket. Please try again."
+msgstr ""
+
+#: src/Integration/WooCommerce/Cart_Restorer.php:139
+msgid "This recovery link belongs to a different account."
+msgstr ""
+
+#. translators: %s: the name of this shop.
+#: src/Integration/WooCommerce/Consent_Field.php:276
+#, php-format
+msgid "Yes, %s may send me a WhatsApp message about my order if I do not finish checking out."
+msgstr ""
+
+#: src/Integration/WooCommerce/Source.php:121
+msgid "WooCommerce"
+msgstr ""
+
+#: src/Integration/WooCommerce/Source.php:130
+msgid "Recovers abandoned carts and checkouts, on both the classic and the block checkout."
+msgstr ""
+
+#: src/Jobs/Wp_Cron_Driver.php:78
+msgid "Every five minutes (RecoveryFlow)"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:106
 msgid "Eligible"
 msgstr ""
 
-#: src/Recovery/Journey_State.php:185
-msgid "Scheduled"
+#: src/Recovery/Eligibility.php:107
+msgid "Recovery messaging is switched off"
 msgstr ""
 
-#: src/Recovery/Journey_State.php:186
-msgid "Message sent"
+#: src/Recovery/Eligibility.php:108
+msgid "Nobody was identified"
 msgstr ""
 
-#: src/Recovery/Journey_State.php:187
-msgid "Replied"
+#: src/Recovery/Eligibility.php:109
+msgid "No phone number was given"
 msgstr ""
 
-#: src/Recovery/Journey_State.php:188
-msgid "Awaiting payment"
+#: src/Recovery/Eligibility.php:110
+msgid "The phone number could not be read as an international number"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:111
+msgid "The customer did not agree to be messaged"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:112
+msgid "The customer has opted out"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:113
+msgid "The customer has opted out in WA.cr"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:114
+msgid "This customer already has a recovery in progress"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:115
+msgid "This customer was messaged too recently"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:116
+msgid "This customer has reached the monthly limit"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:117
+msgid "Store staff are excluded"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:118
+msgid "Below the minimum order value"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:119
+msgid "The customer record was erased"
+msgstr ""
+
+#: src/Recovery/Eligibility.php:120
+msgid "The order was already completed"
 msgstr ""
 
 #: src/Recovery/Journey_State.php:189
-msgid "Recovered"
+msgctxt "recovery journey state"
+msgid "New"
 msgstr ""
 
 #: src/Recovery/Journey_State.php:190
-msgid "Expired"
+msgctxt "recovery journey state"
+msgid "Identified"
 msgstr ""
 
 #: src/Recovery/Journey_State.php:191
-msgid "Cancelled"
+msgctxt "recovery journey state"
+msgid "Eligible"
 msgstr ""
 
 #: src/Recovery/Journey_State.php:192
-msgid "Opted out"
+msgctxt "recovery journey state"
+msgid "Scheduled"
 msgstr ""
 
 #: src/Recovery/Journey_State.php:193
-msgid "Not recoverable"
+msgctxt "recovery journey state"
+msgid "Message sent"
 msgstr ""
 
 #: src/Recovery/Journey_State.php:194
+msgctxt "recovery journey state"
+msgid "Replied"
+msgstr ""
+
+#: src/Recovery/Journey_State.php:195
+msgctxt "recovery journey state"
+msgid "Awaiting payment"
+msgstr ""
+
+#: src/Recovery/Journey_State.php:196
+msgctxt "recovery journey state"
+msgid "Recovered"
+msgstr ""
+
+#: src/Recovery/Journey_State.php:197
+msgctxt "recovery journey state"
+msgid "Expired"
+msgstr ""
+
+#: src/Recovery/Journey_State.php:198
+msgctxt "recovery journey state"
+msgid "Cancelled"
+msgstr ""
+
+#: src/Recovery/Journey_State.php:199
+msgctxt "recovery journey state"
+msgid "Opted out"
+msgstr ""
+
+#: src/Recovery/Journey_State.php:200
+msgctxt "recovery journey state"
+msgid "Not recoverable"
+msgstr ""
+
+#: src/Recovery/Journey_State.php:201
+msgctxt "recovery journey state"
 msgid "Failed"
 msgstr ""
+
+#: src/Recovery/Recovery_Controller.php:506
+msgid "This link is no longer available"
+msgstr ""
+
+#: src/Recovery/Recovery_Controller.php:507
+msgid "The link you followed has expired or has already been used. Your basket may still be waiting for you on the shop."
+msgstr ""
+
+#: src/Recovery/Recovery_Controller.php:524
+msgid "Too many requests"
+msgstr ""
+
+#: src/Recovery/Recovery_Controller.php:525
+msgid "This link has been opened a great many times in a short period. Please wait a few minutes and try again."
+msgstr ""
+
+#. translators: 1: comma-separated list of item names, 2: how many further items there are.
+#: src/Recovery/Recovery_Event.php:273
+#, php-format
+msgid "%1$s and %2$d more"
+msgid_plural "%1$s and %2$d more"
+msgstr[0] ""
+msgstr[1] ""
 
 #: src/WAcr/Client.php:247
 msgid "No WA.cr API key is saved, so RecoveryFlow cannot send. Add one on the settings screen."
@@ -156,12 +290,18 @@ msgstr ""
 msgid "No WA.cr API key is saved. Add one on the settings screen."
 msgstr ""
 
-#: src/WAcr/Credentials.php:35
-msgid "Production (api.wa.cr)"
+#. translators: %s: the WA.cr API hostname, which is not translated.
+#: src/WAcr/Credentials.php:42
+#, php-format
+msgctxt "WA.cr API environment"
+msgid "Production (%s)"
 msgstr ""
 
-#: src/WAcr/Credentials.php:36
-msgid "Staging (api.wacart.dev)"
+#. translators: %s: the WA.cr API hostname, which is not translated.
+#: src/WAcr/Credentials.php:47
+#, php-format
+msgctxt "WA.cr API environment"
+msgid "Staging (%s)"
 msgstr ""
 
 #: src/WAcr/Error.php:171
@@ -246,4 +386,240 @@ msgstr ""
 
 #: src/WAcr/Send_Request.php:167
 msgid "The customer's email address, if sharing it is switched on"
+msgstr ""
+
+#: src/Workflow/Actions/Send_Template.php:203
+msgid "Send an approved WhatsApp template from WordPress"
+msgstr ""
+
+#: src/Workflow/Actions/Start_Flow.php:194
+msgid "Hand the journey to a WA.cr Auto Flow"
+msgstr ""
+
+#: src/Workflow/Conditions/Customer_Eligible.php:59
+msgid "The customer may still be messaged"
+msgstr ""
+
+#: src/Workflow/Conditions/Event_Amount_Gte.php:45
+msgid "The abandoned total is at least a given amount"
+msgstr ""
+
+#: src/Workflow/Conditions/Journey_Not_Completed.php:65
+msgid "The customer has not completed the order yet"
+msgstr ""
+
+#: src/Workflow/Conditions/Journey_Not_Engaged.php:40
+msgid "The customer has not replied or followed the link"
+msgstr ""
+
+#: src/Workflow/Message_Composer.php:79
+msgid "This step has no approved template name, or the name contains characters WhatsApp does not allow. Template names are lowercase letters, digits and underscores."
+msgstr ""
+
+#: src/Workflow/Message_Composer.php:86
+msgid "This step has no valid template language. Use a code such as en or en_GB."
+msgstr ""
+
+#: src/Workflow/Message_Composer.php:93
+msgid "There is no international phone number to send this to."
+msgstr ""
+
+#: src/Workflow/Message_Composer.php:158
+msgid "A template may have at most ten buttons."
+msgstr ""
+
+#. translators: %s: the variable name the merchant typed.
+#: src/Workflow/Message_Composer.php:173
+#, php-format
+msgid "RecoveryFlow does not recognise the template variable \"%s\". Use header_1, body_1 or button_0_url_1."
+msgstr ""
+
+#. translators: 1: component name such as body, 2: the missing position number.
+#: src/Workflow/Message_Composer.php:245
+#, php-format
+msgid "The template variables for %1$s skip a position: %2$d is missing. WhatsApp fills these in order, so a gap would send the wrong value to the customer."
+msgstr ""
+
+#. translators: %s: comma-separated list of key names.
+#: src/Workflow/Workflow_Definition.php:113
+#, php-format
+msgid "This workflow has settings RecoveryFlow does not recognise: %s. Remove them and save again."
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:122
+msgid "Give the workflow a name of up to 191 characters."
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:126
+msgid "The workflow version must be a whole number of 1 or more."
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:266
+msgid "The workflow needs a trigger saying what starts it."
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:272
+msgid "The trigger may only contain \"event\" and \"source\"."
+msgstr ""
+
+#. translators: %s: the only supported trigger event name.
+#: src/Workflow/Workflow_Definition.php:281
+#, php-format
+msgid "The only trigger RecoveryFlow understands today is \"%s\"."
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:290
+msgid "The trigger source must be a source identifier, or * for every source."
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:304
+msgid "The workflow needs at least one step, given as a list."
+msgstr ""
+
+#. translators: %d: the maximum number of steps a workflow may have.
+#: src/Workflow/Workflow_Definition.php:311
+#, php-format
+msgid "A workflow may have at most %d steps."
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:319
+msgid "each step must be an object"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:357
+msgid "the type must be condition, wait or action"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:373
+msgid "a condition may only have \"if\" and \"else\""
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:379
+msgid "\"if\" must name a registered condition, such as journey.not_completed"
+msgstr ""
+
+#. translators: %s: comma-separated list of journey states.
+#: src/Workflow/Workflow_Definition.php:394
+#, php-format
+msgid "\"else\" must be stop: followed by one of %s"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:415
+msgid "a wait may only have \"for\""
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:422
+msgid "\"for\" must be an ISO 8601 duration such as PT30M or P1D"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:431
+msgid "a wait must be at least one minute"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:435
+msgid "a wait may be at most 30 days"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:467
+msgid "an action may only have \"do\", \"with\" and \"channel\""
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:471
+msgid "\"channel\" must be either whatsapp or email"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:477
+msgid "\"do\" must name a registered action, such as wacr.send_template"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:485
+msgid "\"with\" must be an object of settings"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:505
+msgid "\"with\" may be nested one level at most"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:510
+msgid "every setting name in \"with\" must be lowercase letters, digits and underscores"
+msgstr ""
+
+#: src/Workflow/Workflow_Definition.php:524
+msgid "settings in \"with\" must be text, numbers or true and false"
+msgstr ""
+
+#. translators: 1: step number as shown to the user, 2: what is wrong with it.
+#: src/Workflow/Workflow_Definition.php:578
+#, php-format
+msgid "Step %1$d: %2$s."
+msgstr ""
+
+#: src/Workflow/Workflow_Repository.php:433
+msgid "Cart recovery (2 touches)"
+msgstr ""
+
+#: src/Workflow/Workflow_Repository.php:500
+msgid "Hand off to WA.cr Auto Flow"
+msgstr ""
+
+#: templates/opt-out-confirm.php:37
+msgid "Stop these WhatsApp reminders?"
+msgstr ""
+
+#. translators: %s: the shop's name.
+#: templates/opt-out-confirm.php:39
+#, php-format
+msgid "Stop WhatsApp reminders from %s?"
+msgstr ""
+
+#: templates/opt-out-confirm.php:98
+msgid "These are the reminders you receive on WhatsApp when you leave something behind in your basket."
+msgstr ""
+
+#. translators: %s: the shop's name.
+#: templates/opt-out-confirm.php:101
+#, php-format
+msgid "These are the reminders %s sends you on WhatsApp when you leave something behind in your basket."
+msgstr ""
+
+#: templates/opt-out-confirm.php:107
+msgid "Nothing has changed yet. Confirm below and the reminders will stop."
+msgstr ""
+
+#: templates/opt-out-confirm.php:111
+msgid "Yes, stop sending me these reminders"
+msgstr ""
+
+#: templates/opt-out-confirm.php:117
+msgid "No, keep sending them and take me back to the shop"
+msgstr ""
+
+#: templates/opt-out-done.php:29
+msgid "You have been unsubscribed"
+msgstr ""
+
+#: templates/opt-out-done.php:72
+msgid "You will not receive any more WhatsApp reminders about items left in your basket."
+msgstr ""
+
+#. translators: %s: the shop's name.
+#: templates/opt-out-done.php:75
+#, php-format
+msgid "You will not receive any more WhatsApp reminders from %s about items left in your basket."
+msgstr ""
+
+#: templates/opt-out-done.php:81
+msgid "You can still shop as usual, and this does not affect order confirmations or replies to messages you send yourself."
+msgstr ""
+
+#: templates/opt-out-done.php:88
+#: templates/recovery-invalid.php:75
+msgid "Go to the shop"
+msgstr ""
+
+#. translators: %s: the shop's name.
+#: templates/opt-out-done.php:90
+#: templates/recovery-invalid.php:77
+#, php-format
+msgid "Go to %s"
 msgstr ""
