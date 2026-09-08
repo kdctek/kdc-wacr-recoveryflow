@@ -118,6 +118,23 @@ rather than the journey, and a clear-out that missed it left that person
 suppressed so the next seeding enrolled one fewer. The queue lost a row per run
 while every gate stayed green.
 
+**A site nobody has opened yet.** A freshly activated plugin gets to claim the
+first admin request and send it somewhere else. RecoveryFlow does it to show the
+setup screen once; WooCommerce does it to show its onboarding wizard. Left
+alone, whichever URL pa11y happens to visit first is checked as that screen
+instead of itself — and because pa11y-ci visits concurrently, which URL that is
+varies between runs. WooCommerce's is the more dangerous of the two: it is a
+transient that lives **thirty seconds**, so it had never once fired on a
+developer's machine, where wp-env has been up for hours, and fired immediately
+on CI, which starts the site and checks it seconds later. It lands on
+`wc-admin`, which has a `#wpbody-content` of its own, so the run would have
+found its root element and reported WooCommerce's wizard as one of our screens
+passing. `settle_first_run()` in the seeder spends both, so the suite always
+checks a site somebody has already opened — which is the state these screens
+are really used in. The login probe in `bin/a11y.sh` is what caught it, and it
+now prints where it was redirected to, because a bare `HTTP 302` says nothing
+about which of these two things went wrong.
+
 **An axe runner that tells a failure from a shrug.** axe answers in two lists:
 `violations`, which it checked and which failed, and `incomplete`, which it
 could not decide — most often contrast over an element with a background image.

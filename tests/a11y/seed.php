@@ -319,7 +319,7 @@ final class RecoveryFlow_A11y_Command {
 	}
 
 	/**
-	 * Spend the one-time redirect a fresh activation is holding.
+	 * Spend every one-time redirect a fresh activation is holding.
 	 *
 	 * Setup sends the first admin request to its own screen and then clears the
 	 * flag, so on an unseeded site the FIRST url pa11y visits is checked as the
@@ -329,10 +329,25 @@ final class RecoveryFlow_A11y_Command {
 	 * makes the run deterministic; the setup screen is still checked, because it
 	 * is listed in its own right.
 	 *
+	 * WooCommerce holds one of exactly the same shape, and it is worse in two
+	 * ways. It is a transient with a THIRTY SECOND life, so whether it fires at
+	 * all depends on how long the site has been up when the run starts: on a
+	 * developer's machine wp-env has been running for hours and it has always
+	 * expired, while CI starts the site and checks it seconds later, where it
+	 * has not. And where our redirect lands on a screen this suite lists,
+	 * WooCommerce's lands on `wc-admin`, which has a `#wpbody-content` of its
+	 * own -- so the run would have found a root element, checked WooCommerce's
+	 * onboarding wizard, and reported it as one of our screens passing.
+	 *
+	 * Both are spent here rather than filtered off, because the site the suite
+	 * checks should be a site somebody has already opened, which is the state
+	 * every one of these screens is really used in.
+	 *
 	 * @return void
 	 */
 	private function settle_first_run(): void {
 		delete_option( Setup::PENDING_OPTION );
+		delete_transient( '_wc_activation_redirect' );
 	}
 
 	/**
