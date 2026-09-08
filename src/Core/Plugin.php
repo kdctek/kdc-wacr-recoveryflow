@@ -28,6 +28,13 @@ use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Identity_Resolver;
 use WAcr\RecoveryFlow\Database\Lock_Repository;
 use WAcr\RecoveryFlow\Database\Receipt_Repository;
+use WAcr\RecoveryFlow\Integration\GravityForms\Draft_Watcher as Gf_Draft_Watcher;
+use WAcr\RecoveryFlow\Integration\GravityForms\Entry_Poller as Gf_Entry_Poller;
+use WAcr\RecoveryFlow\Integration\GravityForms\Entry_Watcher as Gf_Entry_Watcher;
+use WAcr\RecoveryFlow\Integration\GravityForms\Field_Map as Gf_Field_Map;
+use WAcr\RecoveryFlow\Integration\GravityForms\Source as Gf_Source;
+use WAcr\RecoveryFlow\CLI\Command as CLI_Command;
+use WAcr\RecoveryFlow\Integration\Source_Cursors;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Restorer;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Cart_Tracker;
@@ -189,7 +196,8 @@ final class Plugin {
 			),
 
 			// Integrations.
-			'sources'             => static fn (): Source_Registry => new Source_Registry(),
+			'sources'             => static fn ( Plugin $c ): Source_Registry => new Source_Registry( $c->ingest() ),
+			'source_cursors'      => static fn (): Source_Cursors => new Source_Cursors(),
 			'wc_session'          => static fn (): Wc_Session => new Wc_Session(),
 
 			// The workflow engine and its registries.
@@ -373,7 +381,7 @@ final class Plugin {
 
 		$runner = new Stage_Runner( $scheduler->scheduler(), $this->lock(), $this->clock(), $this->logger() );
 
-		$runner->add( new Evaluate( $this->events(), $this->journeys(), $this->customers(), $this->eligibility(), $this->sources(), $this->workflows(), $this->clock(), $this->logger() ) );
+		$runner->add( new Evaluate( $this->events(), $this->journeys(), $this->customers(), $this->eligibility(), $this->sources(), $this->workflows(), $this->ingest(), $this->source_cursors(), $this->clock(), $this->logger() ) );
 		$runner->add( new Dispatch( $this->journeys(), $this->engine(), $this->rate_budget(), $this->logger() ) );
 		$runner->add( new Poll( $this->journeys(), $this->attempts(), $this->customers(), $this->consent(), $this->wacr(), $this->clock(), $this->logger() ) );
 		$runner->add( new Expire( $this->journeys(), $this->events(), $this->attempts() ) );
@@ -401,6 +409,17 @@ final class Plugin {
 				new Order_Observer( $this->conversions(), $this->ingest(), $this->receipts(), $this->customers(), $session, $logger ),
 				new Cart_Restorer( $session, $this->customers(), $logger ),
 				new Checkout_Script()
+			)
+		);
+
+		$gf_fields = new Gf_Field_Map();
+
+		$registry->add(
+			new Gf_Source(
+				$this->ingest(),
+				new Gf_Draft_Watcher( $this->ingest(), $gf_fields, $logger ),
+				new Gf_Entry_Watcher( $this->ingest(), $this->conversions(), $this->receipts(), $gf_fields, $logger ),
+				new Gf_Entry_Poller( $gf_fields, $logger )
 			)
 		);
 
@@ -652,6 +671,15 @@ final class Plugin {
 	 */
 	public function sources(): Source_Registry {
 		return $this->typed( 'sources', Source_Registry::class );
+	}
+
+	/**
+	 * Where each pollable source stopped reading.
+	 *
+	 * @return Source_Cursors
+	 */
+	public function source_cursors(): Source_Cursors {
+		return $this->typed( 'source_cursors', Source_Cursors::class );
 	}
 
 	/**
@@ -1015,6 +1043,13 @@ final class Plugin {
 			if ( method_exists( $service, 'hooks' ) ) {
 				$service->hooks();
 			}
+		}
+
+		// WP-CLI, which needs the container fully built and so goes last. The
+		// commands run the scheduler's own code rather than a copy of it, so
+		// what happens in a terminal is what happens at three in the morning.
+		if ( defined( 'WP_CLI' ) && constant( 'WP_CLI' ) ) {
+			CLI_Command::register( $this );
 		}
 
 		/**

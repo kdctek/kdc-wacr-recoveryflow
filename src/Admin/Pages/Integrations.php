@@ -7,6 +7,8 @@
 
 namespace WAcr\RecoveryFlow\Admin\Pages;
 
+use WAcr\RecoveryFlow\Admin\Screen;
+use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Security\Capabilities;
@@ -20,6 +22,16 @@ defined( 'ABSPATH' ) || exit;
  * "WooCommerce integration: not available, because WooCommerce is not active"
  * is an answer; a screen that simply does not mention WooCommerce leaves
  * somebody wondering whether the plugin supports it at all.
+ *
+ * Every sentence here comes from Source_Registry::status(), which is also what
+ * decides whether the source's hooks are attached. That is not tidiness. This
+ * screen used to work out its own answer from two of the three facts the
+ * registry considers, and so announced "Active. Abandoned baskets from here are
+ * being recorded." about an integration that was installed, switched on, and
+ * excluded by the plan -- watching nothing at all. Both sentences were true of
+ * what each one read; neither was true of the site. Asking the same method the
+ * behaviour asks is the only arrangement in which the screen cannot be
+ * confidently wrong.
  */
 final class Integrations {
 
@@ -81,12 +93,12 @@ final class Integrations {
 	 * @return void
 	 */
 	private function card( Recovery_Source_Interface $source ): void {
-		$available = $source->is_available();
-		$active    = $this->sources->is_enabled( $source->get_id() );
+		$id     = $source->get_id();
+		$status = $this->sources->status( $id );
 
 		printf(
 			'<div class="card recoveryflow-card recoveryflow-integration recoveryflow-integration--%1$s"><h2>%2$s</h2>',
-			esc_attr( $available ? 'available' : 'unavailable' ),
+			esc_attr( str_replace( '_', '-', $status ) ),
 			esc_html( $source->get_name() )
 		);
 
@@ -95,7 +107,7 @@ final class Integrations {
 		printf(
 			'<p><strong>%1$s</strong> %2$s</p>',
 			esc_html__( 'Status:', 'kdc-wacr-recoveryflow' ),
-			esc_html( $this->status_sentence( $available, $active ) )
+			esc_html( $this->status_sentence( $status ) )
 		);
 
 		$types = $source->get_event_types();
@@ -113,23 +125,44 @@ final class Integrations {
 			);
 		}
 
+		// The switch, and any settings the adapter declares, are fields in the
+		// settings tree like everything else, so the card links to them rather
+		// than growing a second form with a second set of rules about what a
+		// valid setting is.
+		printf(
+			'<p><a href="%1$s">%2$s</a></p>',
+			esc_url( Screen::settings_url( 'sources', $id, Source_Registry::enabled_key( $id ) ) ),
+			esc_html(
+				sprintf(
+					/* translators: %s: the name of an integration, for example WooCommerce. */
+					__( 'Settings for %s', 'kdc-wacr-recoveryflow' ),
+					$source->get_name()
+				)
+			)
+		);
+
 		echo '</div>';
 	}
 
 	/**
 	 * What an integration's state means, in one sentence.
 	 *
-	 * @param bool $available Whether its requirements are met.
-	 * @param bool $active    Whether it is switched on.
+	 * @param string $status One of the Source_Registry constants.
 	 * @return string
 	 */
-	private function status_sentence( bool $available, bool $active ): string {
-		if ( ! $available ) {
-			return __( 'Not available. Whatever this integration needs is not installed or not active on this site.', 'kdc-wacr-recoveryflow' );
-		}
+	private function status_sentence( string $status ): string {
+		switch ( $status ) {
+			case Source_Registry::UNAVAILABLE:
+				return __( 'Not available. Whatever this integration needs is not installed or not active on this site.', 'kdc-wacr-recoveryflow' );
 
-		return $active
-			? __( 'Active. Abandoned baskets from here are being recorded.', 'kdc-wacr-recoveryflow' )
-			: __( 'Available but switched off.', 'kdc-wacr-recoveryflow' );
+			case Source_Registry::SWITCHED_OFF:
+				return __( 'Available, but switched off here. Nothing from this integration is being recorded.', 'kdc-wacr-recoveryflow' );
+
+			case Source_Registry::NOT_INCLUDED:
+				return __( 'Installed and switched on, but not included in this WA.cr plan, so nothing from it is being recorded. Integrations beyond WooCommerce are included with the WA.cr Scale plan and above.', 'kdc-wacr-recoveryflow' );
+
+			default:
+				return __( 'Active. Abandoned baskets from here are being recorded.', 'kdc-wacr-recoveryflow' );
+		}
 	}
 }

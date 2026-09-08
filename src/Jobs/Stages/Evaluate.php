@@ -9,6 +9,8 @@ namespace WAcr\RecoveryFlow\Jobs\Stages;
 
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
+use WAcr\RecoveryFlow\Integration\Pollable_Source_Interface;
+use WAcr\RecoveryFlow\Integration\Source_Cursors;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
 use WAcr\RecoveryFlow\Jobs\Stage_Interface;
@@ -17,6 +19,8 @@ use WAcr\RecoveryFlow\Jobs\Stage_Stats;
 use WAcr\RecoveryFlow\Jobs\Time_Budget;
 use WAcr\RecoveryFlow\Recovery\Eligibility;
 use WAcr\RecoveryFlow\Recovery\Eligibility_Evaluator;
+use WAcr\RecoveryFlow\Recovery\Event_Draft;
+use WAcr\RecoveryFlow\Recovery\Event_Ingest;
 use WAcr\RecoveryFlow\Recovery\Event_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
@@ -58,6 +62,22 @@ final class Evaluate implements Stage_Interface {
 	 * How many events are considered per query.
 	 */
 	private const CONSIDER_BATCH = 200;
+
+	/**
+	 * How many drafts one pollable source is asked for at a time.
+	 *
+	 * Small, and deliberately smaller than the evaluation batch. A poll is a
+	 * source going and looking -- possibly over the network, possibly across a
+	 * table nobody has indexed for us -- and every draft it hands back costs an
+	 * identity resolution and a write before this stage has evaluated anything
+	 * at all.
+	 */
+	private const POLL_BATCH = 100;
+
+	/**
+	 * Seconds to reserve before asking one source for another page.
+	 */
+	private const POLL_COST = 3.0;
 
 	/**
 	 * Seconds to reserve before fetching another page of events.
@@ -125,6 +145,20 @@ final class Evaluate implements Stage_Interface {
 	private Clock $clock;
 
 	/**
+	 * The one route a source has for reporting what it found.
+	 *
+	 * @var Event_Ingest
+	 */
+	private Event_Ingest $ingest;
+
+	/**
+	 * Where each pollable source stopped reading.
+	 *
+	 * @var Source_Cursors
+	 */
+	private Source_Cursors $cursors;
+
+	/**
 	 * Logger.
 	 *
 	 * @var Logger
@@ -140,6 +174,8 @@ final class Evaluate implements Stage_Interface {
 	 * @param Eligibility_Evaluator    $evaluator Eligibility rules.
 	 * @param Source_Registry          $sources   Registered sources.
 	 * @param Workflow_Repository|null $workflows Workflow storage.
+	 * @param Event_Ingest             $ingest    Event ingestion, for pollable sources.
+	 * @param Source_Cursors           $cursors   Poll cursors.
 	 * @param Clock                    $clock     Clock.
 	 * @param Logger                   $logger    Logger.
 	 */
@@ -150,6 +186,8 @@ final class Evaluate implements Stage_Interface {
 		Eligibility_Evaluator $evaluator,
 		Source_Registry $sources,
 		?Workflow_Repository $workflows,
+		Event_Ingest $ingest,
+		Source_Cursors $cursors,
 		Clock $clock,
 		Logger $logger
 	) {
@@ -159,6 +197,8 @@ final class Evaluate implements Stage_Interface {
 		$this->evaluator = $evaluator;
 		$this->sources   = $sources;
 		$this->workflows = $workflows;
+		$this->ingest    = $ingest;
+		$this->cursors   = $cursors;
 		$this->clock     = $clock;
 		$this->logger    = $logger;
 	}
@@ -194,10 +234,100 @@ final class Evaluate implements Stage_Interface {
 		// cut-offs that drive the two queries are the same for every source.
 		$rules = Rule_Set::for_source();
 
+		$this->collect_polled( $budget, $stats );
 		$this->close_stale( $budget, $stats, $rules );
 		$this->enrol_due( $budget, $stats, $rules );
 
 		return $stats;
+	}
+
+	/**
+	 * Ask every pollable source what has appeared since it last looked.
+	 *
+	 * Most sources push: they fire a hook when something happens and this stage
+	 * never has to think about them. A source that implements
+	 * Pollable_Source_Interface has nothing to push from, so it is asked -- and
+	 * being asked is expensive in a way a hook never is, which is why this runs
+	 * first and under the same budget as everything else. A poll that overruns
+	 * would take its time out of the evaluation that turns those very drafts
+	 * into journeys.
+	 *
+	 * The cursor is only advanced after the batch has been ingested. Storing it
+	 * first would mean a fatal halfway through a page silently skipped every
+	 * draft in it, and a source with no hooks has no second chance to report
+	 * them: an unpolled row is simply never seen again.
+	 *
+	 * A source that throws is dropped for this run and its cursor left alone.
+	 * One broken integration must not stop the four that work, and it must not
+	 * lose its place either.
+	 *
+	 * @param Time_Budget $budget How long there is.
+	 * @param Stage_Stats $stats  Counters for this run.
+	 * @return void
+	 */
+	private function collect_polled( Time_Budget $budget, Stage_Stats $stats ): void {
+		$limit = Stage_Runner::batch_size( $this->key(), self::POLL_BATCH );
+
+		foreach ( $this->sources->active() as $id => $source ) {
+			if ( ! $source instanceof Pollable_Source_Interface ) {
+				continue;
+			}
+
+			if ( ! $budget->has_time( self::POLL_COST ) ) {
+				$stats->backlog = max( $stats->backlog, 1 );
+
+				return;
+			}
+
+			$this->poll_one( $source, $id, $limit, $budget, $stats );
+		}
+	}
+
+	/**
+	 * Read one page from one pollable source.
+	 *
+	 * @param Pollable_Source_Interface $source The source.
+	 * @param string                    $id     Its id.
+	 * @param int                       $limit  Drafts to ask for.
+	 * @param Time_Budget               $budget How long there is.
+	 * @param Stage_Stats               $stats  Counters for this run.
+	 * @return void
+	 */
+	private function poll_one( Pollable_Source_Interface $source, string $id, int $limit, Time_Budget $budget, Stage_Stats $stats ): void {
+		try {
+			$batch = $source->detect_recovery_events( $limit, $this->cursors->get( $id ) );
+		} catch ( \Throwable $e ) {
+			$this->logger->error(
+				'evaluate',
+				'A source could not be polled for new recovery events.',
+				array( 'source' => $id )
+			);
+
+			return;
+		}
+
+		$found = 0;
+
+		foreach ( $batch->drafts as $draft ) {
+			if ( ! $draft instanceof Event_Draft || $draft->source_id !== $id ) {
+				// A source may only report its own events: the dedupe key is
+				// unique per (source, key), so a draft filed under somebody
+				// else's id would collide with their rows.
+				continue;
+			}
+
+			if ( 0 !== $this->ingest->ingest( $draft ) ) {
+				++$found;
+			}
+		}
+
+		$stats->processed += $found;
+
+		$this->cursors->set( $id, $batch->cursor );
+
+		if ( $batch->has_more ) {
+			$stats->backlog = max( $stats->backlog, 1 );
+		}
 	}
 
 	/**

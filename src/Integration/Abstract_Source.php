@@ -8,7 +8,9 @@
 namespace WAcr\RecoveryFlow\Integration;
 
 use WAcr\RecoveryFlow\Core\Rewrites;
+use WAcr\RecoveryFlow\Recovery\Event_Draft;
 use WAcr\RecoveryFlow\Recovery\Event_Ingest;
+use WAcr\RecoveryFlow\Recovery\Recovery_Event;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 
 defined( 'ABSPATH' ) || exit;
@@ -43,6 +45,44 @@ abstract class Abstract_Source implements Recovery_Source_Interface {
 	 */
 	public function __construct( Event_Ingest $ingest ) {
 		$this->ingest = $ingest;
+	}
+
+	/**
+	 * Report something a visitor started and did not finish.
+	 *
+	 * The only way an adapter is allowed to say anything, and the reason it is
+	 * a method here rather than a repository somewhere is that everything
+	 * behind it runs inside a real person's page request. It writes one indexed
+	 * row and stops; deciding whether the thing is worth chasing, working out
+	 * who the visitor is and composing a message all happen later, on the
+	 * background tick, where taking a second longer costs nobody a slow page.
+	 *
+	 * It cannot throw. A recovery plugin that breaks a checkout because its own
+	 * table is missing has done far more damage than the sale it was trying to
+	 * save.
+	 *
+	 * @param Event_Draft $draft What was seen.
+	 * @return int The event row id, or 0 if nothing was written.
+	 */
+	protected function report( Event_Draft $draft ): int {
+		return $this->ingest->ingest( $draft );
+	}
+
+	/**
+	 * Say that the thing behind one of your keys is finished.
+	 *
+	 * Call this the moment your system knows -- the booking was paid, the form
+	 * was submitted, the ticket was issued. The engine also asks
+	 * is_conversion_complete() immediately before every send, so a missed call
+	 * here is not a message going out wrongly; it is a row staying open until
+	 * something notices. Both exist because either alone is not enough.
+	 *
+	 * @param string $dedupe_key The key you reported it under.
+	 * @param string $reason     Short machine-readable note, e.g. 'paid'.
+	 * @return bool Whether an open event was closed.
+	 */
+	protected function report_completed( string $dedupe_key, string $reason = 'completed' ): bool {
+		return $this->ingest->close( $this->get_id(), $dedupe_key, Recovery_Event::COMPLETED, $reason );
 	}
 
 	/**

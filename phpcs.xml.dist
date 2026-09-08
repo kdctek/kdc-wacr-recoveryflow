@@ -14,6 +14,15 @@
 	very functions it exists to impersonate. It never ships (see .distignore).
 	-->
 	<exclude-pattern>/tests/wp-stubs.php</exclude-pattern>
+	<!--
+	The benchmarking harness. Its entire job is raw SQL against the plugin's own
+	tables: bulk INSERTs of invented data, EXPLAIN, and a rolled-back
+	transaction. The rules about prepared statements and caching, which are
+	right everywhere else, would be answered here by silencing them line by
+	line instead. It never ships (see .distignore) and no merchant's site can
+	run it.
+	-->
+	<exclude-pattern>/tests/perf/*</exclude-pattern>
 
 	<arg name="extensions" value="php"/>
 	<arg name="colors"/>

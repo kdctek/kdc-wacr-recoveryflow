@@ -88,6 +88,15 @@ store the code, translate only where it is displayed.
 `wp_set_script_translations( $handle, 'kdc-wacr-recoveryflow', … )`, and use
 `__()` from `@wordpress/i18n` in the script itself.
 
+**WP-CLI output is deliberately not translated**, which is a decision rather
+than an oversight. WP-CLI resolves no locale of its own and its whole framework
+— every flag, every error, every `--help` page a RecoveryFlow command sits
+beside — is English. A half-translated help screen is harder to read than an
+English one, and the audience for these commands is somebody who is already
+reading English error messages from `wp db` and `wp cron`. `src/CLI/` therefore
+carries no `__()` and contributes no msgids. If that changes, it changes for
+the whole command, not one string in it.
+
 ## Checks
 
 Three of them, all runnable locally and all in CI.

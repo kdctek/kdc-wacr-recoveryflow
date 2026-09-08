@@ -15,9 +15,24 @@ parameters:
 	# actual signatures, which catches a misspelled method or a wrong argument
 	# count; the alternative -- ignoring every "unknown class WC_" error -- would
 	# have made the whole adapter invisible to static analysis.
+	#
+	# Gravity Forms is commercial and has no published stub package, so the
+	# double the smoke suite already runs the adapter against is scanned
+	# instead. That is deliberately the same file rather than a second one
+	# written for the analyser: two descriptions of somebody else's API drift,
+	# and they drift in the worst way -- PHPStan checking one signature while
+	# the tests exercise another. Its methods carry the real signatures; the
+	# static properties on it are the double's own and no shipped file touches
+	# them.
 	scanFiles:
 		- vendor/php-stubs/woocommerce-stubs/woocommerce-stubs.php
 		- vendor/php-stubs/woocommerce-stubs/woocommerce-packages-stubs.php
+		- tests/fixtures/gravity-forms.php
+		# WP-CLI is present only when the command line is. Scanning its stubs
+		# means a misspelled utility or a wrong argument count in a command is
+		# caught here rather than by the person running it.
+		- vendor/php-stubs/wp-cli-stubs/wp-cli-stubs.php
+		- vendor/php-stubs/wp-cli-stubs/wp-cli-commands-stubs.php
 	excludePaths:
 		- vendor
 	ignoreErrors:
@@ -44,3 +59,17 @@ parameters:
 		-
 			message: '#Else branch is unreachable because ternary operator condition is always true\.#'
 			path: src/Integration/WooCommerce/*
+		-
+			message: '#Else branch is unreachable because ternary operator condition is always true\.#'
+			path: src/Integration/GravityForms/*
+		# Scanning the double makes GFAPI and GFFormsModel unconditionally
+		# present to the analyser. At runtime they are not: Gravity Forms can be
+		# deactivated between the moment a journey is scheduled and the moment
+		# it is due, and an older version may not carry a method a newer one
+		# does. Those guards decide whether somebody is messaged, so they stay.
+		-
+			message: '#Negated boolean expression is always false\.#'
+			path: src/Integration/GravityForms/*
+		-
+			message: '#Call to function is_callable\(\) with array.* will always evaluate to true\.#'
+			path: src/Integration/GravityForms/*

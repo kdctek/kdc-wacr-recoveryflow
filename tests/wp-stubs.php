@@ -222,9 +222,21 @@ function untrailingslashit( $value ) {
 function home_url( $path = '' ) {
 	return 'https://example.test' . $path;
 }
-function add_query_arg( $args, $url = '' ) {
+function add_query_arg( ...$args ) {
+	// WordPress accepts both add_query_arg( array, url ) and
+	// add_query_arg( key, value, url ). The stub only ever knew the first, so
+	// the second fataled -- which says nothing about the code being tested.
+	if ( count( $args ) >= 3 ) {
+		$pairs = array( $args[0] => $args[1] );
+		$url   = (string) $args[2];
+	} else {
+		$pairs = (array) ( $args[0] ?? array() );
+		$url   = (string) ( $args[1] ?? '' );
+	}
+
 	$separator = false === strpos( $url, '?' ) ? '?' : '&';
-	return $url . $separator . http_build_query( $args );
+
+	return $url . $separator . http_build_query( $pairs );
 }
 function add_rewrite_rule( $regex, $query, $after = 'bottom' ) {
 	$GLOBALS['__rewrites'][ $regex ] = $query;
@@ -701,6 +713,17 @@ class Fake_Wpdb extends wpdb {
 		$this->queries[] = $sql;
 
 		return $this->primed( $sql );
+	}
+	public function get_col( $sql, $column = 0 ) {
+		$this->queries[] = $sql;
+
+		// The first value of each primed row, which is what real wpdb returns.
+		// Its absence made every repository path that reads a list of ids fatal
+		// -- and the fatal, not the assertion, was what a test would have seen.
+		return array_map(
+			static fn( $row ) => is_array( $row ) ? array_values( $row )[ $column ] ?? null : null,
+			$this->primed( $sql )
+		);
 	}
 	private function primed( $sql ) {
 		foreach ( $this->rows as $fragment => $rows ) {

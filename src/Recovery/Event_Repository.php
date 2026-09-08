@@ -339,22 +339,52 @@ final class Event_Repository extends Repository {
 	public function expire_unidentified( string $older_than, int $limit = 500 ): int {
 		$table = $this->table();
 
-		return $this->execute(
+		/*
+		 * Chosen rather than written as one UPDATE ... LIMIT, measured against
+		 * a hundred thousand events. The predicate here is the exact shape of
+		 * the `evaluate` index -- status, then journey_id, then
+		 * last_activity_at -- but MySQL would not use it for the UPDATE. It
+		 * chose `retention` (status, updated_at) instead, which answers only
+		 * the first of the three conditions, and examined seventy thousand rows
+		 * every pass to close five hundred. As a SELECT it reads the right
+		 * index and stops at the limit; the UPDATE is then addressed by primary
+		 * key.
+		 *
+		 * It removes an UPDATE ... LIMIT with no ORDER BY as a side effect,
+		 * which MySQL flags as unsafe for statement-based replication because
+		 * two servers may pick different rows.
+		 */
+		$ids = $this->ids(
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant.
+			$this->db()->prepare(
+				"SELECT id FROM `{$table}`
+				WHERE status = %s AND journey_id IS NULL AND last_activity_at < %s
+				ORDER BY last_activity_at ASC
+				LIMIT %d",
+				Recovery_Event::OPEN,
+				$older_than,
+				max( 1, $limit )
+			)
+		);
+
+		if ( array() === $ids ) {
+			return 0;
+		}
+
+		return $this->execute(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant; ids are integers cast above.
 			$this->db()->prepare(
 				"UPDATE `{$table}`
 				SET status = %s,
 					status_reason = %s,
 					dedupe_key = CONCAT(LEFT(dedupe_key, 160), '#', id),
 					updated_at = %s
-				WHERE status = %s AND journey_id IS NULL AND last_activity_at < %s
-				LIMIT %d",
+				WHERE id IN (" . implode( ',', $ids ) . ')
+					AND status = %s AND journey_id IS NULL',
 				Recovery_Event::EXPIRED,
 				'max_age',
 				$this->clock->now(),
-				Recovery_Event::OPEN,
-				$older_than,
-				max( 1, $limit )
+				Recovery_Event::OPEN
 			)
 		);
 	}

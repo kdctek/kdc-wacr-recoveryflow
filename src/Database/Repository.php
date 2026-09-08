@@ -258,6 +258,32 @@ abstract class Repository {
 	}
 
 	/**
+	 * The ids a prepared SELECT returned.
+	 *
+	 * Exists because several statements here are far cheaper written as a
+	 * SELECT that reads exactly the index built for it, followed by an UPDATE
+	 * addressed by primary key, than as one UPDATE ... ORDER BY ... LIMIT --
+	 * which MySQL is free to satisfy with a different index and a sort, and at
+	 * a hundred thousand rows does.
+	 *
+	 * @param string|null $prepared A prepared statement selecting one id column.
+	 * @return int[]
+	 */
+	protected function ids( ?string $prepared ): array {
+		if ( null === $prepared ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- prepared by the caller.
+		$ids = $this->db()->get_col( $prepared );
+
+		// Cast rather than checked: these are interpolated into the IN () of the
+		// statement that follows, so "they came back as strings" is not a
+		// stylistic point.
+		return array_map( 'intval', (array) $ids );
+	}
+
+	/**
 	 * Run a prepared statement for its row count.
 	 *
 	 * @param string|null $prepared Prepared SQL.

@@ -136,9 +136,13 @@ final class Field_Renderer {
 	 * @return void
 	 */
 	private function control( string $key, array $spec, string $id, string $help_id ): void {
-		$type      = (string) ( $spec['type'] ?? 'text' );
-		$name      = Options::SETTINGS . '[' . $key . ']';
-		$value     = $this->settings[ $key ] ?? '';
+		$type = (string) ( $spec['type'] ?? 'text' );
+		$name = Options::SETTINGS . '[' . $key . ']';
+		// A field may declare its own default, because a source registered by
+		// somebody else's plugin cannot put one in Options::defaults(). Without
+		// this a switch that is on renders as off, and the first save of the
+		// tab it sits on then turns it off for real.
+		$value     = $this->settings[ $key ] ?? ( $spec['default'] ?? '' );
 		$described = '' === $help_id ? '' : ' aria-describedby="' . esc_attr( $help_id ) . '"';
 
 		switch ( $type ) {
