@@ -180,6 +180,12 @@ final class Rule_Set {
 	 * the merchant makes with that in front of them, not a default they
 	 * discover afterwards.
 	 *
+	 * Email therefore passes two gates rather than one: the merchant has to
+	 * switch it on, and the compliance settings the law requires have to be
+	 * there. The second gate is the reason the first one is safe to expose at
+	 * all -- a setting written by WP-CLI, by a migration or by a plugin that
+	 * "turns everything on" cannot start unlawful mail on its own.
+	 *
 	 * @param string $channel Channel name.
 	 * @return bool
 	 */
@@ -188,7 +194,24 @@ final class Rule_Set {
 			return false;
 		}
 
-		return (bool) $this->get( 'channel_' . $channel . '_enabled', Channel::WHATSAPP === $channel );
+		if ( ! (bool) $this->get( 'channel_' . $channel . '_enabled', Channel::WHATSAPP === $channel ) ) {
+			return false;
+		}
+
+		return Channel::EMAIL !== $channel || array() === $this->email_compliance_blockers();
+	}
+
+	/**
+	 * What is stopping this site from sending recovery email.
+	 *
+	 * Answered from the resolved snapshot rather than from the database, for
+	 * the same reason every other rule here is: a batch that started under one
+	 * set of settings finishes under them.
+	 *
+	 * @return string[] Email_Compliance reason codes; empty when nothing blocks.
+	 */
+	public function email_compliance_blockers(): array {
+		return Email_Compliance::blockers( $this->rules );
 	}
 
 	/**

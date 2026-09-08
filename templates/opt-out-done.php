@@ -7,9 +7,11 @@
  * page says so plainly, because somebody who has just asked to be left alone
  * should not have to wonder whether it worked.
  *
- * The suppression is keyed on a hash of the number rather than on the customer
- * record, so it survives an erasure request. That is worth saying here because
- * it is the reason this page can promise what it promises.
+ * The suppression is keyed on hashes of the person's contact details rather
+ * than on the customer record, so it survives an erasure request, and it covers
+ * every identity they left -- their number and their address both. That is the
+ * reason this page can promise what it promises, and the reason it promises it
+ * without naming a channel.
  *
  * Override by copying this file to kdc-wacr-recoveryflow/opt-out-done.php in a
  * theme, or by filtering recoveryflow_template.
@@ -69,10 +71,10 @@ $recoveryflow_title = __( 'You have been unsubscribed', 'kdc-wacr-recoveryflow' 
 			<?php
 			echo esc_html(
 				'' === $recoveryflow_site_name
-					? __( 'You will not receive any more WhatsApp reminders about items left in your basket.', 'kdc-wacr-recoveryflow' )
+					? __( 'You will not receive any more reminders about items left in your basket.', 'kdc-wacr-recoveryflow' )
 					: sprintf(
 						/* translators: %s: the shop's name. */
-						__( 'You will not receive any more WhatsApp reminders from %s about items left in your basket.', 'kdc-wacr-recoveryflow' ),
+						__( 'You will not receive any more reminders from %s about items left in your basket.', 'kdc-wacr-recoveryflow' ),
 						$recoveryflow_site_name
 					)
 			);

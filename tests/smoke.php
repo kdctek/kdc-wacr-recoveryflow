@@ -30,7 +30,10 @@ use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Customer\Phone_Normalizer;
 use WAcr\RecoveryFlow\Privacy\Redactor;
+use WAcr\RecoveryFlow\Recovery\Channel;
+use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
+use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Script;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Consent_Field;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Session;
@@ -1014,6 +1017,158 @@ $GLOBALS['__options']['recoveryflow_settings'] = array();
 // A missing billing group must not fatal the checkout.
 check( 'a checkout with no billing group is left alone', $consent_field->add_classic_field( array() ), array() );
 check( 'a non-array field set is left alone', $consent_field->add_classic_field( 'nonsense' ), 'nonsense' );
+
+
+// ---------------------------------------------------------------------------
+// Email compliance: the gate that has to be cleared before email may be sent.
+//
+// A recovery email is commercial mail, so it needs the sender's real postal
+// address and an unsubscribe that keeps working for thirty days. Neither is
+// something the plugin can supply, so the plugin refuses instead. These
+// assertions are about the refusal.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_compliant = array(
+	'merchant_postal_address' => "Example Shop Ltd\n12 Example Road\nBengaluru 560001",
+	'merchant_postal_country' => 'IN',
+	'recovery_link_ttl_days'  => 30,
+);
+
+$recoveryflow_shipped = Options::defaults();
+
+check( 'no postal address ships with the plugin -- only the merchant knows it', $recoveryflow_shipped['merchant_postal_address'], '' );
+check( 'and no country either', $recoveryflow_shipped['merchant_postal_country'], '' );
+
+$recoveryflow_fresh = Email_Compliance::blockers( $recoveryflow_shipped );
+
+ok( 'a fresh site is blocked for want of an address', in_array( Email_Compliance::NO_POSTAL_ADDRESS, $recoveryflow_fresh, true ) );
+ok( 'and for want of a country to format it by', in_array( Email_Compliance::NO_POSTAL_COUNTRY, $recoveryflow_fresh, true ) );
+ok( 'and because a 7-day link would die three weeks before the law lets it', in_array( Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT, $recoveryflow_fresh, true ) );
+
+check( 'a merchant who has settled all three has nothing blocking', Email_Compliance::blockers( $recoveryflow_compliant ), array() );
+ok( 'which is what being compliant means', Email_Compliance::is_satisfied( $recoveryflow_compliant ) );
+
+/*
+ * Each blocker on its own, from an otherwise-clean site. A test that only ever
+ * checked the all-empty case would still pass if two of the three checks were
+ * deleted, because the third would carry it.
+ */
+$recoveryflow_case = $recoveryflow_compliant;
+$recoveryflow_case['merchant_postal_address'] = "  \n \n ";
+check( 'whitespace is not an address', Email_Compliance::blockers( $recoveryflow_case ), array( Email_Compliance::NO_POSTAL_ADDRESS ) );
+
+$recoveryflow_case = $recoveryflow_compliant;
+$recoveryflow_case['merchant_postal_country'] = '';
+check( 'a missing country blocks on its own', Email_Compliance::blockers( $recoveryflow_case ), array( Email_Compliance::NO_POSTAL_COUNTRY ) );
+
+$recoveryflow_case = $recoveryflow_compliant;
+$recoveryflow_case['recovery_link_ttl_days'] = 29;
+check( 'and one day short of thirty blocks on its own', Email_Compliance::blockers( $recoveryflow_case ), array( Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT ) );
+
+// Thirty is also the ceiling Rule_Set clamps this setting to, so the
+// requirement is exactly satisfiable, and asking for more is not an error.
+$recoveryflow_case = $recoveryflow_compliant;
+$recoveryflow_case['recovery_link_ttl_days'] = 45;
+check( 'asking for longer than the ceiling still clears it', Email_Compliance::blockers( $recoveryflow_case ), array() );
+
+// A lifetime nobody can read is not evidence of a lawful one.
+$recoveryflow_case = $recoveryflow_compliant;
+$recoveryflow_case['recovery_link_ttl_days'] = 0;
+check( 'a zero lifetime blocks', Email_Compliance::blockers( $recoveryflow_case ), array( Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT ) );
+
+$recoveryflow_case = $recoveryflow_compliant;
+$recoveryflow_case['recovery_link_ttl_days'] = 'thirty';
+check( 'and so does one that is not a number at all', Email_Compliance::blockers( $recoveryflow_case ), array( Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT ) );
+
+// The setting missing entirely falls back to the shipped 7, which blocks.
+$recoveryflow_case = $recoveryflow_compliant;
+unset( $recoveryflow_case['recovery_link_ttl_days'] );
+check( 'and the setting missing altogether blocks', Email_Compliance::blockers( $recoveryflow_case ), array( Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT ) );
+
+// The gate itself, in both directions.
+$recoveryflow_rules = new Rule_Set( array_merge( $recoveryflow_compliant, array( 'channel_email_enabled' => true ) ) );
+ok( 'a compliant site that switched email on may use it', $recoveryflow_rules->channel_enabled( Channel::EMAIL ) );
+ok( 'an unknown channel is still nothing', ! $recoveryflow_rules->channel_enabled( 'sms' ) );
+
+/*
+ * The one that guards the ruling: compliance makes email PERMISSIBLE, never
+ * enabled. Settling the settings must not switch the channel on behind the
+ * merchant's back -- that is their decision and it has not been made.
+ */
+ok( 'settling the settings does NOT switch email on: the default is still off', ! ( new Rule_Set( $recoveryflow_compliant ) )->channel_enabled( Channel::EMAIL ) );
+
+// And the other direction: the switch alone is not enough either.
+$recoveryflow_rules = new Rule_Set( array( 'channel_email_enabled' => true ) );
+ok( 'switching email on without the settings sends nothing', ! $recoveryflow_rules->channel_enabled( Channel::EMAIL ) );
+check(
+	'and the refusal names exactly what is missing, in the order to fix it',
+	$recoveryflow_rules->email_compliance_blockers(),
+	array( Email_Compliance::NO_POSTAL_ADDRESS, Email_Compliance::NO_POSTAL_COUNTRY, Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT )
+);
+
+ok( 'WhatsApp is untouched by any of it', ( new Rule_Set( array() ) )->channel_enabled( Channel::WHATSAPP ) );
+
+// Storing the address. Nothing is reordered or reformatted: an address is laid
+// out by its own country, not by the language of whoever is reading it.
+check( 'CRLF is normalised', Email_Compliance::sanitize_address( "A\r\nB" ), "A\nB" );
+check( 'blank lines and padding go, line breaks stay', Email_Compliance::sanitize_address( "  A  \n\n\n  B \n " ), "A\nB" );
+check( 'a control character cannot be smuggled into the footer', Email_Compliance::sanitize_address( "A\x00\x1BB" ), 'AB' );
+check( 'nothing typed, nothing stored', Email_Compliance::sanitize_address( "\n \n" ), '' );
+check( 'the number of lines is capped', count( Email_Compliance::address_lines( array( 'merchant_postal_address' => implode( "\n", array_fill( 0, 30, 'x' ) ) ) ) ), Email_Compliance::MAX_ADDRESS_LINES );
+check( 'the length is capped', strlen( Email_Compliance::sanitize_address( str_repeat( 'x', 900 ) ) ), Email_Compliance::MAX_ADDRESS_LENGTH );
+
+check( 'a country code is upper-cased', Email_Compliance::sanitize_country( 'gb' ), 'GB' );
+check( 'punctuation and padding are stripped', Email_Compliance::sanitize_country( ' i-n ' ), 'IN' );
+check( 'a country name is not a country code', Email_Compliance::sanitize_country( 'United Kingdom' ), '' );
+check( 'and neither is a single letter', Email_Compliance::sanitize_country( 'G' ), '' );
+
+/*
+ * The footer. The address goes out byte for byte as the merchant stored it: it
+ * is their value, not one of the plugin's strings, so it is never translated
+ * and never appears in the .pot. Only the sentence offering the unsubscribe is
+ * ours to translate, and the URL inside it is not.
+ */
+$recoveryflow_footer = Email_Compliance::footer( 'https://shop.example/recovery/' . str_repeat( 'a', 43 ) . '/opt-out', $recoveryflow_compliant );
+
+ok( "the footer carries the merchant's address exactly as stored", false !== strpos( $recoveryflow_footer, "Example Shop Ltd\n12 Example Road\nBengaluru 560001" ) );
+ok( 'and the unsubscribe link', false !== strpos( $recoveryflow_footer, 'https://shop.example/recovery/' ) );
+check( 'no address, no footer -- which is itself the signal not to send', Email_Compliance::footer( 'https://shop.example/x', array() ), '' );
+check( 'no unsubscribe link, no footer either', Email_Compliance::footer( '', $recoveryflow_compliant ), '' );
+
+// Every blocker has something specific to say, rather than falling through to
+// the generic sentence.
+$recoveryflow_generic = Email_Compliance::reason_label( 'not-a-reason-code' );
+
+foreach ( array( Email_Compliance::NO_POSTAL_ADDRESS, Email_Compliance::NO_POSTAL_COUNTRY, Email_Compliance::UNSUBSCRIBE_WINDOW_TOO_SHORT ) as $recoveryflow_code ) {
+	ok( "the merchant is told what to do about {$recoveryflow_code}", Email_Compliance::reason_label( $recoveryflow_code ) !== $recoveryflow_generic );
+}
+
+/*
+ * The unsubscribe that all of the above is gating. Suppression is stored per
+ * identity, so an opt-out that only silenced the phone would leave the address
+ * untouched -- and for a shopper who only ever gave an address, it would record
+ * nothing at all while the page told them the reminders had stopped.
+ */
+$recoveryflow_suppress = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'suppress' );
+
+ok( 'the opt-out routine can be read', strlen( $recoveryflow_suppress ) > 50 );
+ok( 'an opt-out silences the phone number', false !== strpos( $recoveryflow_suppress, 'Identity::E164' ) );
+ok( 'an opt-out silences the email address too, or an email-only shopper unsubscribes into a void', false !== strpos( $recoveryflow_suppress, 'Identity::EMAIL' ) );
+
+// And the pages must not promise less than the button delivers. Confirming
+// stops every channel, so naming one would be wrong on WhatsApp and simply
+// false on email. Comments are exempt; only what a shopper reads is checked.
+foreach ( array( 'opt-out-confirm.php', 'opt-out-done.php' ) as $recoveryflow_page ) {
+	$recoveryflow_named = false;
+
+	foreach ( token_get_all( (string) file_get_contents( dirname( __DIR__ ) . '/templates/' . $recoveryflow_page ) ) as $recoveryflow_token ) {
+		if ( is_array( $recoveryflow_token ) && T_CONSTANT_ENCAPSED_STRING === $recoveryflow_token[0] && false !== stripos( $recoveryflow_token[1], 'whatsapp' ) ) {
+			$recoveryflow_named = true;
+		}
+	}
+
+	ok( "{$recoveryflow_page} names no single channel, because the opt-out stops them all", ! $recoveryflow_named );
+}
 
 echo "\n";
 echo "\n";

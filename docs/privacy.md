@@ -52,12 +52,26 @@ Four ways in, one result:
 
 | Channel | How |
 | --- | --- |
-| Opt-out link | Every message carries `recovery.opt_out_url`. GET shows a confirmation page; POST (token-bound) performs the opt-out. GET cannot change anything because WhatsApp's link-preview fetcher requests every link in a message |
+| Opt-out link | Every message carries `recovery.opt_out_url`. GET shows a confirmation page; POST (token-bound) performs the opt-out. GET cannot change anything because link-preview fetchers request every link in a message -- WhatsApp's does, and Gmail's image proxy and Outlook's SafeLinks are more eager still |
 | Keyword reply | A whole-message `STOP`, `UNSUBSCRIBE`, `CANCEL`, `END` or `QUIT` read by the Poll stage (`recoveryflow_optout_keywords`) |
 | WA.cr | The customer's `optedOut` flag in WA.cr, read before every direct send when `contacts:read` is granted, and an `opt_out` event from an Auto Flow webhook step |
 | Admin | The opt-out row action or REST call by a user with `recoveryflow_manage_journeys` |
 
-The result is always the same: a `suppressed` consent row is appended, every open journey for that phone hash moves to `OPTED_OUT`, and every recovery token on those journeys is revoked. Writing the opt-out back to WA.cr is a separate setting because WA.cr's flag applies to the whole workspace, not only to this site.
+The result is always the same: a `suppressed` consent row is appended for **every identity the person has** -- their phone hash and their email hash both -- every open journey for that customer moves to `OPTED_OUT`, and every recovery token on those journeys is revoked. Suppression is stored per identity, so silencing only the phone would leave the address reachable, and for somebody who gave an address and no number it would record nothing at all. That is also why the confirmation and confirmed pages name no channel: the button stops the reminders, not one way of delivering them. Writing the opt-out back to WA.cr is a separate setting because WA.cr's flag applies to the whole workspace, not only to this site.
+
+### Email compliance
+
+A recovery email is commercial mail: not a receipt, not a shipping notice, not a reply to something the customer wrote. So before the email channel can be used at all, `Email_Compliance` requires three things, and `Rule_Set::channel_enabled()` refuses the channel until it has them:
+
+| Reason code | What is missing |
+| --- | --- |
+| `no_postal_address` | The physical postal address of the business sending the mail, printed at the foot of every recovery email |
+| `no_postal_country` | The country that address is in, as ISO 3166-1 alpha-2 |
+| `unsubscribe_window_too_short` | A recovery link lifetime of at least 30 days. The unsubscribe link in an email *is* the recovery link, and it has to keep working for that long after the message was sent |
+
+This is a second gate, not the switch. The email channel still defaults to off and turning it on remains the merchant's decision; clearing these three makes it *permissible*, never enabled. The gate is what stops a setting written by WP-CLI, a migration or another plugin from starting unlawful mail on its own.
+
+The postal address is a stored value, not a string of the software. It is never translated, never appears in the `.pot`, and is never reformatted to suit the admin's locale -- an address is laid out according to its own country, which is why that country is asked for separately rather than parsed back out of the text.
 
 ## Exporter, eraser, anonymiser, retention, uninstall
 
