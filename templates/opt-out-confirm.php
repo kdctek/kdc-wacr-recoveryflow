@@ -8,6 +8,15 @@
  * campaign the moment it was delivered. The opt-out happens only when this form
  * is submitted, which no preview fetcher will ever do.
  *
+ * That argument gets stronger on email, not weaker. Gmail's image proxy and
+ * Outlook's SafeLinks fetch what a message links to far more eagerly than
+ * WhatsApp does, and some of them follow redirects and prefetch on hover.
+ *
+ * No channel is named anywhere on the page. Confirming here silences every way
+ * the shop has of sending these reminders, not the one the message arrived by,
+ * so naming WhatsApp would have promised less than the button actually does --
+ * and would have been simply wrong on an email.
+ *
  * The form carries no nonce on purpose: the recipient is not logged in and has
  * no WordPress session to carry one. The token already in the URL is the
  * credential -- 256 bits of randomness, sent to one person, for one message.
@@ -34,9 +43,9 @@ $recoveryflow_form_action = isset( $recoveryflow_form_action ) ? (string) $recov
 $recoveryflow_home_url    = isset( $recoveryflow_home_url ) ? (string) $recoveryflow_home_url : '';
 
 $recoveryflow_title = '' === $recoveryflow_site_name
-	? __( 'Stop these WhatsApp reminders?', 'kdc-wacr-recoveryflow' )
+	? __( 'Stop these reminders?', 'kdc-wacr-recoveryflow' )
 	/* translators: %s: the shop's name. */
-	: sprintf( __( 'Stop WhatsApp reminders from %s?', 'kdc-wacr-recoveryflow' ), $recoveryflow_site_name );
+	: sprintf( __( 'Stop reminders from %s?', 'kdc-wacr-recoveryflow' ), $recoveryflow_site_name );
 ?>
 <!DOCTYPE html>
 <html lang="<?php echo esc_attr( get_bloginfo( 'language' ) ); ?>">
@@ -95,10 +104,10 @@ $recoveryflow_title = '' === $recoveryflow_site_name
 			<?php
 			echo esc_html(
 				'' === $recoveryflow_site_name
-					? __( 'These are the reminders you receive on WhatsApp when you leave something behind in your basket.', 'kdc-wacr-recoveryflow' )
+					? __( 'These are the reminders you receive when you leave something behind in your basket.', 'kdc-wacr-recoveryflow' )
 					: sprintf(
 						/* translators: %s: the shop's name. */
-						__( 'These are the reminders %s sends you on WhatsApp when you leave something behind in your basket.', 'kdc-wacr-recoveryflow' ),
+						__( 'These are the reminders %s sends you when you leave something behind in your basket.', 'kdc-wacr-recoveryflow' ),
 						$recoveryflow_site_name
 					)
 			);

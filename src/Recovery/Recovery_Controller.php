@@ -407,9 +407,19 @@ final class Recovery_Controller {
 	/**
 	 * Record the suppression and end every journey for that person.
 	 *
-	 * Keyed on the phone hash rather than the customer row, because that is
+	 * Keyed on the identity hashes rather than the customer row, because that is
 	 * what survives an erasure request: forgetting that somebody asked not to
 	 * be messaged is the one thing an erasure must never do.
+	 *
+	 * **Every identity the person has, not the one the message went out on.**
+	 * Suppression is stored per identity, so silencing only the phone would
+	 * leave the email address untouched and the next reminder would arrive by
+	 * email from the same shop -- and for somebody who only ever gave an
+	 * address, silencing the phone silences nothing at all, which is how an
+	 * unsubscribe link comes to render a page saying the reminders have stopped
+	 * while nothing has been recorded anywhere. That is also the reason the
+	 * pages this endpoint renders no longer name a single channel: what is
+	 * being switched off is the reminders, not one way of delivering them.
 	 *
 	 * @param Recovery_Journey $journey The journey the link belonged to.
 	 * @return void
@@ -417,7 +427,16 @@ final class Recovery_Controller {
 	private function suppress( Recovery_Journey $journey ): void {
 		$customer = $this->customers->find( $journey->customer_id );
 
-		if ( null === $customer || '' === $customer->phone_hash ) {
+		$identities = null === $customer
+			? array()
+			: array_filter(
+				array(
+					Identity::E164  => $customer->phone_hash,
+					Identity::EMAIL => $customer->email_hash,
+				)
+			);
+
+		if ( null === $customer || array() === $identities ) {
 			$this->logger->warning(
 				'recovery',
 				'An opt-out arrived for a journey with no contact left to suppress.',
@@ -428,7 +447,9 @@ final class Recovery_Controller {
 			return;
 		}
 
-		$this->consent->suppress( Identity::E164, $customer->phone_hash, $customer->id, 'link' );
+		foreach ( $identities as $kind => $hash ) {
+			$this->consent->suppress( (string) $kind, (string) $hash, $customer->id, 'link' );
+		}
 
 		foreach ( $this->journeys->active_for_customer( $customer->id, 100 ) as $active ) {
 			if ( ! $this->journeys->transition( $active->id, $active->status, Journey_State::OPTED_OUT, array(), 'link' ) ) {

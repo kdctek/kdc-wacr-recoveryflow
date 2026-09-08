@@ -64,6 +64,18 @@ final class Options {
 			'wacr_share_email'         => false,
 			'wacr_sync_optout'         => false,
 
+			/*
+			 * Email compliance.
+			 *
+			 * Both are empty because only the merchant knows them, and both are
+			 * stored values rather than strings of the software: an address is
+			 * never translated and never appears in the .pot. While either is
+			 * empty the email channel cannot be switched on at all -- see
+			 * Email_Compliance, which is what refuses it.
+			 */
+			'merchant_postal_address'  => '',
+			'merchant_postal_country'  => '',
+
 			// Privacy.
 			'eligibility_mode'         => 'explicit_consent',
 			'consent_label'            => '',
