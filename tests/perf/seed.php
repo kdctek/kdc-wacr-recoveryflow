@@ -39,6 +39,11 @@ final class RecoveryFlow_Perf_Command {
 	private const TAG = 'perfseed';
 
 	/**
+	 * Where the id ranges this seeder wrote are remembered.
+	 */
+	private const RANGES_OPTION = 'recoveryflow_perf_customer_ranges';
+
+	/**
 	 * How many rows go in one INSERT.
 	 *
 	 * Large enough that a hundred thousand rows is a few hundred statements
@@ -274,6 +279,15 @@ final class RecoveryFlow_Perf_Command {
 			$deleted += (int) $wpdb->query( "DELETE FROM {$customers} WHERE id IN (" . implode( ',', $chunk ) . ')' );
 		}
 
+		// And the ones whose identities the retention pass has already
+		// anonymised away, which no longer name themselves as ours.
+		foreach ( get_option( self::RANGES_OPTION, array() ) as $range ) {
+			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery -- a benchmarking tool, not shipped.
+			$deleted += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$customers} WHERE id BETWEEN %d AND %d", (int) $range[0], (int) $range[1] ) );
+		}
+
+		delete_option( self::RANGES_OPTION );
+
 		WP_CLI::success( sprintf( 'Deleted %d rows. Tables: %s', $deleted, $this->counts() ) );
 	}
 
@@ -293,6 +307,7 @@ final class RecoveryFlow_Perf_Command {
 		global $wpdb;
 
 		$customers = $this->table( Table_Names::CUSTOMERS );
+		$before    = (int) $wpdb->get_var( "SELECT COALESCE(MAX(id), 0) FROM {$customers}" ); // phpcs:ignore
 		$now       = gmdate( 'Y-m-d H:i:s' );
 		$progress  = WP_CLI\Utils\make_progress_bar( 'Customers', $count );
 
@@ -310,6 +325,18 @@ final class RecoveryFlow_Perf_Command {
 		}
 
 		$progress->finish();
+
+		// The id range is written down because the identities that would
+		// otherwise identify these rows do not survive: the retention pass
+		// anonymises people, deleting their identity rows, and a clear() that
+		// looked for them afterwards left five thousand orphaned customers
+		// behind while reporting that it had deleted everything.
+		$after  = (int) $wpdb->get_var( "SELECT COALESCE(MAX(id), 0) FROM {$customers}" ); // phpcs:ignore
+		$ranges = get_option( self::RANGES_OPTION, array() );
+
+		$ranges[] = array( $before + 1, $after );
+
+		update_option( self::RANGES_OPTION, $ranges, false );
 
 		$this->seed_identities( $count );
 	}
@@ -406,6 +433,12 @@ final class RecoveryFlow_Perf_Command {
 
 		$table     = $this->table( Table_Names::EVENTS );
 		$now       = time();
+		// (source_id, dedupe_key) is UNIQUE, so a second run of the seeder
+		// collided with the first on every row: MySQL logged a hundred
+		// thousand duplicate-key errors and the run quietly wrote far fewer
+		// events than it was asked for, which would have been read as the
+		// insert path getting slower.
+		$run       = wp_generate_password( 6, false );
 		$first_cid = $this->first_customer_id( $customers );
 		$progress  = WP_CLI\Utils\make_progress_bar( 'Events', $count );
 
@@ -421,7 +454,7 @@ final class RecoveryFlow_Perf_Command {
 					'perf-' . $i . '-' . wp_generate_password( 8, false ),
 					self::TAG,
 					'cart',
-					self::TAG . ':' . $i,
+					self::TAG . ':' . $run . ':' . $i,
 					$first_cid + ( $i % $customers ),
 					'GBP',
 					number_format( 10 + ( $i % 500 ), 2, '.', '' ),

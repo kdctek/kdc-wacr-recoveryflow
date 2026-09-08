@@ -25,6 +25,8 @@ wp --require=tests/perf/seed.php recoveryflow-perf time
 wp --require=tests/perf/seed.php recoveryflow-perf clear --yes
 ```
 
+`clear` removes what it wrote, including customers whose identity rows the retention pass has since anonymised away -- the id range of each run is written to an option for exactly that reason. Without it, a `clear` that looked for its own identities reported success while leaving five thousand orphaned customers behind, which is how it behaved the first time it was run for real.
+
 Everything it writes is obviously fake and obviously ours: numbers come from Ofcom's reserved drama range, which can never be allocated to a real person; emails are on `example.test`; and every row is tagged so `clear` finds them again rather than guessing.
 
 `explain` captures each statement on its way to MySQL through the `query` filter and EXPLAINs it, inside a transaction that is rolled back. It does not contain a copy of any query. That is the point: a benchmark that EXPLAINs a hand-copied approximation reports the plan of a statement the plugin never runs, and reports it confidently. The first version of this command did exactly that, and described the queue screen as a covering index read when the statement it had covered was a different one.
