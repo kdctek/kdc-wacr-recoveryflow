@@ -10,6 +10,15 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - 2026-09-08
+
+First release. RecoveryFlow detects abandoned journeys across WordPress
+commerce, works out whether the person may lawfully be contacted, and recovers
+them through WA.cr on WhatsApp. An active WA.cr account is required; the plugin
+cannot message anyone on its own.
+
 ### Added
 
 - **A WA.cr Auto Flow can now tell this site that somebody replied STOP.** Add a webhook step to your flow, point it at the address on Settings &rsaquo; WA.cr, and give it the secret shown there. A customer who unsubscribes inside your flow is then stopped here immediately, on every contact detail they have given and across every open recovery, instead of whenever the next background pass happens to look -- and every minute of that delay was a minute in which another reminder could reach somebody who had asked to be left alone. A reply that is not an unsubscribe can be reported too, and marks the recovery engaged without closing it, because somebody asking how much postage costs has not finished their order. **This is not what the plan described, and the difference is deliberate.** The plan asked for a receiver for delivery statuses and replies, checking a signature. WA.cr has no way to notify a URL when a message is delivered or read -- which is exactly why this plugin polls for that instead -- and the one thing in WA.cr that can call a URL does not sign what it sends. A receiver checking a signature would have refused every real request while looking thorough, so it authenticates with a shared secret, which is what the platform can actually present. The secret is shown once and only its fingerprint is kept; the endpoint refuses everything until one exists, answers the same way whether a secret was wrong or was never set, and quietly ignores the same event arriving twice.
@@ -97,6 +106,11 @@ affected, followed by the detail.
 
 ### Fixed
 
+- **An order stopped nothing.** The ledger that stops the same event being handled twice never let the FIRST caller through on a real database, so every order event was discarded as a duplicate of itself: placing an order did not stop the reminders, and paying did not mark the recovery recovered or attribute the revenue. It is the plugin's central promise, and it was broken on every real install. The cause is narrow and worth knowing: the ledger's table is keyed on the event's own name rather than a counter, so the database returns no new row number, and the code read that missing number as "somebody else got there first". Because the number is left over from whatever was written previously in the same request, it was worse than simply broken -- sometimes it let *everybody* through and there was no protection at all. Nothing in the test suite could see it, because the stand-in database used for testing handed back a row number for every write.
+
+- **A basket value read like a database column.** The recoveries queue and a recovery's own screen showed a £18.99 basket as "18.9900 GBP" -- correct to four decimal places, which is how the amount is stored so that odd unit prices do not lose money, and not how anybody reads money. Amounts are now shown to two places, in the site's own number format.
+
+
 - **Two background statements were reading the wrong index on a large site.** Measured against a seeded database, closing stale events chose an index answering only one of its three conditions and examined about seventy-four thousand rows every pass to close five hundred, and claiming a batch of work sorted the matching rows in memory to take fifty. Both are now a read that uses the index built for it followed by a write addressed by primary key. The claim is still atomic -- the write re-checks the lease, so where two background runs pick the same journeys the second claims none of them. The honest measurement: **no difference at a hundred thousand events, and three times faster at three hundred and fifty thousand**, because the cost is in rows examined and that only begins to bite once the table is large enough for the wrong index to matter. It also removes an `UPDATE ... LIMIT` that MySQL treats as unsafe for statement-based replication.
 
 - **The developer documentation described an API that did not exist.** Its example custom source called a constructor with the wrong signature and two methods that had never been written, and it said so confidently for three releases, because an example in a Markdown file is checked by nothing. The document now quotes a real file, and the test suite fails if the documentation calls a method that does not exist -- a check that found an invented method in its own first draft.
@@ -118,4 +132,5 @@ affected, followed by the detail.
 
 - **Nothing personal reaches a log.** A redactor drops known fields and masks phone numbers, email addresses, credentials and recovery links inside free text, including error strings that arrive from elsewhere.
 
-[Unreleased]: https://github.com/kdctek/kdc-wacr-recoveryflow/commits/main
+[Unreleased]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/kdctek/kdc-wacr-recoveryflow/releases/tag/v0.1.0

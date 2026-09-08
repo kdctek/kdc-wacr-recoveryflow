@@ -15,6 +15,7 @@ use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\Support\Money;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -305,7 +306,7 @@ final class Journeys_Table extends \WP_List_Table {
 			return '<span aria-hidden="true">&mdash;</span><span class="screen-reader-text">' . esc_html__( 'Not known', 'kdc-wacr-recoveryflow' ) . '</span>';
 		}
 
-		return esc_html( $event->amount . ' ' . $event->currency );
+		return esc_html( Money::format( (string) $event->amount, (string) $event->currency ) );
 	}
 
 	/**

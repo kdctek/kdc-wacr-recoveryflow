@@ -755,14 +755,30 @@ class Fake_Wpdb extends wpdb {
 	 */
 	public $claimed = array();
 
+	/**
+	 * Tables whose primary key is a natural one, so MySQL sets no insert_id.
+	 *
+	 * Mirrors Schema.php. A table listed here that gains an AUTO_INCREMENT id,
+	 * or one that loses it and is not listed, makes this stub disagree with the
+	 * database in exactly the way that hid a shipped bug.
+	 *
+	 * @var string[]
+	 */
+	const NATURAL_KEY_TABLES = array( 'recoveryflow_receipts', 'recoveryflow_locks' );
+
 	public function query( $sql ) {
 		$this->queries[] = $sql;
+
+		$rows_written = 1;
 
 		if ( 0 === stripos( ltrim( (string) $sql ), 'INSERT IGNORE' ) ) {
 			if ( preg_match( '/INTO\s+`([^`]+)`.*?VALUES\s*\(\s*(\'[^\']*\'|[^,)]+)/is', (string) $sql, $m ) ) {
 				$key = $m[1] . '|' . trim( $m[2] );
 
 				if ( isset( $this->claimed[ $key ] ) ) {
+					// MySQL reports zero rows affected when the unique key
+					// turns the insert away. That zero IS the idempotency
+					// guarantee, so it must reach the caller.
 					return 0;
 				}
 
@@ -776,10 +792,23 @@ class Fake_Wpdb extends wpdb {
 		// create path looks like a lost race and no test can reach the code
 		// after it.
 		if ( 0 === stripos( ltrim( (string) $sql ), 'INSERT' ) ) {
+			// Only a table with an AUTO_INCREMENT column gets an insert_id.
+			// MySQL leaves it alone for a table whose primary key is a natural
+			// one, and a stub that sets it for every insert cannot reproduce
+			// the bug that caused: reading the outcome of INSERT IGNORE as an
+			// id answers "somebody else got there first" to every caller,
+			// including the one that wrote the row. That shipped, and only a
+			// real database showed it.
+			foreach ( self::NATURAL_KEY_TABLES as $natural ) {
+				if ( false !== strpos( (string) $sql, $natural ) ) {
+					return $rows_written;
+				}
+			}
+
 			$this->insert_id = ++$GLOBALS['__fake_insert_id'];
 		}
 
-		return 1;
+		return $rows_written;
 	}
 	public function get_row( $sql, $output = null ) {
 		$this->queries[] = $sql;

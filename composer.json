@@ -40,6 +40,8 @@
 		"i18n:check": "bin/i18n.sh --check",
 		"i18n:audit": "php tests/i18n-audit.php",
 		"schema:audit": "php tests/schema-audit.php",
+		"dist:check": "php tests/dist-manifest.php",
+		"dist": "bin/build.sh",
 		"analyse": "phpstan analyse --memory-limit=1G",
 		"test": "@test:unit",
 		"test:unit": "phpunit --testsuite unit",

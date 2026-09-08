@@ -19,6 +19,7 @@ use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\Support\Money;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -176,7 +177,7 @@ final class Journey_Detail {
 		}
 
 		if ( null !== $event ) {
-			$rows[] = array( __( 'Basket value', 'kdc-wacr-recoveryflow' ), $event->amount . ' ' . $event->currency );
+			$rows[] = array( __( 'Basket value', 'kdc-wacr-recoveryflow' ), Money::format( (string) $event->amount, (string) $event->currency ) );
 			$rows[] = array( __( 'What was in it', 'kdc-wacr-recoveryflow' ), '' === $event->items_summary( 20 ) ? __( 'No longer held', 'kdc-wacr-recoveryflow' ) : $event->items_summary( 20 ) );
 		}
 

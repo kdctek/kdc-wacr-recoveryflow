@@ -77,11 +77,13 @@ use WAcr\RecoveryFlow\REST\Routes;
 use WAcr\RecoveryFlow\REST\Journeys_Controller;
 use WAcr\RecoveryFlow\Security\Webhook_Secret;
 use WAcr\RecoveryFlow\REST\Webhook_Controller;
+use WAcr\RecoveryFlow\Database\Receipt_Repository;
 use WAcr\RecoveryFlow\REST\Settings_Controller;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Security\Crypto;
 use WAcr\RecoveryFlow\Security\Hash_Key;
 use WAcr\RecoveryFlow\Security\Token_Service;
+use WAcr\RecoveryFlow\Support\Money;
 use WAcr\RecoveryFlow\Support\Options;
 use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
@@ -4221,6 +4223,101 @@ ok( 'closing stale events is addressed by primary key too', false !== stripos( $
 ok( 'and re-checks that they are still open and unclaimed', false !== stripos( $recoveryflow_sql[0], 'journey_id IS NULL' ) );
 
 $GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// Basket values, as a shopkeeper reads them.
+//
+// Amounts are decimal(13,4), so MySQL hands 18.99 back as "18.9900" -- and both
+// screens that showed a basket value printed exactly that next to the currency
+// code, on the queue a shop worker has open all day. Nothing was wrong with the
+// number; it had simply never been looked at.
+// ---------------------------------------------------------------------------
+
+check( 'a stored decimal is shown the way it is read, not the way it is stored', Money::format( '18.9900', 'GBP' ), '18.99 GBP' );
+check( 'and trailing places never leak onto the screen', Money::format( '128.0000', 'GBP' ), '128.00 GBP' );
+check( 'a whole amount still shows its pence', Money::format( '7', 'EUR' ), '7.00 EUR' );
+check( 'an amount with no currency is still readable', Money::format( '4.5000', '' ), '4.50' );
+check( 'and a currency is upper-cased, because the column does not promise it', Money::format( '4.5000', 'gbp' ), '4.50 GBP' );
+check( 'nothing is invented for an empty amount', Money::format( '', 'GBP' ), '' );
+check( 'nor for a value that is not a number at all', Money::format( 'lots', 'GBP' ), '' );
+
+// One home: both screens ask it rather than each formatting for itself.
+foreach ( array( 'Journeys_Table', 'Journey_Detail' ) as $recoveryflow_screen ) {
+	$recoveryflow_src = (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Pages/' . $recoveryflow_screen . '.php' );
+
+	ok( "{$recoveryflow_screen} formats money through Money", false !== strpos( $recoveryflow_src, 'Money::format(' ) );
+	ok(
+		"{$recoveryflow_screen} does not print a raw amount beside a currency",
+		false === strpos( $recoveryflow_src, "amount . ' ' . " )
+	);
+}
+
+
+// ---------------------------------------------------------------------------
+// The receipt ledger: the guarantee that a retry cannot do the work twice.
+//
+// This shipped BROKEN and no gate could see it. recoveryflow_receipts is keyed
+// on receipt_key itself, so it has no AUTO_INCREMENT column and MySQL leaves
+// insert_id at 0. claim() read the outcome of INSERT IGNORE as an id, so it
+// answered "somebody else got there first" to EVERY caller including the one
+// whose insert wrote the row -- and Order_Observer gates every order event on
+// it, so on a real install an order never stopped a recovery and never marked
+// one recovered. The fake database set insert_id for every insert, which is why
+// the suite stayed green. Found by running it against a real WordPress.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_ledger = $plugin->receipts();
+$recoveryflow_key    = 'wc_order:4242:completed';
+
+/*
+ * insert_id PERSISTS across statements -- it holds the last AUTO_INCREMENT
+ * value generated on the connection, and a natural-key table never updates it.
+ * That is what made the shipped bug nondeterministic rather than merely wrong:
+ * in a request that had already inserted something, claim() read a STALE id and
+ * answered "yes, it is yours" to every caller, so the dedupe was simply absent;
+ * in a request that had not, it answered "no" to everyone and the work was
+ * never done at all. Both are asserted, because a fix that only handles one of
+ * them is not a fix.
+ */
+$GLOBALS['wpdb']->insert_id = 7;
+
+ok(
+	'the first caller to claim an event gets it',
+	true === $recoveryflow_ledger->claim( $recoveryflow_key, Receipt_Repository::KIND_ORDER )
+);
+ok(
+	'and the second is turned away, which is the whole guarantee',
+	false === $recoveryflow_ledger->claim( $recoveryflow_key, Receipt_Repository::KIND_ORDER )
+);
+ok(
+	'a different event is not blocked by it',
+	true === $recoveryflow_ledger->claim( 'wc_order:4243:completed', Receipt_Repository::KIND_ORDER )
+);
+
+// And the other half: a request that has inserted nothing yet leaves insert_id
+// at zero, where the old reading answered "somebody else got there first" to
+// everybody and the work was never done by anyone.
+$GLOBALS['wpdb']->insert_id = 0;
+
+ok(
+	'the first caller still gets it when nothing has set an insert id',
+	true === $recoveryflow_ledger->claim( 'wc_order:4244:completed', Receipt_Repository::KIND_ORDER )
+);
+ok(
+	'and the second is still turned away',
+	false === $recoveryflow_ledger->claim( 'wc_order:4244:completed', Receipt_Repository::KIND_ORDER )
+);
+
+// The reason it broke, asserted directly: a natural-key table must not have its
+// outcome read as an id.
+ok(
+	'the ledger asks whether IT wrote the row, not what id the row was given',
+	false !== strpos(
+		kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Database/Receipt_Repository.php', 'claim' ),
+		'insert_ignore_wrote'
+	)
+);
 
 
 // ---------------------------------------------------------------------------

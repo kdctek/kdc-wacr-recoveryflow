@@ -1,8 +1,10 @@
 .git
 .github
+.wordpress-org
 .gitignore
 .distignore
 .editorconfig
+.pa11yci.json
 .wp-env.json
 .phpunit.result.cache
 .phpcs-cache
@@ -25,3 +27,4 @@ README.md
 *.map
 *.log
 *.zip
+dist
