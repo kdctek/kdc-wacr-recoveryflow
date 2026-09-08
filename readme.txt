@@ -8,13 +8,27 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Turn lost conversions into conversations that convert. RecoveryFlow detects abandoned journeys in WordPress and recovers them through WA.cr on WhatsApp.
+Turn lost conversions into conversations. RecoveryFlow recovers abandoned journeys over WhatsApp through WA.cr. An active WA.cr account is required.
 
 == Description ==
 
 Most sites lose more conversions than they finish. A shopper fills a cart and leaves at payment. Someone starts a booking and never confirms. A ticket order sits unpaid. RecoveryFlow by WA.cr is a recovery engine for WordPress commerce, forms, ticketing and booking systems. It notices when a journey stalls, works out whether the person may be contacted, and hands the conversation to WA.cr on WhatsApp, the channel people actually answer.
 
 **RecoveryFlow detects → WA.cr communicates → customer converts.**
+
+= An active WA.cr account is required =
+
+RecoveryFlow is one half of a pair. It is the detection, consent and orchestration half; the messaging half is [WA.cr](https://wa.cr), a separate third-party WhatsApp Business messaging platform with its own sign-up, terms and pricing. **The plugin cannot message anyone on its own.**
+
+To get any recovery out of it you need all of the following on the WA.cr side:
+
+* An active WA.cr account and workspace, in good standing.
+* A connected WhatsApp Business sender in that workspace.
+* Either an Auto Flow with a "webhook received" trigger, or a WA.cr API key and at least one WhatsApp template approved by Meta.
+
+Install it without those and the plugin is only half a product: it will still detect abandoned journeys, record them and hold them as eligible, but every one of them stalls there unsent. Nothing in RecoveryFlow substitutes for the WA.cr side, and there is no built-in messaging fallback — no email, no SMS.
+
+Creating a WA.cr account, whatever it costs on your chosen plan, and the WhatsApp conversation charges Meta bills through it are all matters between you and WA.cr. They are not part of this plugin, and this plugin is not affiliated with or endorsed by WhatsApp or Meta.
 
 RecoveryFlow owns detection, identity, consent, timing, the recovery link and attribution. WA.cr owns the WhatsApp conversation: approved templates, replies, quiet hours and frequency limits. The plugin never talks to WhatsApp directly and never writes free text to a cold contact.
 
@@ -27,9 +41,9 @@ RecoveryFlow owns detection, identity, consent, timing, the recovery link and at
 * **Opt-out honoured from both sides.** A STOP reply, the opt-out link, or an opt-out recorded in WA.cr ends every open journey for that number. The suppression survives a privacy erasure.
 * **Core WordPress admin, built to be accessible.** Overview, journey list and timeline, integrations, settings with shareable deeplinks, and a system status screen, all on core admin components to WCAG 2.2 AA and AAA where achievable.
 
-= Works with any WA.cr workspace =
+= Works with any WA.cr plan =
 
-Everything in RecoveryFlow works with a WA.cr Auto Flow. The plugin pushes a signed `recovery.journey_eligible` event to your flow, and WA.cr runs the delays, follow-ups, stop-on-reply and quiet hours. This needs nothing more than Auto Flows on your workspace; no API key is required for the hand-off.
+An account is required either way, but no particular plan is. Everything in RecoveryFlow works with a WA.cr Auto Flow. The plugin pushes a signed `recovery.journey_eligible` event to your flow, and WA.cr runs the delays, follow-ups, stop-on-reply and quiet hours. This needs nothing more than Auto Flows on your workspace; no API key is required for the hand-off.
 
 WordPress-authored multi-touch workflows with direct template sends, where the plugin decides the timing and content of each touch and reads delivery status and replies back, use the WA.cr developer API and are **included with WA.cr Scale and above**. The plugin detects what your workspace has and shows the right screens. Nothing is a disabled shell, and the Auto Flow path is complete on its own.
 
@@ -51,13 +65,13 @@ All processing runs in the background, through Action Scheduler when it is avail
 * **Tickera**: planned.
 * **Event Tickets**: planned.
 * **Easy Digital Downloads**: planned.
-* **Your own system**: register a custom integration with one PHP class through the `recoveryflow_register_sources` filter. See `docs/integrations.md` and `docs/developer-api.md` in the plugin folder.
+* **Your own system**: register a custom integration with one PHP class through the `recoveryflow_register_sources` filter. See [integrations.md](https://github.com/kdctek/kdc-wacr-recoveryflow/blob/main/docs/integrations.md) and [developer-api.md](https://github.com/kdctek/kdc-wacr-recoveryflow/blob/main/docs/developer-api.md).
 
 RecoveryFlow is not a WooCommerce plugin. WooCommerce is a supported integration; the plugin installs, activates and runs without it.
 
 == External services ==
 
-RecoveryFlow by WA.cr connects to the **WA.cr API** to send WhatsApp messages on your behalf and, optionally, to read the delivery status of those messages and any replies. WA.cr is a WhatsApp Business messaging platform. Without a WA.cr workspace the plugin still detects and records journeys, but cannot message anyone.
+RecoveryFlow by WA.cr **requires an active account with WA.cr**, a third-party WhatsApp Business messaging platform operated independently of this plugin and of WordPress. The plugin connects to the **WA.cr API** to send WhatsApp messages on your behalf and, optionally, to read the delivery status of those messages and any replies. Without an active WA.cr workspace and a connected sender the plugin still detects and records journeys locally, but cannot message anyone, so no recovery happens. Sign-up, plan pricing and per-conversation charges are WA.cr's, not this plugin's.
 
 **Where it connects**
 
@@ -105,13 +119,22 @@ RecoveryFlow keeps its data in its own tables in your WordPress database. It sto
 
 == Installation ==
 
-1. Upload the `kdc-wacr-recoveryflow` folder to `/wp-content/plugins/`, or install it from Plugins › Add New.
-2. Activate **RecoveryFlow by WA.cr**. The plugin needs PHP 8.0 and WordPress 6.5 or later. WooCommerce 8.0 or later is needed only for the WooCommerce integration.
-3. Go to **RecoveryFlow › Settings › WA.cr** and either paste the hook URL and signing secret from a WA.cr Auto Flow with a "webhook received" trigger (works on any workspace with Auto Flows), or paste a WA.cr API key, press **Test connection**, choose a sender and an approved template, and map its variables (WA.cr Scale and above).
-4. Go to **RecoveryFlow › Integrations** and enable WooCommerce. In the default eligibility mode the consent checkbox appears on checkout automatically.
-5. Watch **RecoveryFlow › Overview** and **Recovery Journeys** as journeys start, and **System Status** for anything that needs attention. Every warning links straight to the setting that fixes it.
+1. **Create a WA.cr account** at [https://wa.cr](https://wa.cr) and connect a WhatsApp Business sender to your workspace. This is required: without it the plugin can detect abandoned journeys but cannot send anything.
+2. Upload the `kdc-wacr-recoveryflow` folder to `/wp-content/plugins/`, or install it from Plugins › Add New.
+3. Activate **RecoveryFlow by WA.cr**. The plugin needs PHP 8.0 and WordPress 6.5 or later. WooCommerce 8.0 or later is needed only for the WooCommerce integration.
+4. Go to **RecoveryFlow › Settings › WA.cr** and either paste the hook URL and signing secret from a WA.cr Auto Flow with a "webhook received" trigger (works on any workspace with Auto Flows), or paste a WA.cr API key, press **Test connection**, choose a sender and an approved template, and map its variables (WA.cr Scale and above).
+5. Go to **RecoveryFlow › Integrations** and enable WooCommerce. In the default eligibility mode the consent checkbox appears on checkout automatically.
+6. Watch **RecoveryFlow › Overview** and **Recovery Journeys** as journeys start, and **System Status** for anything that needs attention. Every warning links straight to the setting that fixes it.
 
 == Frequently Asked Questions ==
+
+= Do I need a WA.cr account? =
+
+Yes. An active WA.cr account with a connected WhatsApp Business sender is required for RecoveryFlow to do its job. WA.cr is a separate third-party service with its own sign-up, terms and pricing; this plugin is the WordPress side of it and holds no messaging ability of its own. Without an account you can install and activate the plugin, and it will detect and record abandoned journeys in your own database, but every journey stalls unsent and nothing is recovered. There is no email or SMS fallback.
+
+= Which parts still work without one? =
+
+Detection, identity resolution, consent capture, the journey list and the privacy tools all run locally and need no account. Everything past the point of contact — dispatch, delivery status, replies, recovery links being tapped, attribution — needs the WA.cr connection. System Status says plainly when the connection is missing.
 
 = Does it require WooCommerce? =
 
@@ -123,11 +146,11 @@ No. Explicit consent is the default: an unchecked checkbox at checkout that name
 
 = Which WA.cr plan do I need? =
 
-Auto Flow hand-off works on any WA.cr workspace with Auto Flows and does not need an API key. WordPress-authored workflows with direct template sends and reply polling use the WA.cr developer API (`/v1`), which is included with WA.cr Scale and above. The plugin detects which you have after you connect and shows the matching screens.
+Every plan needs an active account; the plan only decides which of the two workflow paths you can use. Auto Flow hand-off works on any WA.cr workspace with Auto Flows and does not need an API key. WordPress-authored workflows with direct template sends and reply polling use the WA.cr developer API (`/v1`), which is included with WA.cr Scale and above. The plugin detects which you have after you connect and shows the matching screens.
 
 = Can I build my own integration? =
 
-Yes. Register a class implementing the Recovery Source interface through the `recoveryflow_register_sources` filter. Every integration answers seven questions: what is recoverable, how the customer is identified, when it counts as abandoned, how completion is detected, where to send the customer, what value information exists, and what consent constraints apply. See `docs/integrations.md` and `docs/developer-api.md`.
+Yes. Register a class implementing the Recovery Source interface through the `recoveryflow_register_sources` filter. Every integration answers seven questions: what is recoverable, how the customer is identified, when it counts as abandoned, how completion is detected, where to send the customer, what value information exists, and what consent constraints apply. See [integrations.md](https://github.com/kdctek/kdc-wacr-recoveryflow/blob/main/docs/integrations.md) and [developer-api.md](https://github.com/kdctek/kdc-wacr-recoveryflow/blob/main/docs/developer-api.md).
 
 = Does it use WP-Cron? =
 
@@ -143,7 +166,7 @@ The link keeps working while it is valid. Clicks are counted only for real brows
 
 = Where do I get help? =
 
-Documentation ships in the plugin's `docs/` folder. For WA.cr accounts, templates and Auto Flows, see [help.wa.cr](https://help.wa.cr).
+Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wacr-recoveryflow/tree/main/docs). For WA.cr accounts, templates and Auto Flows, see [help.wa.cr](https://help.wa.cr).
 
 == Screenshots ==
 
