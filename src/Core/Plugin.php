@@ -7,6 +7,8 @@
 
 namespace WAcr\RecoveryFlow\Core;
 
+use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
+use WAcr\RecoveryFlow\Admin\Menu as Admin_Menu;
 use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
@@ -191,6 +193,12 @@ final class Plugin {
 			'lock'                => static fn ( Plugin $c ): Lock => new Lock( $c->locks(), $c->logger() ),
 			'scheduler'           => static fn (): Scheduler_Factory => new Scheduler_Factory( new Action_Scheduler_Driver(), new Wp_Cron_Driver() ),
 			'runner'              => static fn ( Plugin $c ): Stage_Runner => $c->build_stage_runner(),
+
+			// The admin. Built only when a request is actually in wp-admin --
+			// see boot() -- so a shop page never pays for a screen nobody is
+			// looking at.
+			'admin_menu'          => static fn (): Admin_Menu => new Admin_Menu(),
+			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
 
 			// The public endpoint.
 			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
@@ -632,6 +640,24 @@ final class Plugin {
 	}
 
 	/**
+	 * The admin menu service.
+	 *
+	 * @return Admin_Menu
+	 */
+	public function admin_menu(): Admin_Menu {
+		return $this->typed( 'admin_menu', Admin_Menu::class );
+	}
+
+	/**
+	 * The admin assets service.
+	 *
+	 * @return Admin_Assets
+	 */
+	public function admin_assets(): Admin_Assets {
+		return $this->typed( 'admin_assets', Admin_Assets::class );
+	}
+
+	/**
 	 * The rate limiter service.
 	 *
 	 * @return Rate_Limiter
@@ -679,6 +705,14 @@ final class Plugin {
 		// listener registered any later never sees it, and the shopper's cart
 		// becomes a second open event and a second WhatsApp message.
 		$this->register_built_in_sources();
+
+		// The admin screens. Registering them on a front-end request would
+		// build the whole settings schema -- six tabs of translated labels --
+		// to answer a hook that never fires there.
+		if ( is_admin() ) {
+			$this->admin_menu()->hooks();
+			$this->admin_assets()->hooks();
+		}
 
 		// The public recovery endpoint, the stage hooks and the scheduler.
 		$this->recovery_controller()->hooks();

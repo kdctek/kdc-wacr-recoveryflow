@@ -41,6 +41,24 @@ final class Options {
 			'logging_level'            => 'warning',
 			'log_retention_days'       => 14,
 
+			/*
+			 * Channels.
+			 *
+			 * These two repeat, as stored values, exactly what
+			 * Rule_Set::channel_enabled() already falls back to when the keys
+			 * are absent -- WhatsApp on, because it is what the plugin is for,
+			 * and email off, because a recovery email is commercial mail and
+			 * this site has not yet been asked for the postal address the law
+			 * wants on one. Storing them changes no behaviour; it gives the
+			 * settings screen something to render, so the merchant's switch is
+			 * a switch they can see rather than one they have to know about.
+			 *
+			 * Email still passes a second gate after this one. Turning it on
+			 * here does not make it send -- see Email_Compliance.
+			 */
+			'channel_whatsapp_enabled' => true,
+			'channel_email_enabled'    => false,
+
 			// Recovery rules.
 			'inactivity_minutes'       => 30,
 			'max_age_days'             => 7,

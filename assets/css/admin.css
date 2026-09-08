@@ -1,0 +1,219 @@
+/*
+ * RecoveryFlow admin.
+ *
+ * This stylesheet adjusts core's admin components; it does not replace them.
+ * Anything WordPress already draws -- buttons, form tables, cards, notices,
+ * focus outlines -- is left alone, so the screens keep inheriting core's
+ * keyboard behaviour and contrast as core improves them.
+ *
+ * Colour is never the only carrier of meaning here. Every state that a colour
+ * marks is also stated in words by the markup behind it, and the shapes below
+ * add a border or a weight so the same distinction survives a greyscale print,
+ * a monochrome display, and the several kinds of colour blindness for which a
+ * red/green pair is one colour.
+ *
+ * Text colours are picked against the surfaces they sit on for a contrast ratio
+ * of at least 7:1, which is WCAG's AAA threshold rather than its AA one.
+ */
+
+.recoveryflow-settings .nav-tab-wrapper {
+	margin-bottom: 1.5em;
+}
+
+/* Sections ---------------------------------------------------------------- */
+
+.recoveryflow-section {
+	margin: 0 0 2.5em;
+}
+
+.recoveryflow-section__title {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75em;
+	flex-wrap: wrap;
+	margin-bottom: 0.25em;
+	font-size: 1.3em;
+}
+
+.recoveryflow-section__link {
+	font-size: 0.7rem;
+	font-weight: 400;
+	text-decoration: underline;
+}
+
+.recoveryflow-section__description {
+	max-width: 46em;
+	margin-top: 0;
+	color: #1d2327;
+}
+
+/* Cards ------------------------------------------------------------------- */
+
+.recoveryflow-card.card {
+	max-width: 46em;
+	margin-bottom: 1.25em;
+	padding: 0.8em 1.5em 1.2em;
+}
+
+.recoveryflow-card__title {
+	margin-top: 0.6em;
+	font-size: 1.05em;
+}
+
+.recoveryflow-card__description {
+	max-width: 42em;
+	color: #1d2327;
+}
+
+.recoveryflow-card .form-table th {
+	width: 15em;
+	padding-top: 1em;
+	padding-bottom: 1em;
+}
+
+.recoveryflow-card .form-table td {
+	padding-top: 1em;
+	padding-bottom: 1em;
+}
+
+.recoveryflow-card .form-table .description {
+	max-width: 40em;
+}
+
+/* Fields ------------------------------------------------------------------ */
+
+.recoveryflow-field__caption {
+	font-weight: 600;
+}
+
+.recoveryflow-field__unit {
+	margin-left: 0.4em;
+}
+
+/*
+ * A tick-box and its label are one target. Making the whole label clickable
+ * takes the target well past the 44x44 CSS pixels WCAG 2.2 asks for at AAA,
+ * which matters most to the people least able to hit a 16-pixel square.
+ */
+.recoveryflow-checkbox,
+.recoveryflow-radio {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.5em;
+	min-height: 44px;
+	padding: 0.3em 0;
+	align-content: center;
+	flex-wrap: wrap;
+	max-width: 40em;
+}
+
+.recoveryflow-radio + .recoveryflow-radio {
+	border-top: 1px solid #dcdcde;
+}
+
+.recoveryflow-checkbox input,
+.recoveryflow-radio input {
+	margin-top: 0.35em;
+}
+
+/*
+ * The deeplink target. An outline and an offset, so the marked row is obvious
+ * without recolouring anything: somebody who cannot distinguish the colour
+ * still sees a box drawn round the control they were sent to.
+ */
+.recoveryflow-field--targeted > th,
+.recoveryflow-field--targeted > td {
+	background: #f0f6fc;
+	outline: 2px solid #2271b1;
+	outline-offset: -2px;
+}
+
+.recoveryflow-field--danger .recoveryflow-checkbox {
+	border-left: 4px solid #8a2424;
+	padding-left: 0.75em;
+}
+
+.recoveryflow-locked {
+	margin: 0;
+	padding: 0.6em 0.9em;
+	border-left: 4px solid #646970;
+	background: #f6f7f7;
+	max-width: 40em;
+}
+
+/* Compliance and connection state ----------------------------------------- */
+
+.recoveryflow-compliance,
+.recoveryflow-connection {
+	max-width: 42em;
+	margin: 0 0 1em;
+	padding: 0.75em 1em;
+	border-left: 4px solid #646970;
+	background: #f6f7f7;
+}
+
+.recoveryflow-compliance--blocked {
+	border-left-color: #8a2424;
+}
+
+.recoveryflow-compliance--met {
+	border-left-color: #106b21;
+}
+
+.recoveryflow-connection--broken {
+	border-left-color: #8a2424;
+}
+
+.recoveryflow-connection--saved {
+	border-left-color: #106b21;
+}
+
+.recoveryflow-compliance__list {
+	margin: 0.5em 0 0 1.5em;
+}
+
+.recoveryflow-compliance__list li + li {
+	margin-top: 0.6em;
+}
+
+.recoveryflow-signposts {
+	margin: 0.25em 0 1em;
+}
+
+.recoveryflow-signposts li {
+	margin-bottom: 0.4em;
+}
+
+/* Expandables ------------------------------------------------------------- */
+
+/*
+ * Native details/summary. It is keyboard-operable, announced as expandable and
+ * searchable by the browser's find-in-page in current browsers -- none of which
+ * a hand-built disclosure gets for free, and all of which it usually loses.
+ */
+.recoveryflow-details {
+	margin: 0.5em 0 0;
+	border-top: 1px solid #dcdcde;
+	padding-top: 0.5em;
+}
+
+.recoveryflow-details > summary {
+	min-height: 44px;
+	display: flex;
+	align-items: center;
+	cursor: pointer;
+	font-weight: 600;
+	padding: 0.3em 0;
+}
+
+.recoveryflow-details > summary:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.recoveryflow-settings * {
+		transition: none !important;
+		animation: none !important;
+	}
+}

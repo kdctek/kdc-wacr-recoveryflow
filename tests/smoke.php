@@ -17,6 +17,10 @@
 require_once __DIR__ . '/wp-stubs.php';
 require_once dirname( __DIR__ ) . '/src/Core/Autoloader.php';
 
+use WAcr\RecoveryFlow\Admin\Screen;
+use WAcr\RecoveryFlow\Admin\Settings\Page as Settings_Page;
+use WAcr\RecoveryFlow\Admin\Settings\Sanitizer as Settings_Sanitizer;
+use WAcr\RecoveryFlow\Admin\Settings\Schema as Settings_Schema;
 use WAcr\RecoveryFlow\Core\Autoloader;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
@@ -1169,6 +1173,307 @@ foreach ( array( 'opt-out-confirm.php', 'opt-out-done.php' ) as $recoveryflow_pa
 
 	ok( "{$recoveryflow_page} names no single channel, because the opt-out stops them all", ! $recoveryflow_named );
 }
+
+
+// --------------------------------------------------- Admin: settings schema.
+
+/*
+ * The settings screen is described as data, so the things that would otherwise
+ * only be caught by clicking every tab are answerable here instead.
+ *
+ * The first of these is the one that matters most and is the easiest to break
+ * by accident: a setting that is stored but has no control anywhere. Nothing
+ * misbehaves when that happens -- the setting simply keeps whatever value it
+ * was born with, for ever, and the merchant has no way to know it exists.
+ */
+check( 'every stored setting has a control on the screen', Settings_Schema::unreachable_settings(), array() );
+
+$recoveryflow_field_homes = array();
+
+foreach ( Settings_Schema::tabs() as $recoveryflow_tab_id => $recoveryflow_tab ) {
+	ok( "the {$recoveryflow_tab_id} tab has a label", '' !== (string) $recoveryflow_tab['label'] );
+
+	foreach ( $recoveryflow_tab['sections'] as $recoveryflow_section_id => $recoveryflow_section ) {
+		ok( "{$recoveryflow_tab_id}/{$recoveryflow_section_id} has a title", '' !== (string) $recoveryflow_section['title'] );
+
+		foreach ( $recoveryflow_section['cards'] as $recoveryflow_card_id => $recoveryflow_card ) {
+			ok( "{$recoveryflow_tab_id}/{$recoveryflow_section_id}/{$recoveryflow_card_id} has a title", '' !== (string) $recoveryflow_card['title'] );
+
+			foreach ( array( 'fields', 'advanced' ) as $recoveryflow_group ) {
+				foreach ( $recoveryflow_card[ $recoveryflow_group ] ?? array() as $recoveryflow_key => $recoveryflow_spec ) {
+					$recoveryflow_field_homes[ $recoveryflow_key ][] = $recoveryflow_tab_id;
+
+					ok( "{$recoveryflow_key} has a label", '' !== (string) ( $recoveryflow_spec['label'] ?? '' ) );
+					ok( "{$recoveryflow_key} declares a type", '' !== (string) ( $recoveryflow_spec['type'] ?? '' ) );
+				}
+			}
+		}
+	}
+}
+
+// A setting on two tabs has an ambiguous deeplink and two labels that will
+// eventually disagree with each other.
+foreach ( $recoveryflow_field_homes as $recoveryflow_key => $recoveryflow_homes ) {
+	check( "{$recoveryflow_key} appears on exactly one tab", count( $recoveryflow_homes ), 1 );
+}
+
+// The address of a control is a public thing: it is quoted in notices, in the
+// status checks and in support replies, so its shape is asserted rather than
+// assumed.
+$recoveryflow_deeplink = Settings_Schema::deeplink( Email_Compliance::SETTING_ADDRESS );
+
+ok( 'a setting deeplink names its tab', false !== strpos( $recoveryflow_deeplink, 'tab=channels' ) );
+ok( 'and its section', false !== strpos( $recoveryflow_deeplink, 'section=email' ) );
+ok( 'and the control itself', false !== strpos( $recoveryflow_deeplink, 'field=merchant_postal_address' ) );
+ok( 'and carries a fragment, so the deeplink still lands without JavaScript', false !== strpos( $recoveryflow_deeplink, '#recoveryflow-field-merchant-postal-address' ) );
+check( 'a setting that is not on the screen has no deeplink', Settings_Schema::deeplink( 'not_a_setting' ), '' );
+
+/*
+ * The two channel switches were added to the stored defaults so the screen has
+ * something to render. They must repeat what Rule_Set already fell back to and
+ * not quietly change it -- email off is a legal position, not a default anybody
+ * may adjust in passing.
+ */
+$recoveryflow_defaults = Options::defaults();
+
+check( 'WhatsApp is on by default', $recoveryflow_defaults['channel_whatsapp_enabled'], true );
+check( 'email is OFF by default, and storing the key did not change that', $recoveryflow_defaults['channel_email_enabled'], false );
+
+// -------------------------------------------------- Admin: saving settings.
+
+/**
+ * Save one tab of the settings form, the way options.php would.
+ *
+ * @param string              $tab    Tab id.
+ * @param array<string,mixed> $posted What the form sent.
+ * @return array<string,mixed> The settings option afterwards.
+ */
+function recoveryflow_save_tab( string $tab, array $posted ): array {
+	$_POST[ Settings_Sanitizer::TAB_FIELD ] = $tab;
+
+	$saved = Settings_Page::sanitize_settings( $posted );
+
+	unset( $_POST[ Settings_Sanitizer::TAB_FIELD ] );
+
+	// Stored, because that is what options.php does next, and because a save
+	// that did not persist would let each of these checks start from a clean
+	// slate -- which is the one condition a real settings screen is never in.
+	update_option( Options::SETTINGS, $saved );
+
+	return is_array( $saved ) ? $saved : array();
+}
+
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::defaults(),
+		array(
+			'inactivity_minutes' => 45,
+			'max_touches'        => 2,
+			'logging_level'      => 'debug',
+		)
+	)
+);
+
+/*
+ * The trap this whole design exists to avoid. Every tab posts only its own
+ * fields, so a sanitiser that returned what it was handed would replace the
+ * entire option with one tab's worth of settings -- silently resetting the
+ * other five to their defaults, on a site that carries on working and gives
+ * nobody a reason to look.
+ */
+$recoveryflow_after = recoveryflow_save_tab(
+	'channels',
+	array(
+		'channel_email_enabled'   => '1',
+		'merchant_postal_address' => "  Example Shop Ltd \n\n 12 Example Road \n Bengaluru 560001 ",
+		'merchant_postal_country' => 'in',
+	)
+);
+
+check( 'saving the Channels tab leaves the Recovery tab alone', $recoveryflow_after['inactivity_minutes'], 45 );
+check( 'and the Advanced tab', $recoveryflow_after['logging_level'], 'debug' );
+check( 'and the rest of the Recovery tab', $recoveryflow_after['max_touches'], 2 );
+check( 'while saving what was actually posted', $recoveryflow_after['merchant_postal_country'], 'IN' );
+check( 'an address is stored as the merchant typed it, minus the padding', $recoveryflow_after['merchant_postal_address'], "Example Shop Ltd\n12 Example Road\nBengaluru 560001" );
+
+// A browser posts nothing at all for an unticked box, so absent has to mean
+// false -- but only on the tab that was submitted, or every save would switch
+// off every checkbox on every other tab.
+$recoveryflow_after = recoveryflow_save_tab( 'channels', array( 'merchant_postal_country' => 'GB' ) );
+
+check( 'an unticked box on the posted tab is stored as off', $recoveryflow_after['channel_email_enabled'], false );
+check( 'a box on another tab is untouched by that save', $recoveryflow_after['quiet_hours_enabled'], true );
+check( 'and so is one on a third tab', $recoveryflow_after['exclude_admins'], true );
+
+/*
+ * Registering a sanitise callback makes WordPress run it on EVERY write to the
+ * option, not only on a form save. This plugin writes its own settings from
+ * several places, and a sanitiser that assumed a posted form would have thrown
+ * every one of those writes away.
+ */
+$recoveryflow_direct = Settings_Page::sanitize_settings(
+	array(
+		'enabled'            => true,
+		'inactivity_minutes' => 15,
+	)
+);
+
+check(
+	'a programmatic write is passed through, not rewritten from a form that was never posted',
+	$recoveryflow_direct,
+	array(
+		'enabled'            => true,
+		'inactivity_minutes' => 15,
+	)
+);
+
+// A value out of range is clamped rather than refused: somebody who typed 500
+// into a field that stops at 30 meant "as long as possible".
+$recoveryflow_after = recoveryflow_save_tab( 'recovery', array( 'recovery_link_ttl_days' => '500' ) );
+check( 'a number past the maximum is clamped to it', $recoveryflow_after['recovery_link_ttl_days'], 30 );
+
+$recoveryflow_after = recoveryflow_save_tab( 'recovery', array( 'recovery_link_ttl_days' => '0' ) );
+check( 'and one below the minimum is clamped up', $recoveryflow_after['recovery_link_ttl_days'], 1 );
+
+$recoveryflow_after = recoveryflow_save_tab( 'recovery', array( 'recovery_link_ttl_days' => 'soon' ) );
+check( 'a value that is not a number leaves the stored one alone', $recoveryflow_after['recovery_link_ttl_days'], 1 );
+
+$recoveryflow_after = recoveryflow_save_tab( 'privacy', array( 'eligibility_mode' => 'whatever_i_like' ) );
+check( 'a choice that is not on the list is refused', $recoveryflow_after['eligibility_mode'], 'explicit_consent' );
+
+$recoveryflow_after = recoveryflow_save_tab( 'recovery', array( 'quiet_hours_start' => '25:00' ) );
+check( 'a time that does not exist is refused', $recoveryflow_after['quiet_hours_start'], '21:00' );
+
+// The credential is not part of the settings option and must never leak into
+// it: that option is autoloaded on every request of every page.
+$recoveryflow_after = recoveryflow_save_tab( 'wacr', array( Settings_Schema::FIELD_API_KEY => 'wacr_live_secret' ) );
+
+ok( 'the API key is never stored in the settings option', ! array_key_exists( Settings_Schema::FIELD_API_KEY, $recoveryflow_after ) );
+ok( 'and no stored value contains it', false === strpos( wp_json_encode( $recoveryflow_after ), 'wacr_live_secret' ) );
+
+// ------------------------------------------------- Admin: the email surface.
+
+/**
+ * Render the settings screen and hand back the HTML.
+ *
+ * @param string $tab   Tab to render.
+ * @param string $field Setting the deeplink named, if any.
+ * @return string
+ */
+function recoveryflow_render_settings( string $tab, string $field = '' ): string {
+	$_GET['tab']   = $tab;
+	$_GET['field'] = $field;
+
+	ob_start();
+	Settings_Page::render();
+	$html = (string) ob_get_clean();
+
+	unset( $_GET['tab'], $_GET['field'] );
+
+	return $html;
+}
+
+/*
+ * The gap this slice exists to close. The email channel has refused to send
+ * since it was built, for three reasons it can name -- and until now nothing
+ * drew them, so a merchant could read that email was unavailable and have no
+ * way at all to find out what to do about it.
+ */
+update_option( Options::SETTINGS, Options::defaults() );
+
+$recoveryflow_html = recoveryflow_render_settings( 'channels' );
+
+ok( 'the Channels tab renders', false !== strpos( $recoveryflow_html, 'recoveryflow-settings' ) );
+
+foreach ( Email_Compliance::blockers( Options::defaults() ) as $recoveryflow_code ) {
+	ok(
+		"the screen tells the merchant what to do about {$recoveryflow_code}",
+		false !== strpos( $recoveryflow_html, esc_html( Email_Compliance::reason_label( $recoveryflow_code ) ) )
+	);
+}
+
+ok( 'and links to the control that clears the postal address', false !== strpos( $recoveryflow_html, esc_url( Settings_Schema::deeplink( Email_Compliance::SETTING_ADDRESS ) ) ) );
+ok( 'and to the one that clears the country', false !== strpos( $recoveryflow_html, esc_url( Settings_Schema::deeplink( Email_Compliance::SETTING_COUNTRY ) ) ) );
+
+// The unsubscribe-window blocker is cleared on a different tab entirely, which
+// is exactly why it needs a link rather than a sentence.
+ok( 'and to the recovery-link lifetime, which lives on another tab', false !== strpos( $recoveryflow_html, esc_url( Settings_Schema::deeplink( 'recovery_link_ttl_days' ) ) ) );
+
+// Settling the three makes email PERMISSIBLE. It does not switch it on, and
+// the screen has to say so, or a merchant reads "settled" as "sending".
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::defaults(),
+		array(
+			'merchant_postal_address' => "Example Shop Ltd\n12 Example Road",
+			'merchant_postal_country' => 'GB',
+			'recovery_link_ttl_days'  => 30,
+		)
+	)
+);
+
+$recoveryflow_html = recoveryflow_render_settings( 'channels' );
+
+ok( 'once settled the screen says so', false !== strpos( $recoveryflow_html, 'recoveryflow-compliance--met' ) );
+ok( 'and says that settling it is not the same as switching it on', false !== strpos( $recoveryflow_html, esc_html__( 'Email reminders are permissible from this site. Whether they are actually sent is the switch below.', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and the switch itself is still unticked', false === strpos( $recoveryflow_html, 'name="recoveryflow_settings[channel_email_enabled]" value="1" checked' ) );
+ok( 'the switch is on the screen to be ticked', false !== strpos( $recoveryflow_html, 'name="recoveryflow_settings[channel_email_enabled]"' ) );
+
+// ------------------------------------------------ Admin: the screen itself.
+
+$recoveryflow_html = recoveryflow_render_settings( 'channels', Email_Compliance::SETTING_ADDRESS );
+
+ok( 'a deeplinked control is marked, so it is findable without relying on colour', false !== strpos( $recoveryflow_html, 'recoveryflow-field--targeted' ) );
+ok( 'every control names its own description', false !== strpos( $recoveryflow_html, 'aria-describedby="recoveryflow-field-merchant-postal-address-help"' ) );
+ok( 'the tab in view is marked for a screen reader too, not only by colour', false !== strpos( $recoveryflow_html, 'aria-current="page"' ) );
+ok( 'the form posts to core, so the nonce and the capability check are WordPress\'s', false !== strpos( $recoveryflow_html, 'options.php' ) );
+ok( 'and says which tab it is, or the sanitiser cannot tell what to leave alone', false !== strpos( $recoveryflow_html, 'name="' . Settings_Sanitizer::TAB_FIELD . '" value="channels"' ) );
+
+$recoveryflow_html = recoveryflow_render_settings( 'privacy' );
+
+ok( 'a group of choices is a fieldset, so it is announced as one question', false !== strpos( $recoveryflow_html, '<fieldset' ) );
+ok( 'and the question is available to a screen reader', false !== strpos( $recoveryflow_html, 'screen-reader-text' ) );
+ok( 'an irreversible option asks first', false !== strpos( $recoveryflow_html, 'data-confirm=' ) );
+
+$recoveryflow_html = recoveryflow_render_settings( 'wacr' );
+
+ok( 'rarely-touched settings are in a native expandable', false !== strpos( $recoveryflow_html, '<details' ) );
+ok( 'the credential box is never rendered holding the credential', false !== strpos( $recoveryflow_html, 'type="password" id="recoveryflow-field-wacr-api-key" name="recoveryflow_settings[wacr_api_key]" value=""' ) );
+
+// A conditional field is rendered and then hidden by script, never omitted:
+// with scripts off the screen has to be complete rather than missing settings.
+$recoveryflow_html = recoveryflow_render_settings( 'recovery' );
+
+ok( 'a conditional setting is in the HTML whether or not it currently applies', false !== strpos( $recoveryflow_html, 'name="recoveryflow_settings[quiet_hours_start]"' ) );
+ok( 'and carries its condition for the script to act on', false !== strpos( $recoveryflow_html, 'data-requires="quiet_hours_enabled"' ) );
+
+/*
+ * The shipped admin script carries no user-facing text of its own -- the same
+ * ruling the checkout script ships under. One string in JavaScript would need a
+ * JavaScript i18n build and a second translation pipeline for the rest of the
+ * plugin's life, so everything it announces is passed in from PHP, already
+ * translated. Checked by looking for the strings it is given rather than by
+ * reading the file's prose.
+ */
+$recoveryflow_admin_js = (string) file_get_contents( dirname( __DIR__ ) . '/assets/js/admin.js' );
+
+ok( 'the admin script exists and is shipped', strlen( $recoveryflow_admin_js ) > 500 );
+ok( 'it announces through wp.a11y.speak rather than moving the page about', false !== strpos( $recoveryflow_admin_js, 'wp.a11y.speak' ) );
+ok( 'it takes its wording from PHP rather than carrying its own', false !== strpos( $recoveryflow_admin_js, 'strings.focused' ) );
+ok( 'and defines none of that wording itself', false === strpos( $recoveryflow_admin_js, 'focused:' ) );
+
+// assets/ is deliberately absent from .distignore, and a new file under it that
+// nobody checked is a silent way to ship a plugin whose script is missing.
+$recoveryflow_distignore = (string) file_get_contents( dirname( __DIR__ ) . '/.distignore' );
+
+foreach ( array( 'assets/js/admin.js', 'assets/css/admin.css' ) as $recoveryflow_asset ) {
+	ok( "{$recoveryflow_asset} is on disk", file_exists( dirname( __DIR__ ) . '/' . $recoveryflow_asset ) );
+}
+
+ok( 'assets/ is still shipped', false === strpos( $recoveryflow_distignore, "\nassets" ) );
+
 
 echo "\n";
 echo "\n";

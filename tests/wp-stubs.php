@@ -275,6 +275,69 @@ function plugin_basename( $file ) {
 function load_plugin_textdomain( $domain, $deprecated, $path ) {
 	return true;
 }
+/*
+ * The admin. Enough of wp-admin to render the settings screen for real in the
+ * smoke run -- which is the point of stubbing it at all. A settings screen that
+ * is only ever eyeballed in a browser is one whose deeplinks, escaping and
+ * conditional fields are checked by nobody; rendering it here means an assertion
+ * can read the actual HTML the merchant would be served.
+ */
+function is_admin() {
+	return true;
+}
+function admin_url( $path = '' ) {
+	return 'https://shop.example/wp-admin/' . ltrim( $path, '/' );
+}
+function add_menu_page( $page_title, $menu_title, $capability, $slug, $callback = '', $icon = '', $position = null ) {
+	return 'toplevel_page_' . $slug;
+}
+function add_submenu_page( $parent, $page_title, $menu_title, $capability, $slug, $callback = '' ) {
+	return $parent . '_page_' . $slug;
+}
+function register_setting( $group, $option, $args = array() ) {
+	$GLOBALS['recoveryflow_registered_settings'][ $group ] = $args;
+}
+function settings_fields( $group ) {
+	echo '<input type="hidden" name="option_page" value="' . esc_attr( $group ) . '" />';
+}
+function settings_errors( $slug = '' ) {}
+function submit_button( $text = null, $type = 'primary', $name = 'submit' ) {
+	echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
+}
+function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
+	$GLOBALS['recoveryflow_styles'][ $handle ] = $src;
+}
+function wp_add_inline_script( $handle, $data, $position = 'after' ) {
+	$GLOBALS['recoveryflow_inline_scripts'][ $handle ][] = $data;
+}
+function wp_die( $message = '', $title = '', $args = array() ) {
+	throw new RuntimeException( is_string( $message ) ? $message : 'wp_die' );
+}
+function checked( $checked, $current = true, $echo = true ) {
+	$out = (string) $checked === (string) $current ? ' checked="checked"' : '';
+	if ( $echo ) {
+		echo $out;
+	}
+	return $out;
+}
+function selected( $selected, $current = true, $echo = true ) {
+	$out = (string) $selected === (string) $current ? ' selected="selected"' : '';
+	if ( $echo ) {
+		echo $out;
+	}
+	return $out;
+}
+function esc_textarea( $text ) {
+	return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' );
+}
+function sanitize_html_class( $class, $fallback = '' ) {
+	$clean = preg_replace( '/[^A-Za-z0-9_-]/', '', (string) $class );
+	return '' === $clean ? $fallback : $clean;
+}
+function sanitize_textarea_field( $value ) {
+	return trim( wp_strip_all_tags( (string) $value ) );
+}
+
 function register_activation_hook( $file, $callback ) {}
 function register_deactivation_hook( $file, $callback ) {}
 function flush_rewrite_rules( $hard = true ) {}
