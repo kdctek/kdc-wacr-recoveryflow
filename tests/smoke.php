@@ -175,7 +175,22 @@ ok( 'one open event per source key', false !== strpos( $joined, 'UNIQUE KEY sour
 ok( 'one journey per event', false !== strpos( $joined, 'UNIQUE KEY event_id (event_id)' ) );
 ok( 'sends are deduplicated', false !== strpos( $joined, 'UNIQUE KEY idempotency_key (idempotency_key)' ) );
 ok( 'recovery tokens are unique', false !== strpos( $joined, 'UNIQUE KEY token_hash (token_hash)' ) );
-ok( 'a phone identifies one customer', false !== strpos( $joined, 'UNIQUE KEY phone_hash (phone_hash)' ) );
+// Identity is rows, not columns, and the uniqueness rule differs by kind: a
+// phone number identifies exactly one person, an email address does not. MySQL
+// has no partial index, so the rule rides on unique_value_hash being NULL for
+// an email -- NULLs in a UNIQUE index do not collide with one another, which is
+// what lets two people share a shared inbox while a race for the same number
+// still resolves to one customer.
+ok( 'a strong identity is unique', false !== strpos( $joined, 'UNIQUE KEY kind_unique_value (kind,unique_value_hash)' ) );
+ok( 'identities are looked up by kind and hash', false !== strpos( $joined, 'KEY kind_value (kind,value_hash)' ) );
+ok( 'unique_value_hash may be NULL, which is what exempts email', false !== strpos( $joined, 'unique_value_hash char(64) NULL' ) );
+ok( 'customers no longer carry a phone identity column', false === strpos( $joined, 'UNIQUE KEY phone_hash (phone_hash)' ) );
+
+// Consent is keyed by the identity HASH and the channel, never by the identity
+// row id: the eraser may delete the row, and a suppression that vanished with
+// it would silently grant consent again.
+ok( 'consent is keyed by identity and channel', false !== strpos( $joined, 'KEY identity_latest (identity_kind,identity_hash,channel,id)' ) );
+ok( 'consent defaults to the WhatsApp channel', false !== strpos( $joined, "channel varchar(16) NOT NULL DEFAULT 'whatsapp'" ) );
 ok( 'email is not a unique key', false === strpos( $joined, 'UNIQUE KEY email_hash' ) );
 
 check( 'table name is prefixed once', Table_Names::get( Table_Names::JOURNEYS ), 'wp_recoveryflow_journeys' );

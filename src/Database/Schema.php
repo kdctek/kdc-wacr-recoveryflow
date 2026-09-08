@@ -24,7 +24,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Schema {
 
-	public const VERSION        = 1;
+	public const VERSION        = 2;
 	public const VERSION_OPTION = 'recoveryflow_db_version';
 
 	/**
@@ -116,51 +116,86 @@ final class Schema {
 		$sql = array();
 
 		/*
-		 * A customer is a person we might message. phone_hash is the identity
-		 * key and the only UNIQUE one: the phone number is what a recovery
-		 * message is addressed to, so two records with the same number are the
-		 * same person. Email is a fallback match, never a merge key -- shared
-		 * family addresses and role addresses would merge strangers.
-		 *
-		 * Hashes are keyed HMACs, not bare SHA-256: a plain digest of a phone
-		 * number is trivially reversed by enumerating the ten-digit space, and
-		 * these outlive erasure as the suppression list.
+		 * A customer is a person we might message. The ways of reaching them
+		 * live in recoveryflow_identities, one row each, because a person can
+		 * be reachable on more than one channel and the set changes over the
+		 * relationship. Nothing here identifies anybody: this table holds who
+		 * they are, not how to contact them.
 		 */
 		$sql[] = "CREATE TABLE {$p}recoveryflow_customers (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
 			wp_user_id bigint(20) unsigned NULL,
-			email varchar(191) NULL,
-			email_hash char(64) NULL,
-			phone_e164 varchar(20) NULL,
-			phone_raw varchar(32) NULL,
-			phone_status varchar(12) NOT NULL DEFAULT 'unknown',
-			phone_hash char(64) NULL,
 			first_name varchar(100) NULL,
 			last_name varchar(100) NULL,
 			country_iso2 char(2) NULL,
 			wacr_contact_id varchar(64) NULL,
 			wacr_synced_at datetime NULL,
-			consent_status varchar(12) NOT NULL DEFAULT 'unknown',
-			opted_out_at datetime NULL,
 			anonymized_at datetime NULL,
 			created_at datetime NOT NULL,
 			updated_at datetime NOT NULL,
 			PRIMARY KEY  (id),
-			UNIQUE KEY phone_hash (phone_hash),
 			KEY wp_user_id (wp_user_id),
-			KEY email_hash (email_hash),
 			KEY anonymized_at (anonymized_at)
 		) {$charset_collate};";
 
 		/*
-		 * Consent is append-only: the latest row for a phone hash wins, and the
-		 * history is the evidence that a message was lawful. A 'suppressed' row
-		 * survives erasure, because forgetting that somebody opted out is the
-		 * one thing an erasure must not do.
+		 * One row per way of reaching a person. The platform keeps identity in
+		 * rows rather than columns for a reason worth repeating here: a phone
+		 * number is a single strong key, but an email address is not. Two
+		 * people can legitimately share a shared inbox, so a UNIQUE index on
+		 * email would reject the second of them.
+		 *
+		 * MySQL has no partial index, so the "unique for strong kinds, not for
+		 * email" rule is carried by a column rather than by a WHERE clause:
+		 * unique_value_hash repeats value_hash for every strong kind and is
+		 * NULL for an email. Because MySQL treats NULLs in a UNIQUE index as
+		 * distinct from one another, one index enforces both halves of the rule
+		 * and the database, not the calling code, remains the arbiter of a race
+		 * between two requests enrolling the same number.
+		 *
+		 * value_raw is nulled by the anonymiser. value_hash is not: the consent
+		 * ledger is keyed by that hash, and forgetting it would resurrect a
+		 * suppression the customer asked for.
+		 */
+		$sql[] = "CREATE TABLE {$p}recoveryflow_identities (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			customer_id bigint(20) unsigned NOT NULL,
+			kind varchar(16) NOT NULL,
+			value_hash char(64) NOT NULL,
+			unique_value_hash char(64) NULL,
+			value_raw varchar(191) NULL,
+			status varchar(12) NOT NULL DEFAULT 'unknown',
+			source varchar(32) NULL,
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY kind_unique_value (kind,unique_value_hash),
+			KEY customer_id (customer_id),
+			KEY kind_value (kind,value_hash)
+		) {$charset_collate};";
+
+		/*
+		 * Consent is append-only: the latest row for an identity on a channel
+		 * wins, and the history is the evidence that a message was lawful. A
+		 * 'suppressed' row survives erasure, because forgetting that somebody
+		 * opted out is the one thing an erasure must not do.
+		 *
+		 * Rows are keyed by the identity's HASH rather than by its row id, and
+		 * that is deliberate. The eraser may delete the identity row; the hash
+		 * remains, so a customer who returns and enters the same number
+		 * re-resolves to the same hash and is still suppressed. Keying on the
+		 * row id would let an erasure quietly grant consent again.
+		 *
+		 * The channel is part of the key because consent is not one decision.
+		 * Agreeing to a WhatsApp message is not agreeing to a marketing email;
+		 * they are different acts under different law, and a suppression on one
+		 * must not silence, or licence, the other.
 		 */
 		$sql[] = "CREATE TABLE {$p}recoveryflow_consents (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
-			phone_hash char(64) NOT NULL,
+			identity_kind varchar(16) NOT NULL,
+			identity_hash char(64) NOT NULL,
+			channel varchar(16) NOT NULL DEFAULT 'whatsapp',
 			customer_id bigint(20) unsigned NULL,
 			status varchar(12) NOT NULL,
 			source varchar(32) NOT NULL,
@@ -168,7 +203,7 @@ final class Schema {
 			ip_hash char(64) NULL,
 			created_at datetime NOT NULL,
 			PRIMARY KEY  (id),
-			KEY phone_latest (phone_hash,id),
+			KEY identity_latest (identity_kind,identity_hash,channel,id),
 			KEY customer_id (customer_id)
 		) {$charset_collate};";
 
