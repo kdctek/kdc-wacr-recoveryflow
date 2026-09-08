@@ -264,6 +264,9 @@ function wp_remote_retrieve_header( $response, $header ) {
 function wp_specialchars_decode( $value, $quote_style = ENT_NOQUOTES ) {
 	return html_entity_decode( (string) $value, is_int( $quote_style ) ? $quote_style : ENT_QUOTES, 'UTF-8' );
 }
+function wp_timezone() {
+	return new DateTimeZone( wp_timezone_string() );
+}
 function wp_timezone_string() {
 	return 'Europe/London';
 }

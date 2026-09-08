@@ -463,7 +463,7 @@ final class Schema {
 							'wacr_sync_optout'     => array(
 								'type'  => 'checkbox',
 								'label' => __( 'Opting out in WA.cr also stops reminders from here', 'kdc-wacr-recoveryflow' ),
-								'help'  => __( 'Somebody who replies STOP in WhatsApp is opted out in WA.cr. With this on, this site checks that before sending and stops messaging them too.', 'kdc-wacr-recoveryflow' ),
+								'help'  => __( 'Somebody who replies STOP in WhatsApp is opted out in WA.cr, and WA.cr does not apply that to messages sent from here. With this on, RecoveryFlow checks before each reminder and stays silent for them. Turning it off means somebody who has told you to stop can still receive a cart reminder from this site. The answer is remembered for six hours per number, and your key needs the contacts:read permission.', 'kdc-wacr-recoveryflow' ),
 							),
 						),
 					),
