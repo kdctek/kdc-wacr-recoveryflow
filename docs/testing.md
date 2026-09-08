@@ -4,13 +4,16 @@ RecoveryFlow by WA.cr moves money-adjacent state (a merchant's messaging wallet,
 
 ## Suites
 
-| Suite | Directory | Runner | Needs WordPress | Speed |
-| --- | --- | --- | --- | --- |
-| Unit | `tests/unit/` | PHPUnit 9.6 + Yoast polyfills + Brain\Monkey | No | Sub-second |
-| Integration | `tests/integration/` | WordPress core test suite inside wp-env, with WooCommerce | Yes | Minutes |
-| Security | `tests/security/` | Runs inside the integration bootstrap | Yes | Minutes |
-| Failure | `tests/failure/` | Runs inside the integration bootstrap, with a fake WA.cr transport | Yes | Minutes |
-| Accessibility | `tests/a11y/` | pa11y-ci (WCAG2AAA standard, axe and htmlcs runners) against a logged-in wp-env session | Yes | Minutes |
+| Suite | Directory | Runner | Needs WordPress | Speed | State |
+| --- | --- | --- | --- | --- | --- |
+| Smoke | `tests/smoke.php` | Plain PHP against the fakes in `tests/wp-stubs.php` | No | Seconds | **Built. This is the suite.** |
+| Unit | `tests/unit/` | PHPUnit 9.6 + Yoast polyfills + Brain\Monkey | No | Sub-second | **Not built. Empty.** |
+| Integration | `tests/integration/` | WordPress core test suite inside wp-env, with WooCommerce | Yes | Minutes | **Not built. Empty.** |
+| Security | `tests/security/` | Runs inside the integration bootstrap | Yes | Minutes | **Not built. Empty.** |
+| Failure | `tests/failure/` | Runs inside the integration bootstrap, with a fake WA.cr transport | Yes | Minutes | **Not built. Empty.** |
+| Accessibility | `.pa11yci.json` | pa11y-ci (WCAG2AAA standard, axe and htmlcs runners) against a logged-in wp-env session | Yes | Minutes | **Not built. Lists no URLs.** |
+
+Everything asserted today is in the smoke suite: `php tests/smoke.php`, run by CI on PHP 8.0 and 8.3. The five rows below it describe a strategy, not a state -- read the note under [What each suite covers](#what-each-suite-covers) before quoting any of them. There is no `tests/a11y/` directory; pa11y-ci is configured by `.pa11yci.json` at the repository root, and its URL list is empty.
 
 Static checks run alongside: `composer lint` (`php -l` plus PHPCS with WordPress, WordPress-Extra, WordPress.Security and PHPCompatibilityWP for PHP 8.0 and above) and `composer analyse` (PHPStan level 5 with the WordPress extension).
 
@@ -82,9 +85,18 @@ CI runs lint, analyse and unit on PHP 8.0 and 8.3, and integration plus accessib
 ## What each suite covers
 
 > **Not built yet, and this section describes the intention rather than the state.**
-> `tests/unit/`, `tests/integration/` and `tests/security/` are empty. `composer
-> test:unit` reports "No tests executed!" and passes, which means CI's own **Unit
-> tests** job is green because it runs nothing -- do not read it as coverage.
+> `tests/unit/`, `tests/integration/`, `tests/security/` and `tests/failure/` are
+> all empty, and `.pa11yci.json` lists no URLs. `composer test:unit` reports
+> "No tests executed!" and passes.
+>
+> CI used to run that as a job called **Unit tests**, so every run since the
+> first release carried a green tick for coverage that did not exist. The job
+> has been removed rather than left to be misread, and `tests/smoke.php` now
+> asserts that CI runs PHPUnit **if and only if** a PHPUnit test exists -- so
+> writing the first test fails the suite until the job is restored, and
+> restoring the job with the suites still empty fails it too. `npm run a11y`
+> likewise now refuses to run against an empty URL list instead of reporting
+> success against zero screens.
 >
 > Everything actually asserted today lives in `tests/smoke.php`, which boots the
 > real container against the fakes in `tests/wp-stubs.php`. That is a real suite

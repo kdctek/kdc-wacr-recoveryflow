@@ -6,7 +6,7 @@
 	"scripts": {
 		"env:start": "wp-env start",
 		"env:stop": "wp-env stop",
-		"a11y": "pa11y-ci --config .pa11yci.json"
+		"a11y": "bin/a11y.sh"
 	},
 	"devDependencies": {
 		"@wordpress/env": "^10.0.0",

@@ -6005,6 +6005,113 @@ ok(
 );
 
 
+// ---------------------------------------------------------------------------
+// A gate that checks nothing must not report success.
+// ---------------------------------------------------------------------------
+
+/*
+ * Two commands here passed while testing nothing, on every slice that shipped:
+ * `composer test:unit` over four empty PHPUnit suites -- run by a CI job named
+ * "Unit tests", so each release carried a green tick for coverage that did not
+ * exist -- and `npm run a11y` over a .pa11yci.json listing no URLs, while every
+ * admin screen it was meant to check landed. Both are the shape this repository
+ * keeps meeting: something that describes a check, with nothing behind it. A
+ * green tick is read as an answer, which makes either worse than no gate at all.
+ *
+ * The CI job is gone and the a11y command now refuses. What follows is what
+ * stops either half drifting back, in BOTH directions -- the correction that
+ * fixes one end of a pair and not the other is the same class of error as the
+ * original.
+ */
+
+$recoveryflow_root = dirname( __DIR__ );
+
+$recoveryflow_phpunit_tests = array();
+foreach ( array( 'unit', 'integration', 'security', 'failure' ) as $recoveryflow_suite ) {
+	$recoveryflow_suite_dir = $recoveryflow_root . '/tests/' . $recoveryflow_suite;
+	if ( ! is_dir( $recoveryflow_suite_dir ) ) {
+		continue;
+	}
+
+	$recoveryflow_suite_walk = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $recoveryflow_suite_dir, FilesystemIterator::SKIP_DOTS ) );
+
+	foreach ( $recoveryflow_suite_walk as $recoveryflow_suite_file ) {
+		if ( $recoveryflow_suite_file->isFile() && 'Test.php' === substr( $recoveryflow_suite_file->getFilename(), -8 ) ) {
+			$recoveryflow_phpunit_tests[] = $recoveryflow_suite_file->getPathname();
+		}
+	}
+}
+
+$recoveryflow_ci_src = (string) file_get_contents( $recoveryflow_root . '/.github/workflows/ci.yml' );
+
+/*
+ * A `run:` key, not a mention. The removal left a comment explaining itself,
+ * and matching that comment would read the explanation as the thing it
+ * explains -- which is how the job came to be trusted in the first place.
+ */
+$recoveryflow_ci_runs_phpunit = 1 === preg_match( '/^[ \t]*-?[ \t]*run:.*(test:unit|test:all|phpunit)/mi', $recoveryflow_ci_src );
+
+ok(
+	'CI runs PHPUnit if and only if a PHPUnit test exists for it to run',
+	( array() !== $recoveryflow_phpunit_tests ) === $recoveryflow_ci_runs_phpunit
+);
+
+// The comment left in its place has to still be the reason, or the next reader
+// finds an unexplained absence and puts the empty job back.
+ok(
+	'and the workflow says why there is no PHPUnit job, rather than just not having one',
+	false !== strpos( $recoveryflow_ci_src, 'No tests executed' )
+);
+
+$recoveryflow_package = json_decode( (string) file_get_contents( $recoveryflow_root . '/package.json' ), true );
+
+ok(
+	'npm run a11y goes through the guard instead of straight to pa11y-ci',
+	is_array( $recoveryflow_package ) && false !== strpos( (string) ( $recoveryflow_package['scripts']['a11y'] ?? '' ), 'bin/a11y.sh' )
+);
+
+$recoveryflow_a11y_src = (string) file_get_contents( $recoveryflow_root . '/bin/a11y.sh' );
+
+/*
+ * Anchored on the refusal's own words, not on `exit 1` -- the script exits 1
+ * for a missing config file too, and matching that one let the refusal itself
+ * be deleted with this assertion still green. A survivor found it; the weakness
+ * was in the assertion, not the mutation.
+ */
+$recoveryflow_a11y_refusal = strpos( $recoveryflow_a11y_src, 'lists no URLs' );
+$recoveryflow_a11y_run     = strpos( $recoveryflow_a11y_src, 'exec npx pa11y-ci' );
+
+// Both halves must be PRESENT before their order means anything: `false < 40`
+// is true in PHP, so an ordering test passes vacuously when the first is gone.
+ok( 'the a11y guard has both a refusal and a run in it', false !== $recoveryflow_a11y_refusal && false !== $recoveryflow_a11y_run );
+ok( 'and it refuses before it would run anything', $recoveryflow_a11y_refusal < $recoveryflow_a11y_run );
+
+// And the refusal actually leaves non-zero. Saying "not built" on the way to
+// exit 0 is the failure this whole section exists to stop.
+ok(
+	'and the refusal exits non-zero rather than printing a warning and carrying on',
+	false !== $recoveryflow_a11y_refusal
+		&& false !== $recoveryflow_a11y_run
+		&& false !== strpos( substr( $recoveryflow_a11y_src, $recoveryflow_a11y_refusal, $recoveryflow_a11y_run - $recoveryflow_a11y_refusal ), 'exit 1' )
+);
+
+$recoveryflow_pa11y_config = json_decode( (string) file_get_contents( $recoveryflow_root . '/.pa11yci.json' ), true );
+$recoveryflow_pa11y_urls   = is_array( $recoveryflow_pa11y_config ) ? count( (array) ( $recoveryflow_pa11y_config['urls'] ?? array() ) ) : 0;
+
+$recoveryflow_a11y_doc = (string) file_get_contents( $recoveryflow_root . '/docs/accessibility.md' );
+
+/*
+ * The other direction of the same pair. While the URL list is empty the docs
+ * must say the suite is not built; the moment somebody lists a screen, this
+ * fails and the "NOT BUILT" note has to go. A document describing a run that
+ * does not happen is the dead contract this whole section is about.
+ */
+ok(
+	'the accessibility docs claim a working pa11y run if and only if there is one',
+	( 0 === $recoveryflow_pa11y_urls ) === ( false !== strpos( $recoveryflow_a11y_doc, 'NOT BUILT' ) )
+);
+
+
 echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";

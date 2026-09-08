@@ -105,7 +105,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 | [`docs/privacy.md`](docs/privacy.md) | Data inventory, consent model, opt-out, exporter, eraser, retention, uninstall, what is sent to WA.cr |
 | [`docs/wa-cr-integration.md`](docs/wa-cr-integration.md) | Connection and scopes, dispatch actions, template mapping, Auto Flow hand-off, polling, rate limits, errors |
 | [`docs/testing.md`](docs/testing.md) | Test suites, how to run them, fixtures, failure simulations, security matrix, accessibility runs |
-| [`docs/accessibility.md`](docs/accessibility.md) | The WCAG 2.2 checklist, settings deeplinks, how pa11y-ci is run |
+| [`docs/accessibility.md`](docs/accessibility.md) | The WCAG 2.2 checklist, settings deeplinks, and the accessibility suite that is not built yet |
 | [`docs/internationalization.md`](docs/internationalization.md) | The translation rules every string follows, the three checks that enforce them, why nothing is translated before `init` |
 
 ## Status

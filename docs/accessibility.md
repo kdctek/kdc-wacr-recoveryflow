@@ -73,16 +73,24 @@ admin.php?page=recoveryflow-settings&tab=channels&section=email&field=merchant_p
 - **Forms** use the Settings API, so core handles nonces, `settings_errors()` and the save round-trip; each tab is its own settings group, and a hidden field names the tab so a save cannot wipe the other five.
 - **Destructive options** confirm on the way on and never on the way off — error prevention must not stand between somebody and safety.
 
-## How pa11y-ci is run
+## How pa11y-ci is meant to be run
 
-`npm run a11y` runs pa11y-ci inside the wp-env environment:
+> **NOT BUILT. This describes the intended run, not one that happens.**
+> `.pa11yci.json` sets the standard and the runners and then lists **no URLs**,
+> and it configures no login action -- so pa11y-ci had nothing to visit and no
+> session to visit it with, for every slice that shipped a screen. Until this
+> is built, `npm run a11y` **refuses** rather than reporting success against
+> zero screens (`bin/a11y.sh`), and nothing in CI runs it. Everything below is
+> the to-do; the properties above it are real and were checked by hand.
 
-1. Start wp-env (`npx @wordpress/env start`) with the plugin active and demo data seeded.
-2. pa11y-ci logs in to the admin once (a scripted login action) and reuses the session.
-3. It visits every screen listed under Screens and components, each Settings tab, and the public opt-out and invalid-link pages.
-4. Standard `WCAG2AAA`; runners `axe` and `htmlcs`. Any failure at AA fails the run; AAA findings are printed and reviewed in the pull request.
-5. The same command runs in CI on the integration matrix cell.
+`npm run a11y` should run pa11y-ci inside the wp-env environment:
+
+1. Start wp-env (`npm run env:start`) with the plugin active and demo data seeded.
+2. pa11y-ci logs in to the admin once (a scripted login `actions` block in `.pa11yci.json`, which does not exist yet) and reuses the session.
+3. It visits every screen listed under Screens and components, each Settings tab, and the public opt-out and invalid-link pages. None of these is listed yet.
+4. Standard `WCAG2AAA`; runners `axe` and `htmlcs` -- both already set in `.pa11yci.json`. Any failure at AA fails the run; AAA findings are printed and reviewed in the pull request.
+5. Only then is it worth adding a CI job for it. There is none today, and a job running an empty URL list would be another green tick meaning nothing.
 
 ## Manual keyboard pass
 
-Before each release, every screen gets a keyboard-only pass recorded here: reach every control with Tab and Shift+Tab in reading order, operate it with Enter or Space, escape from nothing (there is nothing to escape from), and confirm the focus ring is visible throughout. Results for the current release are recorded in the release checklist when the admin screens land in slice 1c.
+Before each release, every screen gets a keyboard-only pass recorded here: reach every control with Tab and Shift+Tab in reading order, operate it with Enter or Space, escape from nothing (there is nothing to escape from), and confirm the focus ring is visible throughout. **No such pass is recorded for 0.1.0.** The sentence that stood here promised results "in the release checklist when the admin screens land in slice 1c"; the screens landed four slices ago and there is no release checklist in this repository. Recording the pass in this section, screen by screen, is part of building the accessibility suite above -- not a substitute for it, since a keyboard pass and an automated run catch different things.
