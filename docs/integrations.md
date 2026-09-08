@@ -46,7 +46,7 @@ What each method is for:
 | `is_conversion_complete()` | Before every send | The authoritative answer from the source system, not from the event row. If you cannot tell, return `true`; the engine fails closed and does not send |
 | `build_recovery_url()` | When composing a message | Usually the default `/recovery/{token}` redirector. Override only if your system needs a different landing route |
 | `restore()` | When a customer taps the link | Rebuild what they abandoned in their own session and return the URL to send them to. Return a `WP_Error` to show the generic invalid-link page |
-| `get_settings_fields()` | Integrations card | Field definitions in the same shape as the Settings schema |
+| `get_settings_fields()` | Settings &rsaquo; Integrations | Field definitions in the same shape as the Settings schema. They are folded into the one settings tree, so they are rendered, validated and deeplinked by exactly the same code as the plugin's own fields; each key is stored as `source_{id}_{key}` so two adapters cannot collide |
 | `detect_recovery_events()` | Evaluate stage, for pollable sources | Return a batch of drafts plus a cursor for systems that have no hooks to push from |
 
 ### Registering a source
@@ -61,6 +61,19 @@ add_filter( 'recoveryflow_register_sources', function ( \WAcr\RecoveryFlow\Integ
 ```
 
 A minimal working class is in [`developer-api.md`](developer-api.md#a-minimal-custom-source).
+
+### Switching an integration on and off
+
+Every registered source gets a section on **Settings &rsaquo; Integrations**, with a switch and whatever fields the adapter declared. The switch is stored as `source_{id}_enabled` and defaults to on, because a merchant who installs a recovery plugin on a WooCommerce site has already said what they want it to do. Switching one off stops new journeys being recorded from it; journeys already under way finish or expire on their own, and nothing already recorded is deleted.
+
+The Integrations screen states, per source, which of four things is true, and it asks `Source_Registry::status()` -- the same method that decides whether the source's hooks are attached:
+
+| Status | Means |
+| --- | --- |
+| `unavailable` | The system this source integrates with is not installed or not active |
+| `switched_off` | Present and working, switched off here |
+| `not_included` | Present and switched on, but the WA.cr plan does not include sources beyond WooCommerce. **The hooks are not attached**, so nothing is recorded |
+| `active` | Watching |
 
 ### Sending events into the core
 

@@ -8,6 +8,9 @@
 namespace WAcr\RecoveryFlow\Admin\Settings;
 
 use WAcr\RecoveryFlow\Core\Feature_Gate;
+use WAcr\RecoveryFlow\Core\Plugin;
+use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
+use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Support\Options;
@@ -82,6 +85,10 @@ final class Schema {
 			'wacr'     => array(
 				'label'    => __( 'WA.cr', 'kdc-wacr-recoveryflow' ),
 				'sections' => self::wacr_sections(),
+			),
+			'sources'  => array(
+				'label'    => __( 'Integrations', 'kdc-wacr-recoveryflow' ),
+				'sections' => self::source_sections(),
 			),
 			'privacy'  => array(
 				'label'    => __( 'Privacy', 'kdc-wacr-recoveryflow' ),
@@ -586,6 +593,124 @@ final class Schema {
 				),
 			),
 		);
+	}
+
+	/**
+	 * One section per registered integration, built from the registry.
+	 *
+	 * This is the half of "a second adapter ships with zero core changes" that
+	 * is easy to get wrong. A source declares its own settings through
+	 * get_settings_fields(), and the tempting way to show them is a bespoke
+	 * form on the Integrations screen -- which would need its own sanitiser,
+	 * and a sanitiser written twice is a sanitiser that disagrees with itself.
+	 * Folding them into this tree instead means an adapter's fields are
+	 * rendered, validated, deeplinked and REST-described by exactly the same
+	 * code as the plugin's own, and an adapter cannot ship a field that saves
+	 * without being cleaned.
+	 *
+	 * The switch is a field like any other rather than a button somewhere else,
+	 * for the same reason: a control that lives outside the tree is a control
+	 * with no address, no validation and no entry in the audit that proves
+	 * every stored setting has exactly one home.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	private static function source_sections(): array {
+		$registry = self::registry();
+		$sections = array();
+
+		if ( null === $registry ) {
+			return $sections;
+		}
+
+		foreach ( $registry->all() as $id => $source ) {
+			$sections[ $id ] = array(
+				'title'       => $source->get_name(),
+				'description' => $source->get_description(),
+				'cards'       => array(
+					'watching' => array(
+						'title'  => __( 'Watching', 'kdc-wacr-recoveryflow' ),
+						'fields' => array_merge(
+							array(
+								Source_Registry::enabled_key( $id ) => array(
+									'type'    => 'checkbox',
+									'label'   => __( 'Record what is left unfinished here', 'kdc-wacr-recoveryflow' ),
+									'help'    => self::watching_help( $registry, $id ),
+									'default' => true,
+								),
+							),
+							self::source_fields( $source )
+						),
+					),
+				),
+			);
+		}//end foreach
+
+		return $sections;
+	}
+
+	/**
+	 * What switching one integration off actually means, said in its own terms.
+	 *
+	 * @param Source_Registry $registry The registry.
+	 * @param string          $id       Source id.
+	 * @return string
+	 */
+	private static function watching_help( Source_Registry $registry, string $id ): string {
+		switch ( $registry->status( $id ) ) {
+			case Source_Registry::UNAVAILABLE:
+				return __( 'Whatever this integration needs is not installed or not active on this site, so this switch changes nothing until it is.', 'kdc-wacr-recoveryflow' );
+
+			case Source_Registry::NOT_INCLUDED:
+				return __( 'Integrations beyond WooCommerce are included with the WA.cr Scale plan and above. This switch is remembered, and takes effect when the workspace can use it.', 'kdc-wacr-recoveryflow' );
+
+			default:
+				return __( 'Switching this off stops new journeys being recorded from here. Journeys already under way finish or expire on their own, and nothing already recorded is deleted.', 'kdc-wacr-recoveryflow' );
+		}
+	}
+
+	/**
+	 * An adapter's own fields, namespaced so two adapters cannot collide.
+	 *
+	 * A source that returns a key another source already uses would otherwise
+	 * write over it: the settings live in one option, and "phone_field" is a
+	 * name two form plugins would both reach for.
+	 *
+	 * @param Recovery_Source_Interface $source The source.
+	 * @return array<string,array<string,mixed>>
+	 */
+	private static function source_fields( Recovery_Source_Interface $source ): array {
+		$fields = array();
+
+		foreach ( $source->get_settings_fields() as $key => $spec ) {
+			if ( ! is_array( $spec ) || ! isset( $spec['label'] ) ) {
+				continue;
+			}
+
+			$fields[ Source_Registry::setting_key( $source->get_id(), (string) $key ) ] = $spec;
+		}
+
+		return $fields;
+	}
+
+	/**
+	 * The source registry, or null before the plugin has been built.
+	 *
+	 * The settings tree is read in places the container is not guaranteed to
+	 * exist -- an uninstall, a unit test of the sanitiser alone -- and a schema
+	 * that fataled there would take the whole request with it. Without a
+	 * registry the tab is simply empty, which is also the honest answer.
+	 *
+	 * @return Source_Registry|null
+	 */
+	private static function registry(): ?Source_Registry {
+		if ( ! class_exists( Plugin::class ) ) {
+			return null;
+		}
+
+		$plugin = Plugin::instance();
+
+		return $plugin->sources();
 	}
 
 	/**

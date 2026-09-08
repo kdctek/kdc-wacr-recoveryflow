@@ -46,6 +46,7 @@ use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Integration\Abstract_Source;
+use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Integration\Event_Batch;
 use WAcr\RecoveryFlow\Integration\Pollable_Source_Interface;
 use WAcr\RecoveryFlow\Jobs\Stage_Stats;
@@ -3421,6 +3422,123 @@ $plugin->admin_assets()->enqueue( 'edit.php' );
 check( 'and nothing loads on a screen that is not ours', $GLOBALS['recoveryflow_styles'], array() );
 
 
+require_once __DIR__ . '/fixtures/pollable-source.php';
+
+/*
+ * ---------------------------------------------------------------------------
+ * Integrations: a screen that cannot be confidently wrong.
+ *
+ * Source_Registry::active() excluded a source the plan does not include, while
+ * the Integrations screen worked its answer out from the other two facts and
+ * announced "Active. Abandoned baskets from here are being recorded." about an
+ * integration whose hooks were never attached. Both sentences were true of what
+ * each one read. This is the third time in this plugin that a screen and a
+ * behaviour answered the same question separately and disagreed.
+ * ---------------------------------------------------------------------------
+ */
+
+update_option( Options::SETTINGS, Options::defaults() );
+
+check( 'a source nobody registered has no status but "unavailable"', $plugin->sources()->status( 'nope' ), Source_Registry::UNAVAILABLE );
+
+/**
+ * How many times the Integrations screen says a thing.
+ *
+ * Counted rather than merely looked for: WooCommerce is registered and absent
+ * in this run, so "Not available." is already on the screen before a test
+ * source is added, and a plain strpos would pass on somebody else's card.
+ *
+ * @param string $phrase Words from one of the status sentences.
+ * @return int
+ */
+function recoveryflow_integration_says( string $phrase ): int {
+	return substr_count( recoveryflow_render_screen( array( Plugin::instance()->admin_integrations(), 'render' ) ), $phrase );
+}
+
+$recoveryflow_phrases = array(
+	'unavailable' => 'Not available.',
+	'off'         => 'switched off here',
+	'plan'        => 'not included in this WA.cr plan',
+	'active'      => 'Abandoned baskets from here are being recorded',
+);
+
+$recoveryflow_before = array_map( 'recoveryflow_integration_says', $recoveryflow_phrases );
+
+// The entitlement, made switchable so all four states can actually be rendered
+// rather than read out of the source of the method that words them.
+$GLOBALS['recoveryflow_extra_sources'] = false;
+
+add_filter(
+	Hooks::FILTER_FEATURE_ENABLED,
+	static fn ( bool $on, string $feature ): bool => Feature_Gate::EXTRA_SOURCES === $feature
+		? (bool) $GLOBALS['recoveryflow_extra_sources']
+		: $on,
+	10,
+	2
+);
+
+$recoveryflow_state_source = new Recoveryflow_Fake_Pollable( $plugin->ingest(), 'statecheck' );
+$plugin->sources()->add( $recoveryflow_state_source );
+
+// A switch that is on must RENDER as on. Its default cannot live in
+// Options::defaults(), which knows nothing about a source somebody else's
+// plugin registered, so the field declares it -- and a renderer that ignored
+// that would draw an unticked box whose first save turns the source off for
+// real. Asserted before anything has been saved, because a stored value would
+// answer for the default and the gap would go unseen.
+ok(
+	'a switch nobody has saved yet still renders ticked',
+	false !== strpos(
+		recoveryflow_render_settings( 'sources', Source_Registry::enabled_key( 'statecheck' ) ),
+		'name="' . Options::SETTINGS . '[' . Source_Registry::enabled_key( 'statecheck' ) . ']" value="1" checked'
+	)
+);
+
+$recoveryflow_state_source->available = false;
+check( 'a source whose dependency is missing is described as unavailable', recoveryflow_integration_says( $recoveryflow_phrases['unavailable'] ), $recoveryflow_before['unavailable'] + 1 );
+
+$recoveryflow_state_source->available = true;
+$plugin->sources()->set_enabled( 'statecheck', false );
+check( 'a source somebody switched off says so', recoveryflow_integration_says( $recoveryflow_phrases['off'] ), $recoveryflow_before['off'] + 1 );
+
+// The bug this section exists for: installed, switched on, excluded by the
+// plan, and the screen used to call that "Active".
+$plugin->sources()->set_enabled( 'statecheck', true );
+check( 'a source the plan does not include says that, in those words', recoveryflow_integration_says( $recoveryflow_phrases['plan'] ), $recoveryflow_before['plan'] + 1 );
+check( 'and is not described as recording anything', recoveryflow_integration_says( $recoveryflow_phrases['active'] ), $recoveryflow_before['active'] );
+check( 'and its hooks are not attached', array_key_exists( 'statecheck', $plugin->sources()->active() ), false );
+
+$GLOBALS['recoveryflow_extra_sources'] = true;
+check( 'and once the plan includes it, it is recording', recoveryflow_integration_says( $recoveryflow_phrases['active'] ), $recoveryflow_before['active'] + 1 );
+check( 'and its hooks are attached', array_key_exists( 'statecheck', $plugin->sources()->active() ), true );
+
+// The switch. enabled_sources was read by the registry from the first slice and
+// written by nothing: a merchant could not switch an integration off, and the
+// only reason nobody noticed is that the only integration was the one they had
+// installed the plugin for.
+ok( 'a source with no stored preference is on', $plugin->sources()->is_enabled( 'statecheck' ) );
+check( 'and its switch is a field on the Integrations tab', Settings_Schema::field( Source_Registry::enabled_key( 'statecheck' ) )['tab'] ?? '', 'sources' );
+
+$recoveryflow_after = recoveryflow_save_tab( 'sources', array( Source_Registry::enabled_key( 'statecheck' ) => '' ) );
+
+ok( 'unticking it switches the source off', ! $plugin->sources()->is_enabled( 'statecheck' ) );
+check( 'and the source is no longer active', $plugin->sources()->status( 'statecheck' ), Source_Registry::SWITCHED_OFF );
+ok( 'and saving that tab did not disturb another', 30 === (int) ( $recoveryflow_after['inactivity_minutes'] ?? 0 ) );
+
+$plugin->sources()->set_enabled( 'statecheck', true );
+ok( 'and it can be switched back on', $plugin->sources()->is_enabled( 'statecheck' ) );
+
+// An adapter's own fields are namespaced, because the settings live in one
+// option and two form plugins would both reach for "phone_field".
+ok(
+	'an adapter field is stored under a key of the adapter\'s own',
+	'source_statecheck_phone_field' === Source_Registry::setting_key( 'statecheck', 'phone_field' )
+);
+
+$GLOBALS['recoveryflow_extra_sources'] = false;
+update_option( Options::SETTINGS, Options::defaults() );
+
+
 /*
  * ---------------------------------------------------------------------------
  * Pollable sources.
@@ -3433,8 +3551,6 @@ check( 'and nothing loads on a screen that is not ours', $GLOBALS['recoveryflow_
  * thing under test.
  * ---------------------------------------------------------------------------
  */
-
-require_once __DIR__ . '/fixtures/pollable-source.php';
 
 /**
  * Build a draft that will actually be written, so a poll can be counted.

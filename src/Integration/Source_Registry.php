@@ -30,6 +30,33 @@ defined( 'ABSPATH' ) || exit;
 final class Source_Registry {
 
 	/**
+	 * The dependency this source needs is not installed or not active.
+	 */
+	public const UNAVAILABLE = 'unavailable';
+
+	/**
+	 * Present and working, but switched off on this site.
+	 */
+	public const SWITCHED_OFF = 'switched_off';
+
+	/**
+	 * Present and switched on, but not included in this WA.cr plan.
+	 */
+	public const NOT_INCLUDED = 'not_included';
+
+	/**
+	 * Watching.
+	 */
+	public const ACTIVE = 'active';
+
+	/**
+	 * The sources that ship inside the plugin and need no entitlement.
+	 *
+	 * @var string[]
+	 */
+	private const BUILT_IN = array( 'woocommerce' );
+
+	/**
 	 * Registered sources, by id.
 	 *
 	 * @var array<string,Recovery_Source_Interface>
@@ -98,23 +125,59 @@ final class Source_Registry {
 	}
 
 	/**
+	 * The settings key holding whether one source is switched on.
+	 *
+	 * @param string $id Source id.
+	 * @return string
+	 */
+	public static function enabled_key( string $id ): string {
+		return 'source_' . $id . '_enabled';
+	}
+
+	/**
+	 * The settings key for one of a source's own fields.
+	 *
+	 * Namespaced by source id, because the settings live in one option and
+	 * "phone_field" is a name two form plugins would both reach for.
+	 *
+	 * @param string $id  Source id.
+	 * @param string $key The source's own key.
+	 * @return string
+	 */
+	public static function setting_key( string $id, string $key ): string {
+		return 'source_' . $id . '_' . $key;
+	}
+
+	/**
 	 * Whether the merchant has switched a source on.
 	 *
 	 * Absent a saved preference an available source is on, because a merchant
 	 * who installs a recovery plugin on a WooCommerce site has already said
-	 * what they want it to do.
+	 * what they want it to do. That default is stated here rather than in
+	 * Options::defaults(), which cannot know about a source registered by
+	 * somebody else's plugin.
 	 *
 	 * @param string $id Source id.
 	 * @return bool
 	 */
 	public function is_enabled( string $id ): bool {
-		$enabled = Options::get( 'enabled_sources', null );
+		$stored = Options::get( self::enabled_key( $id ), null );
 
-		if ( ! is_array( $enabled ) ) {
-			return true;
+		if ( null !== $stored ) {
+			return (bool) $stored;
 		}
 
-		return ! array_key_exists( $id, $enabled ) || (bool) $enabled[ $id ];
+		// The shape this used to be stored in. Nothing in the plugin ever wrote
+		// it -- there was no control -- but a site may have set it in code, and
+		// a switch somebody threw deliberately should not be quietly reversed
+		// by an upgrade that gave it a screen.
+		$legacy = Options::get( 'enabled_sources', null );
+
+		if ( is_array( $legacy ) && array_key_exists( $id, $legacy ) ) {
+			return (bool) $legacy[ $id ];
+		}
+
+		return true;
 	}
 
 	/**
@@ -123,25 +186,74 @@ final class Source_Registry {
 	 * @return array<string,Recovery_Source_Interface>
 	 */
 	public function active(): array {
-		$active  = array();
-		$builtin = array( 'woocommerce' );
+		$active = array();
 
-		foreach ( $this->available() as $id => $source ) {
-			if ( ! $this->is_enabled( $id ) ) {
-				continue;
+		foreach ( $this->all() as $id => $source ) {
+			if ( self::ACTIVE === $this->status( $id ) ) {
+				$active[ $id ] = $source;
 			}
-
-			// Sources beyond the built-in set are a paid feature; a site that
-			// has one registered but no entitlement keeps it visible on the
-			// Integrations screen rather than having it vanish.
-			if ( ! in_array( $id, $builtin, true ) && ! Feature_Gate::is_enabled( Feature_Gate::EXTRA_SOURCES ) ) {
-				continue;
-			}
-
-			$active[ $id ] = $source;
 		}
 
 		return $active;
+	}
+
+	/**
+	 * Why a source is or is not watching anything.
+	 *
+	 * The screen and the registry ask the same question of the same method, so
+	 * a card cannot say "Active. Abandoned baskets from here are being
+	 * recorded." about a source whose hooks were never attached. That is not a
+	 * hypothetical tidiness: the entitlement check below silently excludes a
+	 * source that is installed, switched on and, as far as any screen reading
+	 * only those two facts could tell, working.
+	 *
+	 * @param string $id Source id.
+	 * @return string One of the class constants.
+	 */
+	public function status( string $id ): string {
+		$source = $this->get( $id );
+
+		if ( null === $source || ! $source->is_available() ) {
+			return self::UNAVAILABLE;
+		}
+
+		if ( ! $this->is_enabled( $id ) ) {
+			return self::SWITCHED_OFF;
+		}
+
+		// Sources beyond the built-in set are a paid feature; a site that has
+		// one registered but no entitlement keeps it visible on the
+		// Integrations screen rather than having it vanish.
+		if ( ! in_array( $id, self::BUILT_IN, true ) && ! Feature_Gate::is_enabled( Feature_Gate::EXTRA_SOURCES ) ) {
+			return self::NOT_INCLUDED;
+		}
+
+		return self::ACTIVE;
+	}
+
+	/**
+	 * Whether a source ships inside the plugin.
+	 *
+	 * @param string $id Source id.
+	 * @return bool
+	 */
+	public function is_built_in( string $id ): bool {
+		return in_array( $id, self::BUILT_IN, true );
+	}
+
+	/**
+	 * Switch a source on or off for this site.
+	 *
+	 * Stored under a key of its own rather than in a list of the enabled ones,
+	 * so a source registered later is on by default and a source somebody has
+	 * deliberately switched off stays off if it is briefly deactivated.
+	 *
+	 * @param string $id Source id.
+	 * @param bool   $on Whether it should watch.
+	 * @return void
+	 */
+	public function set_enabled( string $id, bool $on ): void {
+		Options::set( self::enabled_key( $id ), $on );
 	}
 
 	/**
