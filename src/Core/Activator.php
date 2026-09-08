@@ -37,6 +37,14 @@ final class Activator {
 		Hash_Key::install();
 		Options::install();
 
+		// The default workflows and the background schedule are what make the
+		// plugin do anything at all. Both are idempotent: seeding checks for an
+		// existing slug, and scheduling checks for an existing action.
+		$plugin = Plugin::instance();
+
+		$plugin->workflows()->seed_defaults();
+		$plugin->scheduler()->sync();
+
 		// Activation runs on an ordinary admin request, so init has fired and
 		// $wp_rewrite exists: the rule can be added directly and flushed. Boot
 		// cannot do this, which is why Rewrites::hooks() defers to init.
