@@ -73,6 +73,25 @@ This is a second gate, not the switch. The email channel still defaults to off a
 
 The postal address is a stored value, not a string of the software. It is never translated, never appears in the `.pot`, and is never reformatted to suit the admin's locale -- an address is laid out according to its own country, which is why that country is asked for separately rather than parsed back out of the text.
 
+### What a recovery email actually contains, and who sends it
+
+`Email_Composer` builds the message and `Email_Sender` hands it to `wp_mail()`. **Nothing about an email recovery goes near WA.cr** -- not the address, not the subject, not the body -- so an email step works on a workspace with no API key and on no plan at all.
+
+The merchant writes the subject and body themselves, with the same `{{ placeholders }}` the WhatsApp templates use; there is no template to approve because nobody approves an email. What they do **not** write is the footer. `Email_Compliance::footer()` appends the postal address and the unsubscribe link to every message, and the composer **refuses to build a message at all** when it cannot produce one -- even though `Rule_Set::channel_enabled()` has already refused the channel for the same reasons. Two gates for one rule is deliberate here: the cost of sending unlawful mail and the cost of one extra check are not comparable.
+
+The body is plain text on purpose. A recovery email is a short note with one link in it, so HTML buys the reader nothing while costing an escaping surface, a layout to maintain across every mail client, and remote images that Gmail fetches through its own proxy. It also means no stylesheet can hide the footer, which is rather the point of a footer that exists for legal reasons.
+
+**No `From` header is set.** The site's own mail configuration decides, so a recovery email leaves by the same route and with the same identity as the shop's order emails. A site that has configured SMTP, or a sending domain with SPF and DKIM, has already answered that question, and a `From` of the plugin's choosing would quietly opt every such site out of its own deliverability work.
+
+### A click on an email link is weaker evidence than a click on a WhatsApp one
+
+`User_Agent::is_link_preview()` recognises the mail proxies that identify themselves -- Gmail's image proxy, Yahoo's, Bing's preview fetcher -- alongside the chat and social crawlers it already knew. **It cannot recognise corporate link scanners.** Microsoft's Safe Links and the equivalents from Proofpoint, Mimecast and Barracuda routinely fetch every URL in an incoming message behind an ordinary browser's user agent, and no substring can tell one of those from a person. Adding guessed tokens for them would look like coverage while catching nothing, so they are deliberately absent.
+
+So a click figure on the email channel is softer than one on WhatsApp, and that is a reporting caveat rather than a hazard, because of two properties that hold regardless:
+
+- **A click sets no state.** Only reading a WhatsApp conversation back ever moves a journey to `ENGAGED`. A scanner cannot make a customer look like they replied.
+- **The opt-out refuses a `GET`.** A scanner that opens every link in a message cannot unsubscribe the person whose mail it was scanning. This mattered already for WhatsApp's preview fetcher; on email, where scanners are both more aggressive and less identifiable, it is the guarantee doing the real work.
+
 ## Exporter, eraser, anonymiser, retention, uninstall
 
 **Exporter.** Registered on `wp_privacy_personal_data_exporters` in group `recoveryflow`. Given an email address it finds every customer reachable from that address and exports, for each: the recovery record, every contact detail held, the full consent history (channel, decision, when, from where, and the exact wording agreed to) and each unfinished order with the reminders sent about it. One customer per page, because a shared address really can find several people.

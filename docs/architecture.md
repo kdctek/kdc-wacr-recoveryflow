@@ -234,6 +234,24 @@ UPDATE journeys
 
 followed by a `SELECT … WHERE claim_token = %s`. Every subsequent write on the row is a compare-and-set that includes `claim_token` and `status` in its `WHERE` clause. If a conversion lands mid-batch, the conversion's transition wins the row, the runner's write affects zero rows, and the runner logs "lost race" and moves on.
 
+### The channel a step sends on
+
+**The action decides the channel; the step's `channel` key records it; the engine refuses the step if they disagree.**
+
+An action *is* a way of reaching somebody, so the channel cannot be a choice beside it. A WA.cr template goes over WhatsApp because that is what a WA.cr template is, and no setting can make it arrive as email. `Action_Interface::get_channel()` is where each action says so, and three things read it: the engine, which compares it with `Workflow_Definition::channel_for( $step )` and fails the step with `channel_mismatch` rather than sending on whichever value it happened to read; `Workflow_Form`, which derives the stored key from the action instead of from the posted form; and the attempt ledger, which records what actually went out.
+
+Eligibility is asked about that channel too. `Eligibility_Evaluator::for_send()` takes it and answers about it alone; passing nothing keeps the broader "can this person be reached at all" meaning, which is the right question when deciding whether a journey is worth *starting* but the wrong one when deciding whether *this* message may go out. The two answers differ for exactly the people who matter -- somebody who gave an email address and no phone number is reachable, and is not reachable on WhatsApp.
+
+This is written down at length because the absence of it was a real bug that shipped: the key was stored, validated, described on screen and offered in a dropdown while nothing in the execution path read it, so a step configured as email sent WhatsApp and was billed as WhatsApp. Every static gate was green on it for four slices.
+
+| Action | Channel | Needs the WA.cr developer API |
+| --- | --- | --- |
+| `wacr.send_template` | `whatsapp` | Yes -- Scale and above |
+| `wacr.start_flow` | `whatsapp` | No -- a signed push to a hook |
+| `wacr.send_email` | `email` | No -- `wp_mail()`, no WA.cr involvement at all |
+
+`Workflow_Definition::DEVELOPER_API_ACTIONS` names the first column that answers yes, rather than listing the ones that answer no. An action this plugin does not ship is then assumed not to need the API, and that asymmetry is deliberate: guessing wrong that way defers at send time with a reason a merchant can read, while guessing the other way blocks them from saving the workflow at all.
+
 ### The send protocol
 
 ```text

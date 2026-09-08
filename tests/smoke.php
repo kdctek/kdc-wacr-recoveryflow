@@ -43,6 +43,7 @@ use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
 use WAcr\RecoveryFlow\Recovery\Attempt;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Eligibility;
+use WAcr\RecoveryFlow\Support\User_Agent;
 use WAcr\RecoveryFlow\Workflow\Actions\Send_Email;
 use WAcr\RecoveryFlow\Workflow\Email_Composer;
 use WAcr\RecoveryFlow\Recovery\Email_Sender;
@@ -5956,6 +5957,42 @@ ok(
 ok( 'and the editor still ships no inline script', false === stripos( $recoveryflow_email_html, '<script' ) );
 
 $GLOBALS['wpdb']->rows = $recoveryflow_rows_kept;
+
+// ---------------------------------------------------------------------------
+// What follows a link in an email, and what it must not be able to do.
+// ---------------------------------------------------------------------------
+
+foreach ( array( 'Mozilla/5.0 (Windows NT 5.1; rv:11.0) Gecko Firefox/11.0 (via ggpht.com GoogleImageProxy)', 'YahooMailProxy; https://help.yahoo.com/kb/yahoo-mail-proxy-SLN28749.html', 'Mozilla/5.0 (compatible; BingPreview/1.0b)' ) as $recoveryflow_ua ) {
+	ok( 'a mail proxy is not counted as somebody tapping a link', User_Agent::is_link_preview( $recoveryflow_ua ) );
+}
+
+ok( 'while a person in a browser still is', ! User_Agent::is_link_preview( 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile Safari/604.1' ) );
+
+/*
+ * The honest limit, asserted so nobody later mistakes the list for coverage.
+ * Corporate link scanners fetch every URL in an incoming message behind an
+ * ordinary browser's user agent, and no substring can tell one from a person.
+ * What makes that survivable is not the list -- it is these two properties.
+ */
+ok(
+	'a scanner that looks like a browser is NOT recognised, and that is known rather than assumed',
+	! User_Agent::is_link_preview( 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' )
+);
+
+// So a click may never be the thing that says somebody replied. Only reading a
+// WhatsApp conversation back does that.
+$recoveryflow_controller_src = (string) file_get_contents( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php' );
+
+ok(
+	'the endpoint that handles a click cannot mark a journey as replied at all',
+	false === strpos( $recoveryflow_controller_src, 'Journey_State::ENGAGED' )
+);
+ok( 'and it does record clicks, so that is a real restraint rather than a file that does nothing', false !== strpos( $recoveryflow_controller_src, 'record_click' ) );
+
+// And the one that matters most on email, where a scanner really does open
+// every link: the opt-out cannot act on a GET, so it cannot unsubscribe the
+// person it was protecting. Asserted at the source of the rule.
+ok( 'the opt-out still refuses to act on a GET', false !== strpos( $recoveryflow_controller_src, '\'POST\' !== $method' ) );
 
 // The gate's rate budget is WA.cr's allowance, and email does not spend it.
 // Holding a free message back because a paid channel hit its ceiling would stop

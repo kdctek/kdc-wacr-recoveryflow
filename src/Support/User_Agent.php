@@ -29,6 +29,23 @@ defined( 'ABSPATH' ) || exit;
  * happened and corrupts the merchant's reporting permanently; misreading a
  * person as a bot loses one number from a counter. Facebook alone ships at
  * least three casings of its crawler token.
+ *
+ * **Email is a weaker case than WhatsApp, and the list cannot fix that.** The
+ * mail proxies below identify themselves and are caught. Corporate link
+ * scanners -- Microsoft's Safe Links, and the equivalents from Proofpoint,
+ * Mimecast and Barracuda -- routinely fetch every URL in an incoming message
+ * while presenting an ordinary browser's user agent, and no substring can tell
+ * one of those from a person. Guessing at their tokens would be worse than
+ * leaving them out: it would look like coverage while catching nothing.
+ *
+ * So the honest position, and it is written into the docs rather than left for
+ * somebody to infer: **a click figure on the email channel is softer evidence
+ * than one on WhatsApp.** Two things make that survivable rather than
+ * dangerous. A click sets no state -- only reading a WhatsApp conversation back
+ * ever marks a journey ENGAGED, so a scanner cannot make a customer look like
+ * they replied. And the opt-out refuses a GET outright, so a scanner that
+ * follows every link in a message cannot unsubscribe the person it was
+ * protecting.
  */
 final class User_Agent {
 
@@ -51,6 +68,13 @@ final class User_Agent {
 		'Discordbot',
 		'SkypeUriPreview',
 		'Googlebot',
+		// Mail proxies, which arrived with the email channel. Gmail fetches
+		// every remote image through its own proxy the moment a message is
+		// opened, which on a plain-text recovery email is nothing -- but the
+		// same proxy identifies itself on anything else it pulls.
+		'GoogleImageProxy',
+		'YahooMailProxy',
+		'BingPreview',
 	);
 
 	/**
