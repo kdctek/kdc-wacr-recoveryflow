@@ -81,7 +81,7 @@ final class Options {
 			'wacr_push_optout'         => false,
 			'wacr_share_last_name'     => false,
 			'wacr_share_email'         => false,
-			'wacr_sync_optout'         => false,
+			'wacr_sync_optout'         => true,
 
 			/*
 			 * Email compliance.

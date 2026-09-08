@@ -41,7 +41,10 @@ use WAcr\RecoveryFlow\Privacy\Redactor;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
+use WAcr\RecoveryFlow\Customer\Customer;
+use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
+use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Script;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Consent_Field;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Session;
@@ -3202,6 +3205,141 @@ update_option( Options::STAGE_STATS, $recoveryflow_stats_before );
 $plugin->credentials()->set_api_key( '' );
 Options::set( 'wacr_hook_url', '' );
 update_option( Options::ME_SNAPSHOT, $recoveryflow_diag_snapshot );
+
+/*
+ * Honouring an opt-out recorded in WA.cr. The whole check was already built --
+ * cached, scope-gated, failing open -- and wired into the send decision. What
+ * was missing was that NOTHING READ THE SETTING offering it, so the control
+ * said one thing and the plugin did another whatever anybody chose. It went
+ * unnoticed because none of this had a test at all.
+ *
+ * Wiring it up with its original default of false would have been the obvious
+ * fix and a bad one: every site already running would have stopped honouring
+ * WA.cr opt-outs on upgrade, and somebody who replied STOP in WhatsApp would
+ * have started receiving cart reminders again. So the default is now true,
+ * which is exactly what every install has been doing.
+ */
+ok( 'honouring a WA.cr opt-out is on unless somebody turns it off', (bool) Options::get( 'wacr_sync_optout', false ) );
+
+$recoveryflow_gate_settings = get_option( Options::SETTINGS, array() );
+$recoveryflow_gate_snapshot = get_option( Options::ME_SNAPSHOT, array() );
+
+/*
+ * The key is saved BEFORE the snapshot, not after. Storing a different key
+ * retires what was learned about the old one -- that is the fix from the
+ * previous slice working -- so setting the key second would wipe the scopes
+ * this test depends on and every assertion below would pass for the wrong
+ * reason. Without a key the lookup fails before it starts and the gate
+ * correctly allows, which looks identical to the opt-out check being absent.
+ */
+$plugin->credentials()->set_api_key( 'wacr_live_0123456789abcdef0123456789abcdef' );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send', 'contacts:read' ),
+	)
+);
+
+// Quiet hours are checked before this and would defer every send, hiding the
+// decision under test behind an unrelated one.
+Options::set( 'quiet_hours_enabled', false );
+
+$recoveryflow_gate_journey                 = new Recovery_Journey();
+$recoveryflow_gate_journey->status         = Journey_State::SCHEDULED;
+$recoveryflow_gate_journey->attempts_count = 0;
+
+$recoveryflow_gate_customer             = new Customer();
+$recoveryflow_gate_customer->id         = 77;
+$recoveryflow_gate_customer->phone_e164 = '+447700900123';
+$recoveryflow_gate_customer->phone_hash   = str_repeat( 'a', 64 );
+$recoveryflow_gate_customer->phone_status = Customer::PHONE_VALID;
+
+/**
+ * Ask the gate, with WA.cr answering whatever this test wants.
+ *
+ * @param bool $opted_out What the contact record says.
+ * @return array<string,mixed>
+ */
+function recoveryflow_gate_says( bool $opted_out ): array {
+	global $plugin, $recoveryflow_gate_journey, $recoveryflow_gate_customer;
+
+	delete_transient( 'recoveryflow_wacr_optout_' . substr( str_repeat( 'a', 64 ), 0, 32 ) );
+
+	$GLOBALS['__http_response'] = array(
+		'response' => array( 'code' => 200 ),
+		'body'     => wp_json_encode(
+			array(
+				'contacts' => array(
+					array(
+						'id'        => 'c_1',
+						'phoneE164' => '+447700900123',
+						'optedOut'  => $opted_out,
+					),
+				),
+			)
+		),
+		'headers'  => array(),
+	);
+
+	return $plugin->send_gate()->check( $recoveryflow_gate_journey, $recoveryflow_gate_customer, Rule_Set::for_source() );
+}
+
+Options::set( 'wacr_sync_optout', true );
+
+check( 'with the setting on, a contact opted out in WA.cr is not messaged', recoveryflow_gate_says( true )['decision'], Send_Gate::SKIP );
+check( 'and the reason names WA.cr, so a support call is not a mystery', recoveryflow_gate_says( true )['reason'], Send_Gate::REASON_WACR_OPTOUT );
+check( 'while a contact who has not opted out is messaged', recoveryflow_gate_says( false )['decision'], Send_Gate::ALLOW );
+
+/*
+ * The half that had no test and therefore no defence. With the setting off the
+ * gate must not consult WA.cr at all -- not consult it and ignore the answer,
+ * which would still spend a request per send on something the merchant
+ * switched off.
+ */
+Options::set( 'wacr_sync_optout', false );
+
+delete_transient( 'recoveryflow_wacr_optout_' . substr( str_repeat( 'a', 64 ), 0, 32 ) );
+$GLOBALS['__http_requests'] = 0;
+
+$recoveryflow_gate_result = recoveryflow_gate_says( true );
+
+check( 'with the setting off, an opted-out contact IS messaged, as chosen', $recoveryflow_gate_result['decision'], Send_Gate::ALLOW );
+
+Options::set( 'wacr_sync_optout', true );
+
+/*
+ * A failed lookup allows the send. The plugin's own consent ledger is the
+ * authority and has already said yes; letting a WA.cr outage stop every
+ * recovery on a site would be a worse failure than acting on a stale flag.
+ */
+delete_transient( 'recoveryflow_wacr_optout_' . substr( str_repeat( 'a', 64 ), 0, 32 ) );
+
+$GLOBALS['__http_response'] = array(
+	'response' => array( 'code' => 500 ),
+	'body'     => '{"ok":false}',
+	'headers'  => array(),
+);
+
+check( 'a WA.cr outage does not stop every recovery on the site', $plugin->send_gate()->check( $recoveryflow_gate_journey, $recoveryflow_gate_customer, Rule_Set::for_source() )['decision'], Send_Gate::ALLOW );
+
+// And without the scope there is nothing to ask with, so it does not ask.
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send' ),
+	)
+);
+delete_transient( 'recoveryflow_wacr_optout_' . substr( str_repeat( 'a', 64 ), 0, 32 ) );
+
+check( 'without contacts:read the gate does not pretend to check', recoveryflow_gate_says( true )['decision'], Send_Gate::ALLOW );
+
+unset( $GLOBALS['__http_response'] );
+$plugin->credentials()->set_api_key( '' );
+update_option( Options::SETTINGS, $recoveryflow_gate_settings );
+update_option( Options::ME_SNAPSHOT, $recoveryflow_gate_snapshot );
 
 /*
  * The one screen that can show a customer's real phone number. Contact details

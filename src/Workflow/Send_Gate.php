@@ -13,6 +13,7 @@ use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Recovery\Recovery_Journey;
 use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Support\Logger;
+use WAcr\RecoveryFlow\Support\Options;
 use WAcr\RecoveryFlow\WAcr\Client;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 
@@ -223,6 +224,25 @@ final class Send_Gate {
 	 * @return bool
 	 */
 	private function is_opted_out_at_wacr( Customer $customer ): bool {
+		/*
+		 * The setting is read here, and it defaults to ON.
+		 *
+		 * It had a control and a default and nothing read it, so this check ran
+		 * whenever the credential held contacts:read, whatever the merchant had
+		 * chosen. Wiring it up with its original default of false would have
+		 * been the obvious fix and a bad one: every site already running would
+		 * have stopped honouring WA.cr opt-outs on upgrade, and somebody who
+		 * replied STOP in WhatsApp would have started receiving cart reminders
+		 * again. A dead setting is a bug; silently switching off a live
+		 * compliance behaviour to fix it is a worse one.
+		 *
+		 * So the default is true, which is exactly what every install has been
+		 * doing, and the control now genuinely does what its label says.
+		 */
+		if ( ! Options::get( 'wacr_sync_optout', true ) ) {
+			return false;
+		}
+
 		if ( '' === $customer->phone_hash || ! Feature_Gate::has_scope( 'contacts:read' ) ) {
 			return false;
 		}

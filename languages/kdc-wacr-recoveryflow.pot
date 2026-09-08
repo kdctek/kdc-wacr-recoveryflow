@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T06:26:44+00:00\n"
+"POT-Creation-Date: 2026-09-08T06:50:30+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -1590,7 +1590,7 @@ msgid "Opting out in WA.cr also stops reminders from here"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:466
-msgid "Somebody who replies STOP in WhatsApp is opted out in WA.cr. With this on, this site checks that before sending and stops messaging them too."
+msgid "Somebody who replies STOP in WhatsApp is opted out in WA.cr, and WA.cr does not apply that to messages sent from here. With this on, RecoveryFlow checks before each reminder and stays silent for them. Turning it off means somebody who has told you to stop can still receive a cart reminder from this site. The answer is remembered for six hours per number, and your key needs the contacts:read permission."
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:483
