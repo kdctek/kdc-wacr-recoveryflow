@@ -161,6 +161,32 @@ final class Schema {
 	 */
 	private static function recovery_sections(): array {
 		return array(
+			'capture'     => array(
+				'title'       => __( 'Where a contact detail is collected', 'kdc-wacr-recoveryflow' ),
+				'description' => __( 'A basket is worth nothing to a recovery until the shop knows how to reach the person. The checkout is where that normally happens, and a shopper who leaves before reaching it was never reachable at all. These ask earlier. All three are off until you turn them on, because each one adds a field to a page shoppers are trying to get through.', 'kdc-wacr-recoveryflow' ),
+				'cards'       => array(
+					'points' => array(
+						'title'  => __( 'Earlier than the checkout', 'kdc-wacr-recoveryflow' ),
+						'fields' => array(
+							'capture_at_cart'         => array(
+								'type'  => 'checkbox',
+								'label' => __( 'Ask on the basket page', 'kdc-wacr-recoveryflow' ),
+								'help'  => __( 'Adds a short form below the basket offering to save it. It works with scripts blocked and posts nowhere else. Most shoppers who abandon never reach the checkout, so this is the one that changes how many baskets are recoverable at all.', 'kdc-wacr-recoveryflow' ),
+							),
+							'capture_at_add_to_cart'  => array(
+								'type'  => 'checkbox',
+								'label' => __( 'Ask when something is added to the basket', 'kdc-wacr-recoveryflow' ),
+								'help'  => __( 'Adds the field beside the "add to basket" button on a product page, and it travels with WooCommerce\'s own request -- nothing extra is sent and no address of ours is opened. Leaving it blank still adds the product, exactly as before.', 'kdc-wacr-recoveryflow' ),
+							),
+							'checkout_phone_required' => array(
+								'type'  => 'checkbox',
+								'label' => __( 'Make the phone number required at the checkout', 'kdc-wacr-recoveryflow' ),
+								'help'  => __( 'WooCommerce ships the billing phone as optional. Requiring it means every order carries one, and every abandoned checkout that got that far is reachable. It also means somebody who will not give a number cannot buy from you, which costs completed sales as well as saving lost ones -- so this is a trade rather than an improvement.', 'kdc-wacr-recoveryflow' ),
+							),
+						),
+					),
+				),
+			),
 			'timing'      => array(
 				'title'       => __( 'When a sale counts as lost', 'kdc-wacr-recoveryflow' ),
 				'description' => __( 'A basket nobody has touched for a while is treated as abandoned. These two settings decide how long that is, and how stale is too stale to bother.', 'kdc-wacr-recoveryflow' ),

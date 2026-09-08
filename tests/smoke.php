@@ -74,6 +74,8 @@ use WAcr\RecoveryFlow\Recovery\Event_Ingest;
 use WAcr\RecoveryFlow\Recovery\Recovery_Event;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Checkout_Script;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Consent_Field;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Contact_Snapshot;
+use WAcr\RecoveryFlow\Integration\WooCommerce\Phone_Requirement;
 use WAcr\RecoveryFlow\Integration\WooCommerce\Session;
 use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\Database\Schema;
@@ -920,8 +922,9 @@ function kdc_wacr_recoveryflow_method_body( string $file, string $method ): stri
  */
 function kdc_wacr_recoveryflow_code_only( string $body ): string {
 	$code = '';
+	$body = 0 === strpos( ltrim( $body ), '<?php' ) ? ltrim( $body ) : '<?php ' . $body;
 
-	foreach ( token_get_all( '<?php ' . $body ) as $token ) {
+	foreach ( token_get_all( $body ) as $token ) {
 		if ( is_array( $token ) && in_array( $token[0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) {
 			continue;
 		}
@@ -1102,6 +1105,118 @@ ok( 'the script watches the email field', false !== strpos( $consent_script_body
 // Per the .pot ruling, this script carries no user-facing text, so there is no
 // second extraction toolchain and no jed JSON per locale to keep in step.
 ok( 'the script needs no translation', false === strpos( $consent_script_body, 'wp.i18n' ) && false === strpos( $consent_script_body, '__(' ) );
+
+// ---------------------------------------------------------------------------
+// Collecting a contact detail before the checkout.
+//
+// Most shoppers who abandon never reach the checkout, so these two points are
+// what decides whether the majority of recorded baskets are recoverable at all.
+// They are also the only place in the plugin that renders a field to the public
+// and, for the basket, the only place that accepts a post from one -- so what
+// is asserted here is mostly the restraint rather than the feature.
+// ---------------------------------------------------------------------------
+
+$recoveryflow_snapshot = new Contact_Snapshot( new Session() );
+
+// A blank must never overwrite something known. A shopper who typed a number on
+// the product page and left the basket field empty has not withdrawn it, and
+// this is the rule the whole merge exists for.
+ok( 'a first contact detail is written', $recoveryflow_snapshot->remember( array( 'phone' => '07700 900123' ) ) );
+ok( 'writing the same value again is not a write', ! $recoveryflow_snapshot->remember( array( 'phone' => '07700 900123' ) ) );
+ok( 'and a blank does not erase what is already known', ! $recoveryflow_snapshot->remember( array( 'phone' => '' ) ) );
+
+check(
+	'the number survived both',
+	(string) ( ( (array) ( new Session() )->get( Session::KEY_CONTACT, array() ) )['phone'] ?? '' ),
+	'07700 900123'
+);
+
+// The allow-list. A capture point reads a form other plugins also write to.
+ok( 'a field nobody asked for is not stored', ! $recoveryflow_snapshot->remember( array( 'evil' => 'x' ) ) );
+
+// A half-recognised country is worse than none: it turns a good number into a
+// wrong number rather than into a refusal.
+check( 'a two-letter country is kept', Contact_Snapshot::country( 'gb' ), 'GB' );
+check( 'a single letter is discarded rather than padded', Contact_Snapshot::country( 'U' ), '' );
+check( 'and so is anything that is not two letters', Contact_Snapshot::country( '44' ), '' );
+check( 'a value longer than the cap is trimmed', strlen( Contact_Snapshot::clean( str_repeat( 'a', 500 ) ) ), Contact_Snapshot::MAX_LENGTH );
+
+/*
+ * Both points ship OFF, and this is asserted rather than eyeballed because it
+ * is a product decision that a well-meaning later commit could reverse in one
+ * character. Each one puts a field in front of somebody trying to get through a
+ * page, and the phone requirement can cost a sale outright.
+ */
+ok( 'the basket capture point is off until a merchant turns it on', false === Options::defaults()['capture_at_cart'] );
+ok( 'the add-to-cart capture point is off too', false === Options::defaults()['capture_at_add_to_cart'] );
+ok( 'and the checkout phone is not made compulsory by default', false === Options::defaults()['checkout_phone_required'] );
+
+/*
+ * The compulsory-phone switch FILTERS WooCommerce's option and must never write
+ * it. Writing it would edit a WooCommerce screen from a RecoveryFlow switch and
+ * -- the part that actually hurts -- would survive this plugin being
+ * deactivated, leaving a requirement nobody chose and no control that explains
+ * it. Asserted in both directions.
+ */
+$recoveryflow_phone_req = new Phone_Requirement();
+
+ok( 'with the switch off, WooCommerce own answer is handed back untouched', 'optional' === $recoveryflow_phone_req->require_phone( 'optional' ) );
+
+$recoveryflow_phone_src = kdc_wacr_recoveryflow_code_only(
+	(string) file_get_contents( dirname( __DIR__ ) . '/src/Integration/WooCommerce/Phone_Requirement.php' )
+);
+
+ok( 'the phone requirement never writes WooCommerce own setting', false === strpos( $recoveryflow_phone_src, 'update_option' ) );
+ok( 'it filters the option read instead', false !== strpos( $recoveryflow_phone_src, "'option_' . self::OPTION" ) );
+ok(
+	'and it filters the default too, or a shop that never saved the setting is missed',
+	false !== strpos( $recoveryflow_phone_src, "'default_option_' . self::OPTION" )
+);
+
+/*
+ * The basket form is the only public write in the plugin, so all three defences
+ * are asserted at the source of the handler. A nonce alone says where a post
+ * came from and nothing about how often, and this form's nonce is on a page
+ * anybody can load.
+ */
+$recoveryflow_early_src = kdc_wacr_recoveryflow_code_only(
+	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Integration/WooCommerce/Early_Capture.php', 'handle_cart_post' )
+);
+
+ok( 'the basket handler can be read', strlen( $recoveryflow_early_src ) > 50 );
+ok( 'it verifies a nonce', false !== strpos( $recoveryflow_early_src, 'check_admin_referer' ) );
+ok( 'it rate-limits the caller, because the nonce is public to anybody who can load the basket', false !== strpos( $recoveryflow_early_src, 'limiter->hit' ) );
+ok( 'it refuses outright when the setting is off, rather than trusting the form not to exist', false !== strpos( $recoveryflow_early_src, 'wants_cart()' ) );
+ok( 'and it answers with a redirect, so a refresh cannot re-post', false !== strpos( $recoveryflow_early_src, 'wp_safe_redirect' ) );
+
+/*
+ * The add-to-cart point must NOT open one. It rides WooCommerce's own form, and
+ * the day it grows an endpoint is the day it needs its own nonce and its own
+ * rate limit and its own review.
+ */
+$recoveryflow_atc_src = kdc_wacr_recoveryflow_code_only(
+	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Integration/WooCommerce/Early_Capture.php', 'register' )
+);
+
+ok(
+	'the add-to-cart point rides WooCommerce own request',
+	false !== strpos( $recoveryflow_atc_src, "'woocommerce_add_to_cart'" )
+);
+$recoveryflow_atc_branch = substr( $recoveryflow_atc_src, (int) strpos( $recoveryflow_atc_src, 'wants_add_to_cart()' ) );
+
+ok( 'the add-to-cart branch can be isolated', strlen( $recoveryflow_atc_branch ) > 30 );
+ok(
+	'and it opens no address of its own -- only the basket form does that',
+	false === strpos( $recoveryflow_atc_branch, 'admin_post' )
+);
+
+// The basket form renders on a block basket too. woocommerce_after_cart_table
+// belongs to the shortcode template and never fires on a block basket, which
+// would have made this setting silently do nothing on any recently built shop.
+$recoveryflow_reg_src = $recoveryflow_atc_src;
+
+ok( 'the basket form is hooked where a shortcode basket fires', false !== strpos( $recoveryflow_reg_src, "'woocommerce_after_cart_table'" ) );
+ok( 'and where a block basket fires as well', false !== strpos( $recoveryflow_reg_src, "'woocommerce_after_cart'" ) );
 
 // Where the script is allowed to load. These conditions are the reason the
 // class exists: the checkout is the last page on a shop where it is acceptable

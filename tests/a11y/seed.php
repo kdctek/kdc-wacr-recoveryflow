@@ -109,6 +109,8 @@ final class RecoveryFlow_A11y_Command {
 
 		$this->settle_first_run();
 
+		$this->switch_on_capture_points();
+
 		$tokens = array(
 			'view'   => $this->live_token( $plugin, $journeys, 0 ),
 			'submit' => $this->live_token( $plugin, $journeys, 1 ),
@@ -319,6 +321,79 @@ final class RecoveryFlow_A11y_Command {
 	}
 
 	/**
+	 * Switch on the capture points, and make sure there is something to check.
+	 *
+	 * Both ship OFF, which is right for a shop and wrong for a run whose job is
+	 * to look at the markup they produce: with them off the product page and the
+	 * basket page render no field at all and the run would report two clean
+	 * screens having checked nothing. The same reasoning as turning recovery on
+	 * -- arranging the site is not the thing being tested.
+	 *
+	 * A product is created because the basket form only renders on a basket with
+	 * something in it, which is correct behaviour (there is nothing to save
+	 * otherwise) and means the run has to put something there. The accessibility
+	 * config does that by pressing the real "add to basket" button rather than
+	 * by writing a cart row, so what gets checked is a basket a shopper made.
+	 *
+	 * @return void
+	 */
+	private function switch_on_capture_points(): void {
+		$settings = (array) get_option( 'recoveryflow_settings', array() );
+
+		update_option(
+			'recoveryflow_settings',
+			array_merge(
+				$settings,
+				array(
+					'capture_at_cart'        => true,
+					'capture_at_add_to_cart' => true,
+				)
+			)
+		);
+
+		/*
+		 * So that pressing "add to basket" lands on the basket. Without it
+		 * WooCommerce stays on the product page and the run would have to wait
+		 * for a notice whose markup differs between a classic and a block
+		 * theme -- a selector that is wrong on half of shops is a check that
+		 * hangs rather than one that reports.
+		 */
+		update_option( 'woocommerce_cart_redirect_after_add', 'yes' );
+	}
+
+	/**
+	 * A published, purchasable product for the run to add to a basket.
+	 *
+	 * Reused rather than recreated when it is already there, so repeated runs do
+	 * not fill a demo shop with hundreds of identical products.
+	 *
+	 * @return string The product's address, or '' if WooCommerce could not make one.
+	 */
+	private function demo_product_url(): string {
+		if ( ! class_exists( '\WC_Product_Simple' ) ) {
+			return '';
+		}
+
+		$existing = get_page_by_path( 'recoveryflow-demo-product', OBJECT, 'product' );
+
+		if ( $existing instanceof \WP_Post ) {
+			return (string) get_permalink( $existing );
+		}
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'RecoveryFlow demo product' );
+		$product->set_slug( 'recoveryflow-demo-product' );
+		$product->set_status( 'publish' );
+		$product->set_catalog_visibility( 'visible' );
+		$product->set_regular_price( '12.00' );
+		$product->set_sold_individually( true );
+
+		$id = $product->save();
+
+		return $id > 0 ? (string) get_permalink( $id ) : '';
+	}
+
+	/**
 	 * Spend every one-time redirect a fresh activation is holding.
 	 *
 	 * Setup sends the first admin request to its own screen and then clears the
@@ -436,6 +511,8 @@ final class RecoveryFlow_A11y_Command {
 			'OPT_OUT_SUBMIT_PATH' => '' === $submit ? '' : (string) wp_parse_url( Rewrites::url( $submit, 'opt-out' ), PHP_URL_PATH ),
 			'INVALID_URL'         => Rewrites::url( str_repeat( 'A', Token_Service::LENGTH ), 'restore' ),
 			'SITE_URL'            => home_url( '/' ),
+			'PRODUCT_URL'         => $this->demo_product_url(),
+			'CART_URL'            => function_exists( 'wc_get_cart_url' ) ? (string) wc_get_cart_url() : '',
 		);
 
 		foreach ( $values as $name => $value ) {

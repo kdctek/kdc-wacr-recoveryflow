@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T19:48:25+00:00\n"
+"POT-Creation-Date: 2026-09-08T20:01:26+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -559,7 +559,7 @@ msgid "Phone"
 msgstr ""
 
 #: src/Admin/Pages/Journey_Detail.php:222
-#: src/Admin/Settings/Schema.php:335
+#: src/Admin/Settings/Schema.php:361
 msgid "Email"
 msgstr ""
 
@@ -910,21 +910,21 @@ msgid "Wait for"
 msgstr ""
 
 #: src/Admin/Pages/Workflow_Edit.php:464
-#: src/Admin/Settings/Schema.php:174
+#: src/Admin/Settings/Schema.php:200
 msgid "minutes"
 msgstr ""
 
 #: src/Admin/Pages/Workflow_Edit.php:465
-#: src/Admin/Settings/Schema.php:208
+#: src/Admin/Settings/Schema.php:234
 msgid "hours"
 msgstr ""
 
 #: src/Admin/Pages/Workflow_Edit.php:466
-#: src/Admin/Settings/Schema.php:182
-#: src/Admin/Settings/Schema.php:271
-#: src/Admin/Settings/Schema.php:299
-#: src/Admin/Settings/Schema.php:550
-#: src/Admin/Settings/Schema.php:608
+#: src/Admin/Settings/Schema.php:208
+#: src/Admin/Settings/Schema.php:297
+#: src/Admin/Settings/Schema.php:325
+#: src/Admin/Settings/Schema.php:576
+#: src/Admin/Settings/Schema.php:634
 msgid "days"
 msgstr ""
 
@@ -1473,532 +1473,568 @@ msgid "Other screens"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:165
-msgid "When a sale counts as lost"
+msgid "Where a contact detail is collected"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:166
-msgid "A basket nobody has touched for a while is treated as abandoned. These two settings decide how long that is, and how stale is too stale to bother."
+msgid "A basket is worth nothing to a recovery until the shop knows how to reach the person. The checkout is where that normally happens, and a shopper who leaves before reaching it was never reachable at all. These ask earlier. All three are off until you turn them on, because each one adds a field to a page shoppers are trying to get through."
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:169
-msgid "Abandonment"
+msgid "Earlier than the checkout"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:173
-msgid "Wait before treating a basket as abandoned"
+msgid "Ask on the basket page"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:177
-msgid "Shorter reaches people while they are still deciding. Too short reaches people who went to find their card. Thirty minutes to an hour suits most shops."
+#: src/Admin/Settings/Schema.php:174
+msgid "Adds a short form below the basket offering to save it. It works with scripts blocked and posts nowhere else. Most shoppers who abandon never reach the checkout, so this is the one that changes how many baskets are recoverable at all."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:181
-msgid "Stop chasing a basket after"
+#: src/Admin/Settings/Schema.php:178
+msgid "Ask when something is added to the basket"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:185
-msgid "A basket older than this is left alone. Messaging somebody about something they looked at a fortnight ago reads as surveillance rather than service."
+#: src/Admin/Settings/Schema.php:179
+msgid "Adds the field beside the \"add to basket\" button on a product page, and it travels with WooCommerce's own request -- nothing extra is sent and no address of ours is opened. Leaving it blank still adds the product, exactly as before."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:183
+msgid "Make the phone number required at the checkout"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:184
+msgid "WooCommerce ships the billing phone as optional. Requiring it means every order carries one, and every abandoned checkout that got that far is reachable. It also means somebody who will not give a number cannot buy from you, which costs completed sales as well as saving lost ones -- so this is a trade rather than an improvement."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:191
+msgid "When a sale counts as lost"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:192
-msgid "How often anyone hears from you"
+msgid "A basket nobody has touched for a while is treated as abandoned. These two settings decide how long that is, and how stale is too stale to bother."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:193
-msgid "Caps that apply to a person, not to a basket. They are the difference between a reminder and a nuisance, and on WhatsApp they are the difference between a working sender and a blocked one."
+#: src/Admin/Settings/Schema.php:195
+msgid "Abandonment"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:196
-msgid "Frequency"
-msgstr ""
-
-#: src/Admin/Settings/Schema.php:200
-msgid "Messages per lost sale"
+#: src/Admin/Settings/Schema.php:199
+msgid "Wait before treating a basket as abandoned"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:203
-msgid "How many reminders one abandoned basket may produce, however many steps the workflow has."
+msgid "Shorter reaches people while they are still deciding. Too short reaches people who went to find their card. Thirty minutes to an hour suits most shops."
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:207
-msgid "Shortest gap between two messages to one person"
+msgid "Stop chasing a basket after"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:211
-msgid "Counted across every basket, so somebody who abandons twice in an afternoon hears from you once."
-msgstr ""
-
-#: src/Admin/Settings/Schema.php:215
-msgid "Most recovery attempts per person per month"
+msgid "A basket older than this is left alone. Messaging somebody about something they looked at a fortnight ago reads as surveillance rather than service."
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:218
+msgid "How often anyone hears from you"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:219
+msgid "Caps that apply to a person, not to a basket. They are the difference between a reminder and a nuisance, and on WhatsApp they are the difference between a working sender and a blocked one."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:222
+msgid "Frequency"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:226
+msgid "Messages per lost sale"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:229
+msgid "How many reminders one abandoned basket may produce, however many steps the workflow has."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:233
+msgid "Shortest gap between two messages to one person"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:237
+msgid "Counted across every basket, so somebody who abandons twice in an afternoon hears from you once."
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:241
+msgid "Most recovery attempts per person per month"
+msgstr ""
+
+#: src/Admin/Settings/Schema.php:244
 msgid "A rolling thirty days, not a calendar month."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:224
+#: src/Admin/Settings/Schema.php:250
 msgid "Ignore baskets worth less than"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:227
+#: src/Admin/Settings/Schema.php:253
 msgid "In the shop currency. Zero chases every basket. Set this above the cost of a message if small baskets are not worth recovering."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:234
+#: src/Admin/Settings/Schema.php:260
 msgid "Quiet hours"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:235
+#: src/Admin/Settings/Schema.php:261
 msgid "Hours when nothing is sent. A message held back waits for the window to open rather than being dropped."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:238
+#: src/Admin/Settings/Schema.php:264
 msgid "Do not disturb"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:242
+#: src/Admin/Settings/Schema.php:268
 msgid "Hold messages overnight"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:243
+#: src/Admin/Settings/Schema.php:269
 msgid "A recovery message that arrives at three in the morning is remembered for the wrong reason."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:247
+#: src/Admin/Settings/Schema.php:273
 msgid "Quiet from"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:249
+#: src/Admin/Settings/Schema.php:275
 msgid "In this site's timezone, not the customer's. RecoveryFlow does not know where a phone number is being read."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:253
+#: src/Admin/Settings/Schema.php:279
 msgid "Quiet until"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:255
+#: src/Admin/Settings/Schema.php:281
 msgid "An end earlier than the start means the quiet window crosses midnight, which is the usual case."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:262
+#: src/Admin/Settings/Schema.php:288
 msgid "Recovery links"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:263
+#: src/Admin/Settings/Schema.php:289
 msgid "The link in a reminder that puts the basket back. The same link is what an unsubscribe uses, which is why its lifetime is a compliance setting as well as a convenience one."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:266
+#: src/Admin/Settings/Schema.php:292
 msgid "Link behaviour"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:270
+#: src/Admin/Settings/Schema.php:296
 msgid "A recovery link works for"
 msgstr ""
 
 #. translators: %d: the number of days an unsubscribe link must keep working.
-#: src/Admin/Settings/Schema.php:276
+#: src/Admin/Settings/Schema.php:302
 #, php-format
 msgid "After this the link stops working and shows a plain \"no longer available\" page. Email reminders need at least %d days, because the unsubscribe link in an email is this same link and it has to outlive the email."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:282
+#: src/Admin/Settings/Schema.php:308
 msgid "Fill the checkout back in for guests"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:283
+#: src/Admin/Settings/Schema.php:309
 msgid "Someone who follows a recovery link gets the details they had already typed put back. It only ever fills in what that same person entered."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:290
+#: src/Admin/Settings/Schema.php:316
 msgid "Crediting a recovery"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:291
+#: src/Admin/Settings/Schema.php:317
 msgid "How long after a reminder an order still counts as recovered by it."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:294
+#: src/Admin/Settings/Schema.php:320
 msgid "Attribution window"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:298
+#: src/Admin/Settings/Schema.php:324
 msgid "Credit an order to a reminder for"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:302
+#: src/Admin/Settings/Schema.php:328
 msgid "This changes the reported figures only. It never causes or prevents a message."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:319
+#: src/Admin/Settings/Schema.php:345
 msgid "WhatsApp"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:320
+#: src/Admin/Settings/Schema.php:346
 msgid "The channel RecoveryFlow is built around. Sending needs a connected WA.cr workspace."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:323
+#: src/Admin/Settings/Schema.php:349
 #: src/Core/Health.php:232
 msgid "WhatsApp reminders"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:327
+#: src/Admin/Settings/Schema.php:353
 msgid "Send reminders over WhatsApp"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:328
+#: src/Admin/Settings/Schema.php:354
 msgid "Workflow steps set to WhatsApp are skipped while this is off. Nothing else changes: baskets are still recorded and journeys still run."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:336
+#: src/Admin/Settings/Schema.php:362
 msgid "A recovery email is commercial mail, and the law asks for two things before one may be sent: a real postal address for the business sending it, and an unsubscribe link that keeps working. RecoveryFlow refuses to send email until both are settled."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:339
+#: src/Admin/Settings/Schema.php:365
 msgid "Before email can be switched on"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:340
+#: src/Admin/Settings/Schema.php:366
 msgid "Settling all of these makes email reminders permissible. It does not switch them on -- that is still a separate decision, on the card below."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:345
+#: src/Admin/Settings/Schema.php:371
 msgid "Postal address of the business"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:348
+#: src/Admin/Settings/Schema.php:374
 msgid "One line per line, exactly as you would write it on an envelope. It is printed at the foot of every recovery email and is never translated or reformatted. A registered office or a post-office box is fine where the law of your country allows one."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:352
+#: src/Admin/Settings/Schema.php:378
 msgid "Country that address is in"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:353
+#: src/Admin/Settings/Schema.php:379
 msgid "Asked separately because an address is laid out according to its own country, and nothing in the text of an address reliably says which country it is in."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:358
+#: src/Admin/Settings/Schema.php:384
 #: src/Core/Health.php:247
 #: src/Core/Health.php:263
 msgid "Email reminders"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:362
+#: src/Admin/Settings/Schema.php:388
 msgid "Send reminders by email"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:363
+#: src/Admin/Settings/Schema.php:389
 msgid "Off by default. Email passes two gates: this switch, and the compliance settings above. Turning this on while anything above is unsettled changes nothing -- no email is sent either way."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:380
+#: src/Admin/Settings/Schema.php:406
 msgid "Connection"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:381
+#: src/Admin/Settings/Schema.php:407
 msgid "The WA.cr workspace this site sends through."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:384
+#: src/Admin/Settings/Schema.php:410
 msgid "API key"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:390
+#: src/Admin/Settings/Schema.php:416
 #: src/Admin/Setup.php:424
 msgid "WA.cr API key"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:391
+#: src/Admin/Settings/Schema.php:417
 msgid "Created in the WA.cr console. It is stored encrypted and is never shown again after saving; entering a new one replaces it, and clearing the box leaves the saved key alone."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:397
+#: src/Admin/Settings/Schema.php:423
 msgid "Environment"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:399
+#: src/Admin/Settings/Schema.php:425
 msgid "Production"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:400
+#: src/Admin/Settings/Schema.php:426
 msgid "Staging"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:402
+#: src/Admin/Settings/Schema.php:428
 msgid "Staging talks to the WA.cr test service. Messages sent there are not delivered to real phones and are not billed."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:406
+#: src/Admin/Settings/Schema.php:432
 msgid "API address"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:408
+#: src/Admin/Settings/Schema.php:434
 msgid "Leave empty unless WA.cr support has given you a different address. An address that is not a WA.cr host is refused."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:415
+#: src/Admin/Settings/Schema.php:441
 msgid "How messages are sent"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:416
+#: src/Admin/Settings/Schema.php:442
 msgid "RecoveryFlow can hand a journey to a WA.cr Auto Flow and let WA.cr do the messaging, or send each message itself on the schedule in the workflow."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:419
+#: src/Admin/Settings/Schema.php:445
 msgid "Letting a flow call this site back"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:420
+#: src/Admin/Settings/Schema.php:446
 msgid "Optional, and only useful once you have built an Auto Flow. It lets the flow tell this site that somebody replied STOP, so they are stopped here at once rather than at the next background pass."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:423
+#: src/Admin/Settings/Schema.php:449
 msgid "Webhook address and secret"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:430
+#: src/Admin/Settings/Schema.php:456
 msgid "Dispatch"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:435
+#: src/Admin/Settings/Schema.php:461
 msgid "Send reminders by"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:437
+#: src/Admin/Settings/Schema.php:463
 msgid "Handing the journey to a WA.cr Auto Flow"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:438
+#: src/Admin/Settings/Schema.php:464
 msgid "Sending each message from WordPress"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:440
+#: src/Admin/Settings/Schema.php:466
 msgid "Handing over works on every WA.cr plan and puts the timing and the wording in WA.cr. Sending from WordPress keeps both here and needs a workspace that can use the WA.cr developer API."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:444
+#: src/Admin/Settings/Schema.php:470
 msgid "Auto Flow hook address"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:446
+#: src/Admin/Settings/Schema.php:472
 msgid "Copied from the Auto Flow in WA.cr that should pick these journeys up. Each request is signed, so a hook address on its own is not enough for anyone else to trigger your flow."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:450
+#: src/Admin/Settings/Schema.php:476
 msgid "Opting out here also opts them out in WA.cr"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:452
+#: src/Admin/Settings/Schema.php:478
 msgid "A customer who uses the unsubscribe link is asking the shop to stop, not this plugin. With this on, RecoveryFlow also marks them as opted out in your WA.cr workspace, which takes them out of broadcasts and any campaign built from a segment. It does NOT stop a message sent directly through the WA.cr API or named by an Auto Flow -- those never check the flag. Your key needs the contacts:write permission."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:456
+#: src/Admin/Settings/Schema.php:482
 msgid "Send from"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:458
+#: src/Admin/Settings/Schema.php:484
 msgid "The WhatsApp number in your workspace that reminders come from. Leave empty to use the workspace default."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:465
+#: src/Admin/Settings/Schema.php:491
 msgid "What is shared with WA.cr"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:466
+#: src/Admin/Settings/Schema.php:492
 msgid "A reminder cannot be sent without sending WA.cr the number it goes to. Everything beyond that is optional and off unless you turn it on."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:469
+#: src/Admin/Settings/Schema.php:495
 msgid "Optional details"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:473
+#: src/Admin/Settings/Schema.php:499
 msgid "Share the customer's last name"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:474
+#: src/Admin/Settings/Schema.php:500
 msgid "First names are shared because message templates usually greet somebody by one. Last names are not, unless a template you use needs one."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:478
+#: src/Admin/Settings/Schema.php:504
 msgid "Share the customer's email address"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:479
+#: src/Admin/Settings/Schema.php:505
 msgid "Only needed if your WA.cr workspace matches contacts by email or sends email itself."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:483
+#: src/Admin/Settings/Schema.php:509
 msgid "Opting out in WA.cr also stops reminders from here"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:484
+#: src/Admin/Settings/Schema.php:510
 msgid "Somebody who replies STOP in WhatsApp is opted out in WA.cr, and WA.cr does not apply that to messages sent from here. With this on, RecoveryFlow checks before each reminder and stays silent for them. Turning it off means somebody who has told you to stop can still receive a cart reminder from this site. The answer is remembered for six hours per number, and your key needs the contacts:read permission."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:501
+#: src/Admin/Settings/Schema.php:527
 msgid "Why this site may message somebody"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:502
+#: src/Admin/Settings/Schema.php:528
 msgid "The most consequential setting here. It decides who RecoveryFlow considers reachable, and it is the one a regulator would ask about first."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:505
+#: src/Admin/Settings/Schema.php:531
 msgid "Basis for messaging"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:509
+#: src/Admin/Settings/Schema.php:535
 msgid "Message somebody when"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:511
+#: src/Admin/Settings/Schema.php:537
 msgid "They ticked a box asking for reminders"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:512
+#: src/Admin/Settings/Schema.php:538
 msgid "They gave their details at the checkout"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:513
+#: src/Admin/Settings/Schema.php:539
 msgid "Never -- record baskets but message nobody"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:515
+#: src/Admin/Settings/Schema.php:541
 msgid "Asking first is the safe answer everywhere and the only defensible one in the EU and the UK. Treating a typed phone number as permission may be lawful where you trade; it is your decision and your risk, and RecoveryFlow records which basis each message was sent under either way."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:519
+#: src/Admin/Settings/Schema.php:545
 msgid "Wording of the consent tick-box"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:522
+#: src/Admin/Settings/Schema.php:548
 msgid "Send me a reminder if I do not finish my order"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:523
+#: src/Admin/Settings/Schema.php:549
 msgid "Shown at the checkout. Leave empty for the default wording. What was agreed to is stored with each consent, so changing this does not rewrite what anyone previously agreed to."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:530
+#: src/Admin/Settings/Schema.php:556
 msgid "Erase one customer"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:531
+#: src/Admin/Settings/Schema.php:557
 msgid "WordPress finds somebody by email address. Many of the people RecoveryFlow holds gave a phone number at the checkout and never an address, and cannot be found that way at all."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:534
+#: src/Admin/Settings/Schema.php:560
 msgid "Erase by phone number"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:541
+#: src/Admin/Settings/Schema.php:567
 msgid "How long anything is kept"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:542
+#: src/Admin/Settings/Schema.php:568
 msgid "An abandoned basket says what somebody was about to buy. There is no reason to still know that a year later, so finished journeys are stripped of their contents on a schedule."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:545
+#: src/Admin/Settings/Schema.php:571
 msgid "Retention"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:549
+#: src/Admin/Settings/Schema.php:575
 msgid "Keep the contents of a finished journey for"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:553
+#: src/Admin/Settings/Schema.php:579
 msgid "After this the basket contents, the notes and the session are removed and the amounts and dates stay, because those are your trading record rather than anything about a person. A week is the shortest this plugin will honour: shorter throws away the evidence you need when somebody asks why they were messaged, and that question always arrives late."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:560
+#: src/Admin/Settings/Schema.php:586
 msgid "Deleting the plugin"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:561
+#: src/Admin/Settings/Schema.php:587
 msgid "What happens to the data if RecoveryFlow is removed from this site."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:564
+#: src/Admin/Settings/Schema.php:590
 msgid "On uninstall"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:568
+#: src/Admin/Settings/Schema.php:594
 msgid "Delete everything when the plugin is deleted"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:570
+#: src/Admin/Settings/Schema.php:596
 msgid "Off by default, because deactivating a plugin by accident is common and losing every consent record is not recoverable. With this on, deleting the plugin drops its tables -- including the record of who asked not to be messaged."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:571
+#: src/Admin/Settings/Schema.php:597
 msgid "This will delete every recovery record, including who opted out, when the plugin is deleted. Continue?"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:588
+#: src/Admin/Settings/Schema.php:614
 msgid "Logging"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:589
+#: src/Admin/Settings/Schema.php:615
 msgid "RecoveryFlow keeps a short diagnostic log. Contact details, message contents and API keys are stripped out before anything is written, so the log says what happened without saying who it happened to."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:592
+#: src/Admin/Settings/Schema.php:618
 msgid "Diagnostic log"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:596
+#: src/Admin/Settings/Schema.php:622
 msgid "Record"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:598
+#: src/Admin/Settings/Schema.php:624
 msgid "Failures only"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:599
+#: src/Admin/Settings/Schema.php:625
 msgid "Failures and warnings"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:600
+#: src/Admin/Settings/Schema.php:626
 msgid "Everything of note"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:601
+#: src/Admin/Settings/Schema.php:627
 msgid "Everything, for diagnosing a problem"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:603
+#: src/Admin/Settings/Schema.php:629
 msgid "Leave on failures and warnings for normal running. The most detailed setting writes a great deal on a busy shop; turn it back down once you have what you needed."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:607
+#: src/Admin/Settings/Schema.php:633
 msgid "Keep log entries for"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:611
+#: src/Admin/Settings/Schema.php:637
 msgid "Older entries are removed by the daily clear-out."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:654
+#: src/Admin/Settings/Schema.php:680
 msgid "Watching"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:659
+#: src/Admin/Settings/Schema.php:685
 msgid "Record what is left unfinished here"
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:684
+#: src/Admin/Settings/Schema.php:710
 msgid "Whatever this integration needs is not installed or not active on this site, so this switch changes nothing until it is."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:687
+#: src/Admin/Settings/Schema.php:713
 msgid "Integrations beyond WooCommerce are included with the WA.cr Scale plan and above. This switch is remembered, and takes effect when the workspace can use it."
 msgstr ""
 
-#: src/Admin/Settings/Schema.php:690
+#: src/Admin/Settings/Schema.php:716
 msgid "Switching this off stops new journeys being recorded from here. Journeys already under way finish or expire on their own, and nothing already recorded is deleted."
 msgstr ""
 
@@ -2572,16 +2608,36 @@ msgid "This recovery link belongs to a different account."
 msgstr ""
 
 #. translators: %s: the name of this shop.
-#: src/Integration/WooCommerce/Consent_Field.php:312
+#: src/Integration/WooCommerce/Consent_Field.php:321
 #, php-format
 msgid "Yes, %s may send me a WhatsApp message about my order if I do not finish checking out."
 msgstr ""
 
-#: src/Integration/WooCommerce/Source.php:131
+#: src/Integration/WooCommerce/Early_Capture.php:235
+msgid "Save this basket"
+msgstr ""
+
+#: src/Integration/WooCommerce/Early_Capture.php:236
+msgid "Leave a way to reach you and we can send you a link back to this basket if you do not finish. You can stop the reminders at any time."
+msgstr ""
+
+#: src/Integration/WooCommerce/Early_Capture.php:241
+msgid "Save my basket"
+msgstr ""
+
+#: src/Integration/WooCommerce/Early_Capture.php:369
+msgid "Mobile number"
+msgstr ""
+
+#: src/Integration/WooCommerce/Early_Capture.php:377
+msgid "Email address"
+msgstr ""
+
+#: src/Integration/WooCommerce/Source.php:151
 msgid "WooCommerce"
 msgstr ""
 
-#: src/Integration/WooCommerce/Source.php:140
+#: src/Integration/WooCommerce/Source.php:160
 msgid "Recovers abandoned carts and checkouts, on both the classic and the block checkout."
 msgstr ""
 

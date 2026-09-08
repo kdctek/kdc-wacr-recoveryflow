@@ -60,6 +60,15 @@ final class Consent_Field {
 	public const SOURCE_BLOCKS = 'checkout_blocks';
 
 	/**
+	 * Recorded when the answer came from a capture point before the checkout.
+	 *
+	 * One source for both the basket page and the add-to-cart field, because
+	 * what the consent ledger is asked later is "was this agreed to, and to
+	 * what wording" -- not which page it was agreed on.
+	 */
+	public const SOURCE_EARLY = 'pre_checkout';
+
+	/**
 	 * Guarded access to the WooCommerce session.
 	 *
 	 * @var Session
@@ -207,7 +216,7 @@ final class Consent_Field {
 			// a form that is demonstrably the checkout, absence is a refusal
 			// rather than a missing answer, and the two are recorded
 			// differently.
-			$this->remember( $this->is_ticked( $parsed[ self::FIELD_ID ] ?? null ), self::SOURCE_CLASSIC );
+			$this->record( $this->is_ticked( $parsed[ self::FIELD_ID ] ?? null ), self::SOURCE_CLASSIC );
 		} catch ( \Throwable $e ) {
 			$this->logger->error( 'wc_consent', 'Could not read the classic consent field.' );
 		}//end try
@@ -225,7 +234,7 @@ final class Consent_Field {
 	public function capture_posted_data( $data ) {
 		try {
 			if ( is_array( $data ) && array_key_exists( self::FIELD_ID, $data ) ) {
-				$this->remember( $this->is_ticked( $data[ self::FIELD_ID ] ), self::SOURCE_CLASSIC );
+				$this->record( $this->is_ticked( $data[ self::FIELD_ID ] ), self::SOURCE_CLASSIC );
 			}
 		} catch ( \Throwable $e ) {
 			$this->logger->error( 'wc_consent', 'Could not read the posted consent field.' );
@@ -247,7 +256,7 @@ final class Consent_Field {
 				return;
 			}
 
-			$this->remember( $value, self::SOURCE_BLOCKS );
+			$this->record( $value, self::SOURCE_BLOCKS );
 		} catch ( \Throwable $e ) {
 			$this->logger->error( 'wc_consent', 'Could not read the block consent field.' );
 		}
@@ -331,7 +340,7 @@ final class Consent_Field {
 	 *
 	 * @return bool
 	 */
-	private function is_asked(): bool {
+	public function is_asked(): bool {
 		return 'explicit_consent' === (string) Options::get( 'eligibility_mode', 'explicit_consent' );
 	}
 
@@ -419,11 +428,18 @@ final class Consent_Field {
 	/**
 	 * Keep the answer in the session for the shutdown flush to pick up.
 	 *
+	 * Public because the answer can now be given somewhere other than the
+	 * checkout. What is stored with it -- the wording that was agreed to, so a
+	 * later rewording cannot rewrite anybody's past consent -- is decided here
+	 * and must stay decided in one place: a second capture point that recorded
+	 * its own consent row would be free to forget the version, and nothing
+	 * would notice until somebody had to prove what was agreed.
+	 *
 	 * @param bool   $granted Whether the shopper agreed.
-	 * @param string $source  Which checkout the answer came from.
+	 * @param string $source  Where the answer was given, e.g. self::SOURCE_CLASSIC.
 	 * @return void
 	 */
-	private function remember( bool $granted, string $source ): void {
+	public function record( bool $granted, string $source ): void {
 		$version = $this->text_version();
 		$stored  = $this->session->get( Session::KEY_CONSENT, array() );
 		$stored  = is_array( $stored ) ? $stored : array();

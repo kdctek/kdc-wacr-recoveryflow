@@ -149,6 +149,18 @@
 		{
 			"comment": "Public: what a link that does not resolve renders. Also what an expired or revoked one renders.",
 			"url": "{{INVALID_URL}}"
+		},
+		{
+			"comment": "Public: the add-to-cart capture field, on a real product page. The same fields the basket form renders, in the place they ride WooCommerce's own request.",
+			"url": "{{PRODUCT_URL}}"
+		},
+		{
+			"comment": "Public: the basket page's save-this-basket form. The basket is filled by pressing the real add-to-cart button, because the form only renders on a basket with something in it -- writing a cart row would check a page no shopper reaches. The seeder sets WooCommerce's redirect-to-basket so the press lands here, and the wait is on our own form, which fails loudly if it never renders.",
+			"url": "{{PRODUCT_URL}}",
+			"actions": [
+				"click element form.cart button[type=submit]",
+				"wait for element .recoveryflow-capture to be visible"
+			]
 		}
 	]
 }

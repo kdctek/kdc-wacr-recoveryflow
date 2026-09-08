@@ -84,15 +84,31 @@ final class Source extends Abstract_Source {
 	private Checkout_Script $script;
 
 	/**
+	 * The capture points before the checkout.
+	 *
+	 * @var Early_Capture
+	 */
+	private Early_Capture $early;
+
+	/**
+	 * The compulsory-phone switch.
+	 *
+	 * @var Phone_Requirement
+	 */
+	private Phone_Requirement $phone;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Event_Ingest     $ingest   Event ingestion.
-	 * @param Cart_Tracker     $cart     The cart write path.
-	 * @param Checkout_Capture $checkout Identity capture at the checkout.
-	 * @param Consent_Field    $consent  The consent tick-box.
-	 * @param Order_Observer   $orders   Conversion detection.
-	 * @param Cart_Restorer    $restorer The restore path.
-	 * @param Checkout_Script  $script   The classic checkout's capture script.
+	 * @param Event_Ingest      $ingest   Event ingestion.
+	 * @param Cart_Tracker      $cart     The cart write path.
+	 * @param Checkout_Capture  $checkout Identity capture at the checkout.
+	 * @param Consent_Field     $consent  The consent tick-box.
+	 * @param Order_Observer    $orders   Conversion detection.
+	 * @param Cart_Restorer     $restorer The restore path.
+	 * @param Checkout_Script   $script   The classic checkout's capture script.
+	 * @param Early_Capture     $early    The basket and add-to-cart capture points.
+	 * @param Phone_Requirement $phone    The compulsory-phone switch.
 	 */
 	public function __construct(
 		Event_Ingest $ingest,
@@ -101,7 +117,9 @@ final class Source extends Abstract_Source {
 		Consent_Field $consent,
 		Order_Observer $orders,
 		Cart_Restorer $restorer,
-		Checkout_Script $script
+		Checkout_Script $script,
+		Early_Capture $early,
+		Phone_Requirement $phone
 	) {
 		parent::__construct( $ingest );
 
@@ -111,6 +129,8 @@ final class Source extends Abstract_Source {
 		$this->orders   = $orders;
 		$this->restorer = $restorer;
 		$this->script   = $script;
+		$this->early    = $early;
+		$this->phone    = $phone;
 	}
 
 	/**
@@ -160,6 +180,8 @@ final class Source extends Abstract_Source {
 		$this->consent->register();
 		$this->orders->register();
 		$this->script->register();
+		$this->early->register();
+		$this->phone->register();
 	}
 
 	/**
