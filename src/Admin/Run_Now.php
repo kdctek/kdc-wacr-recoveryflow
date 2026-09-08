@@ -36,8 +36,10 @@ defined( 'ABSPATH' ) || exit;
  * dispatch pass is one of the five, so this spends money and reaches real
  * people. That is stated next to the button rather than discovered afterwards,
  * the same way the Auto Flow test push states that it really runs your flow.
- * There is no confirmation dialog because there is no JavaScript on this screen
- * and a dialog that only appears when a script loads is not a safeguard.
+ * There is no confirmation dialog. A dialog that only appears when a script
+ * loads is not a safeguard, and this screen carries the admin enhancement
+ * script like every other one -- so the warning is in the markup, where a
+ * blocked script cannot take it away.
  *
  * **The capability is MANAGE_JOURNEYS, not VIEW_STATUS.** The screen it sits on
  * only needs the right to read a diagnosis; this button acts, and what it acts

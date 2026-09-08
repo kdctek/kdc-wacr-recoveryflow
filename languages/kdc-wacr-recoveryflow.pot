@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T18:14:05+00:00\n"
+"POT-Creation-Date: 2026-09-08T19:39:38+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -632,7 +632,7 @@ msgid "RecoveryFlow works in five small passes rather than one long one, so a bu
 msgstr ""
 
 #: src/Admin/Pages/System_Status.php:126
-#: src/Admin/Run_Now.php:352
+#: src/Admin/Run_Now.php:354
 msgid "Pass"
 msgstr ""
 
@@ -641,12 +641,12 @@ msgid "Last run"
 msgstr ""
 
 #: src/Admin/Pages/System_Status.php:128
-#: src/Admin/Run_Now.php:353
+#: src/Admin/Run_Now.php:355
 msgid "Handled"
 msgstr ""
 
 #: src/Admin/Pages/System_Status.php:129
-#: src/Admin/Run_Now.php:354
+#: src/Admin/Run_Now.php:356
 msgid "Failed"
 msgstr ""
 
@@ -1057,32 +1057,32 @@ msgstr ""
 msgid "Save workflow"
 msgstr ""
 
-#: src/Admin/Run_Now.php:101
+#: src/Admin/Run_Now.php:103
 msgid "You are not allowed to run RecoveryFlow's background passes on this site."
 msgstr ""
 
-#: src/Admin/Run_Now.php:146
+#: src/Admin/Run_Now.php:148
 msgid "No background passes are registered, so nothing ran. This is a fault rather than an empty queue; the diagnostic report below is worth sending to support."
 msgstr ""
 
-#: src/Admin/Run_Now.php:192
+#: src/Admin/Run_Now.php:194
 msgid "Skipped: another run was already working on this pass. That is ordinary on a busy shop."
 msgstr ""
 
-#: src/Admin/Run_Now.php:196
+#: src/Admin/Run_Now.php:198
 msgid "This pass stopped on an error. The details are in the log."
 msgstr ""
 
-#: src/Admin/Run_Now.php:200
+#: src/Admin/Run_Now.php:202
 msgid "There is more to do than fitted in one run. The rest has been queued and will carry on."
 msgstr ""
 
-#: src/Admin/Run_Now.php:203
+#: src/Admin/Run_Now.php:205
 msgid "Finished with nothing left over."
 msgstr ""
 
 #. translators: %d: number of background passes that ran.
-#: src/Admin/Run_Now.php:225
+#: src/Admin/Run_Now.php:227
 #, php-format
 msgid "%d pass ran."
 msgid_plural "%d passes ran."
@@ -1090,7 +1090,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of records handled.
-#: src/Admin/Run_Now.php:231
+#: src/Admin/Run_Now.php:233
 #, php-format
 msgid "It handled %d record."
 msgid_plural "It handled %d records."
@@ -1098,13 +1098,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %s: how long the run took, in seconds, already formatted.
-#: src/Admin/Run_Now.php:237
+#: src/Admin/Run_Now.php:239
 #, php-format
 msgid "It took %s seconds."
 msgstr ""
 
 #. translators: %d: number of records that failed.
-#: src/Admin/Run_Now.php:244
+#: src/Admin/Run_Now.php:246
 #, php-format
 msgid "%d record failed; the log says why."
 msgid_plural "%d records failed; the log says why."
@@ -1112,43 +1112,43 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of passes that were already running.
-#: src/Admin/Run_Now.php:257
+#: src/Admin/Run_Now.php:259
 #, php-format
 msgid "%d pass was skipped because it was already running."
 msgid_plural "%d passes were skipped because they were already running."
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/Admin/Run_Now.php:268
+#: src/Admin/Run_Now.php:270
 msgid "Nothing was waiting. The passes are working; there was simply no eligible recovery to act on."
 msgstr ""
 
-#: src/Admin/Run_Now.php:285
-#: src/Admin/Run_Now.php:319
+#: src/Admin/Run_Now.php:287
+#: src/Admin/Run_Now.php:321
 msgid "Run the passes now"
 msgstr ""
 
-#: src/Admin/Run_Now.php:290
+#: src/Admin/Run_Now.php:292
 msgid "Running the passes by hand needs the \"recoveryflow_manage_journeys\" permission, which this account does not have. It can send reminders to real customers, which is why reading this screen and running them are separate permissions."
 msgstr ""
 
-#: src/Admin/Run_Now.php:298
+#: src/Admin/Run_Now.php:300
 msgid "Runs all five passes once, in the foreground, using exactly the code the scheduler uses. This is the way to answer \"has it stopped working\" without waiting for the next scheduled run."
 msgstr ""
 
-#: src/Admin/Run_Now.php:303
+#: src/Admin/Run_Now.php:305
 msgid "This really sends."
 msgstr ""
 
-#: src/Admin/Run_Now.php:304
+#: src/Admin/Run_Now.php:306
 msgid "The dispatch pass is one of the five, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward."
 msgstr ""
 
-#: src/Admin/Run_Now.php:344
+#: src/Admin/Run_Now.php:346
 msgid "The passes ran."
 msgstr ""
 
-#: src/Admin/Run_Now.php:355
+#: src/Admin/Run_Now.php:357
 msgid "What happened"
 msgstr ""
 
@@ -2907,19 +2907,19 @@ msgctxt "recovery journey state"
 msgid "Failed"
 msgstr ""
 
-#: src/Recovery/Recovery_Controller.php:475
+#: src/Recovery/Recovery_Controller.php:514
 msgid "This link is no longer available"
 msgstr ""
 
-#: src/Recovery/Recovery_Controller.php:476
+#: src/Recovery/Recovery_Controller.php:515
 msgid "The link you followed has expired or has already been used. Your basket may still be waiting for you on the shop."
 msgstr ""
 
-#: src/Recovery/Recovery_Controller.php:493
+#: src/Recovery/Recovery_Controller.php:532
 msgid "Too many requests"
 msgstr ""
 
-#: src/Recovery/Recovery_Controller.php:494
+#: src/Recovery/Recovery_Controller.php:533
 msgid "This link has been opened a great many times in a short period. Please wait a few minutes and try again."
 msgstr ""
 

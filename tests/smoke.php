@@ -5994,6 +5994,82 @@ ok( 'and it does record clicks, so that is a real restraint rather than a file t
 // person it was protecting. Asserted at the source of the rule.
 ok( 'the opt-out still refuses to act on a GET', false !== strpos( $recoveryflow_controller_src, '\'POST\' !== $method' ) );
 
+/*
+ * The other half of that promise, and for a long time the broken half: the
+ * unsubscribe must still WORK. A token is revoked and its journey goes terminal
+ * the moment the customer converts, and both were being asked of both actions
+ * -- so the shopper who bought was the one shopper who could not unsubscribe
+ * from the mail that brought them back, while Email_Compliance refused to send
+ * at all without a thirty-day unsubscribe it could no longer honour.
+ *
+ * Asserted on the rule itself rather than on the endpoint, in every direction,
+ * because the two questions differ in exactly one clause and a test that only
+ * asked the happy one would pass with the clause restored.
+ */
+$recoveryflow_unsub_now = '2026-01-15 12:00:00';
+
+$recoveryflow_attempt_with = static function ( array $overrides ): Attempt {
+	return Attempt::from_row(
+		array_merge(
+			array(
+				'id'               => 1,
+				'journey_id'       => 1,
+				'token_hash'       => str_repeat( 'a', 64 ),
+				'token_expires_at' => '2026-02-15 12:00:00',
+			),
+			$overrides
+		)
+	);
+};
+
+$recoveryflow_live_link    = $recoveryflow_attempt_with( array() );
+$recoveryflow_revoked_link = $recoveryflow_attempt_with( array( 'token_revoked_at' => '2026-01-10 09:00:00' ) );
+$recoveryflow_expired_link = $recoveryflow_attempt_with( array( 'token_expires_at' => '2026-01-01 09:00:00' ) );
+$recoveryflow_hashless     = Attempt::from_row( array( 'id' => 1 ) );
+
+ok(
+	'a live link both restores a basket and unsubscribes',
+	$recoveryflow_live_link->link_is_usable( $recoveryflow_unsub_now )
+		&& $recoveryflow_live_link->opt_out_is_usable( $recoveryflow_unsub_now )
+);
+ok(
+	'a revoked link no longer restores a basket, because that customer has already bought',
+	! $recoveryflow_revoked_link->link_is_usable( $recoveryflow_unsub_now )
+);
+ok(
+	'but the SAME revoked link still unsubscribes, which is the whole reason the two rules differ',
+	$recoveryflow_revoked_link->opt_out_is_usable( $recoveryflow_unsub_now )
+);
+ok(
+	'an expired link does neither, so the thirty days are a window and not an open door',
+	! $recoveryflow_expired_link->link_is_usable( $recoveryflow_unsub_now )
+		&& ! $recoveryflow_expired_link->opt_out_is_usable( $recoveryflow_unsub_now )
+);
+ok(
+	'and an attempt that never carried a token unsubscribes nobody',
+	! $recoveryflow_hashless->opt_out_is_usable( $recoveryflow_unsub_now )
+);
+
+/*
+ * Whitespace-collapsed before searching: phpcbf realigns this file, and an
+ * assertion that a reformat can silently stop matching is an assertion that
+ * quietly stops asking.
+ */
+$recoveryflow_route_flat = (string) preg_replace(
+	'/\s+/',
+	' ',
+	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'route' )
+);
+
+ok(
+	'the endpoint asks the weaker question when the visitor came to unsubscribe',
+	false !== strpos( $recoveryflow_route_flat, 'opt_out_is_usable' )
+);
+ok(
+	'and refuses a finished journey only when the visitor came to restore one',
+	false !== strpos( $recoveryflow_route_flat, '! $is_opt_out && $journey->is_terminal()' )
+);
+
 // The gate's rate budget is WA.cr's allowance, and email does not spend it.
 // Holding a free message back because a paid channel hit its ceiling would stop
 // the reminders at exactly the moment a shop is busiest.
