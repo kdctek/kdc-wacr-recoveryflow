@@ -38,6 +38,17 @@ final class Upgrader {
 		Schema::maybe_upgrade();
 		Capabilities::maybe_install();
 
+		// Everything activation installs has to be installed here too, because
+		// updating a plugin does not run its activation hook. A site that had
+		// RecoveryFlow switched on before this version would otherwise come out
+		// of the update with the tables and the schedule but no workflows -- and
+		// a journey cannot be created without one, so the plugin would sit there
+		// detecting abandoned carts and silently recovering none of them.
+		$plugin = Plugin::instance();
+
+		$plugin->workflows()->seed_defaults();
+		$plugin->scheduler()->sync();
+
 		update_option( self::OPTION, KDC_WACR_RECOVERYFLOW_VERSION, false );
 
 		/**
