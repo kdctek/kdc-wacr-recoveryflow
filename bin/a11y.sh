@@ -183,11 +183,27 @@ COOKIE="$(awk -F'\t' 'NF==7 {printf "%s=%s; ", $6, $7}' "${JAR}")"
 # Prove the session actually reaches an admin screen before checking twenty of
 # them. A cookie that parses but does not authenticate looks exactly like one
 # that does, right up until every result is a login form.
-probe="$(curl -sS -o /dev/null -w '%{http_code}' -H "Cookie: ${COOKIE}" \
-	"${SITE}/wp-admin/admin.php?page=recoveryflow" || echo 000)"
+probe="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' -H "Cookie: ${COOKIE}" \
+	"${SITE}/wp-admin/admin.php?page=recoveryflow" || echo '000 ')"
 
-if [[ "${probe}" != "200" ]]; then
-	echo "bin/a11y.sh: the session did not reach wp-admin (HTTP ${probe})." >&2
+probe_code="${probe%% *}"
+probe_to="${probe#* }"
+
+if [[ "${probe_code}" != "200" ]]; then
+	echo "bin/a11y.sh: the session did not reach wp-admin (HTTP ${probe_code})." >&2
+
+	# Where it went is the whole diagnosis, and printing only the status code
+	# cost an afternoon once. A redirect to wp-login.php means the cookie did
+	# not authenticate. A redirect anywhere else in wp-admin means something
+	# else on the site claimed the first admin request -- which is a one-shot
+	# activation redirect, ours or WooCommerce's, and the seeder is where those
+	# get spent. See settle_first_run() in tests/a11y/seed.php.
+	if [[ -n "${probe_to}" ]]; then
+		echo "It was sent to: ${probe_to}" >&2
+	fi
+
+	echo "Every admin screen is behind a capability check, so a run from here would" >&2
+	echo "check some other screen and report it as one of ours." >&2
 	exit 1
 fi
 

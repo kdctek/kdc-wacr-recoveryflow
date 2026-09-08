@@ -34,7 +34,7 @@ RecoveryFlow owns detection, identity, consent, timing, the recovery link and at
 
 = What you get =
 
-* **Detection without JavaScript or public endpoints.** Integrations watch the systems you already run and record one open journey per customer, server-side. WooCommerce is the first supported integration; forms, ticketing and booking systems follow through the same integration interface.
+* **Detection happens on your server.** Integrations watch the systems you already run and record one open journey per customer, server-side. There is no tracking script, no third-party pixel and no public endpoint: the one small script on the classic checkout sends nothing itself, it asks WooCommerce to re-read its own form when the phone or email field loses focus. WooCommerce is the first supported integration; forms, ticketing and booking systems follow through the same integration interface.
 * **Consent first.** A journey is only messaged when the customer is both identified and eligible, and the two are shown as separate badges everywhere. Explicit consent at checkout is the default.
 * **Recovery links that rebuild the cart.** Each message carries its own link. It merges the saved items into whatever the customer has now, never wipes anything, and lands them on checkout.
 * **Stops the moment they convert.** The instant an order is placed, messaging stops. The journey is marked recovered when the order is paid, and the revenue is attributed to the touch that brought them back.
@@ -189,7 +189,7 @@ First release.
 * Picks up a phone number and email address as they are typed at the checkout, and records whether the shopper agreed to be messaged. Explicit consent is the default.
 * Recovers through WA.cr: either by handing the journey to an Auto Flow, which works on every WA.cr plan and needs no API key, or by sending approved WhatsApp templates on a schedule this plugin decides. The second is included with WA.cr Scale and above.
 * Recovery links that rebuild the basket without wiping what the shopper has now, and stop working the moment the order is placed.
-* A form-based workflow editor with no JavaScript in it at all, a template picker that shows each blank in the template's own words, and quiet hours and frequency caps.
+* A form-based workflow editor that works with JavaScript switched off, a template picker that shows each blank in the template's own words, and quiet hours and frequency caps.
 * Admin screens built from core WordPress components: an overview, the recovery queue, one screen per recovery, integrations, six tabs of settings with linkable addresses, and a system status screen with a diagnostic report safe to paste into a support thread.
 * Acting on a recovery: stop it, try a failed one again, stop its links working, or record that a customer asked by telephone never to be messaged again.
 * Opt-out honoured from every direction -- the unsubscribe link, an opt-out recorded in WA.cr, a STOP reported by an Auto Flow, or a shopkeeper acting on a phone call -- and the suppression survives a privacy erasure.
