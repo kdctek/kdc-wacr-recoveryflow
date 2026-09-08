@@ -9,6 +9,8 @@ namespace WAcr\RecoveryFlow\Core;
 
 use WAcr\RecoveryFlow\Database\Schema;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\Security\Hash_Key;
+use WAcr\RecoveryFlow\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -37,6 +39,8 @@ final class Upgrader {
 
 		Schema::maybe_upgrade();
 		Capabilities::maybe_install();
+		Hash_Key::install();
+		Options::install();
 
 		// Everything activation installs has to be installed here too, because
 		// updating a plugin does not run its activation hook. A site that had
