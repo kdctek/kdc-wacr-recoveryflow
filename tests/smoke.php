@@ -1530,6 +1530,13 @@ ok( 'and never deletes it, or the opt-out dies with the customer', false === str
 ok( 'an erasure revokes the recovery links already sent', false !== strpos( $recoveryflow_anon, 'revoke_tokens' ) );
 ok( 'and strips what the basket contained', false !== strpos( $recoveryflow_anon, 'strip_items' ) );
 
+// A journey still in flight is stopped, not merely stripped. Eligibility would
+// already refuse to send for an anonymised customer, so nothing would go out --
+// but a scheduled journey left in the queue shows work still being done for
+// somebody who asked to be forgotten.
+ok( 'an erasure stops a journey that is still running', false !== strpos( $recoveryflow_anon, 'Journey_State::CANCELLED' ) );
+ok( 'and only one that is still running', false !== strpos( $recoveryflow_anon, 'is_terminal' ) );
+
 $recoveryflow_identity_anon = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Customer/Identity_Repository.php', 'anonymize' );
 
 ok( 'the readable contact detail is blanked', false !== strpos( $recoveryflow_identity_anon, "'value_raw'" ) );
@@ -1911,6 +1918,42 @@ ok( 'and offers no way to unmask a whole list at once', false === strpos( $recov
 $recoveryflow_journeys_page = (string) file_get_contents( dirname( __DIR__ ) . '/src/Admin/Pages/Journeys.php' );
 
 ok( 'the list table class is loaded before the subclass is reached', false !== strpos( $recoveryflow_journeys_page, 'class-wp-list-table.php' ) );
+
+/*
+ * The assets. Enqueuing is exercised rather than inspected, because the whole
+ * failure mode here is a function that does not exist on the request the
+ * enqueue actually runs on.
+ */
+$GLOBALS['recoveryflow_styles']         = array();
+$GLOBALS['recoveryflow_inline_scripts'] = array();
+
+$plugin->admin_assets()->enqueue( $recoveryflow_hooks[0] );
+
+ok( 'the stylesheet loads on a RecoveryFlow screen', isset( $GLOBALS['recoveryflow_styles']['recoveryflow-admin'] ) );
+ok( 'and the script is handed its configuration', isset( $GLOBALS['recoveryflow_inline_scripts']['recoveryflow-admin'] ) );
+
+$recoveryflow_raw = $GLOBALS['recoveryflow_inline_scripts']['recoveryflow-admin'][0];
+
+// Decoded rather than string-matched: wp_json_encode escapes the slashes in a
+// URL, so looking for the path as written would fail on a config that was
+// perfectly correct.
+$recoveryflow_config = json_decode(
+	(string) substr( $recoveryflow_raw, (int) strpos( $recoveryflow_raw, '{' ), -1 ),
+	true
+);
+
+ok( 'the configuration is valid JSON', is_array( $recoveryflow_config ) );
+ok( 'including a REST nonce, or every panel it saves is refused', '' !== (string) ( $recoveryflow_config['nonce'] ?? '' ) );
+ok( 'and the address to save to', false !== strpos( (string) ( $recoveryflow_config['uiStateUrl'] ?? '' ), Routes::PREFIX . '/ui-state' ) );
+ok( 'and its wording, already translated, so none lives in the script', is_array( $recoveryflow_config['strings'] ?? null ) );
+ok( 'and nothing about any customer', false === stripos( $recoveryflow_raw, 'phone' ) && false === stripos( $recoveryflow_raw, '@' ) );
+
+// A plugin that enqueues on every admin page is a plugin that breaks somebody
+// else's screen.
+$GLOBALS['recoveryflow_styles'] = array();
+$plugin->admin_assets()->enqueue( 'edit.php' );
+
+check( 'and nothing loads on a screen that is not ours', $GLOBALS['recoveryflow_styles'], array() );
 
 
 echo "\n";

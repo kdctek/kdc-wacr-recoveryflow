@@ -34,31 +34,33 @@ Each item is checked in code review and, where a tool can catch it, by `tests/a1
 
 | Screen | Built from |
 | --- | --- |
-| Overview | `.card` grid of stat cards, each with a visible label and an `aria-label` that includes the value; a recent-activity list; the one-line "RecoveryFlow detects → WA.cr communicates → customer converts" |
-| Recovery Journeys | `WP_List_Table` with status badges (icon plus text), row actions with nonces, filters as real form controls in a `<form>`, bulk cancel with confirmation |
-| Journey detail | A timeline as an ordered list (`<ol>`); a "Reveal" button for personal data that needs the capability and writes an audit row |
-| Workflows | Read-only list and JSON view in the first release; the form-based editor (steps as expandable cards) is planned for slice 2 and will follow this checklist |
-| Integrations | Cards with status in words; each links to its settings |
+| Overview | Two `.card` blocks: what needs attention (only the checks that did not pass, each with a link to its fix) and a `widefat` table of counts, each row linking to that filtered view of the queue |
+| Recoveries | `WP_List_Table` with status filters as real links carrying `aria-current`, a search box labelled for screen readers, and sortable columns. Contact details are shortened, with no way to unmask the whole list |
+| One recovery | `.card` blocks of row-header tables; a "Show contact details" link that needs the reveal capability and writes an audit row, and says so before and after |
+| Integrations | Cards with status in a sentence rather than a badge; unavailable ones are shown with the reason, not hidden |
 | Settings | Tabs, sections, cards, fields (below) |
-| System Status | Tables with row headers; a "Copy diagnostic report" button whose output is redacted; the WP-Cron driver's "Run now" button |
+| System Status | `widefat` tables with row headers, and a Result column stating Working, Check this or Stopped in words. Each failing check links to the setting that fixes it |
 | Public pages | Opt-out confirmation, opt-out done and invalid-link templates: single heading, plain text, one form with one button, no scripts |
+
+Not built yet: the workflows screen (slice 2), bulk actions and row actions on the queue, "Copy diagnostic report", and the WP-Cron "Run now" button.
 
 ## Settings deeplinks
 
 Every tab, section and field in Settings has a stable URL:
 
 ```text
-admin.php?page=recoveryflow-settings&tab=wacr&section=connection&field=api_key
+admin.php?page=recoveryflow-settings&tab=channels&section=email&field=merchant_postal_address#recoveryflow-field-merchant-postal-address
 ```
 
 - **Tabs** are real links in a `.nav-tab-wrapper` with `aria-current="page"` on the active one, so they work without JavaScript and are announced correctly.
-- **`section=`** scrolls the section heading into view and moves focus to it.
-- **`field=`** focuses the control, scrolls it into view (no smooth scroll under `prefers-reduced-motion`), outlines it with a border and a text marker rather than colour alone, and announces the field's label through `wp.a11y.speak()`.
-- **Notices, System Status checks and Integrations cards deeplink** to the exact setting: "Missing scope `messages:read` → Settings › WA.cr › Scopes" is a link, not an instruction.
-- **"Copy link to this section"** sits on each section heading as a core `.button-link`. It uses `navigator.clipboard` with a visible text fallback and announces success through the live region.
-- **Dependent fields are disabled, not hidden**, with an explanation of what to change first, so nothing is discoverable only by accident.
-- **Expandable panels** for advanced groups are native `<details>/<summary>`, keyboard-accessible with no ARIA required. Their open state is remembered per user (a small REST update to user meta, with `localStorage` as the fallback).
-- **Forms** use the Settings API, so core handles nonces, `settings_errors()` and the save round-trip; each tab is its own settings group.
+- **`section=`** names the section; each `<h2>` carries a matching `id` and the section is a `<section>` labelled by it.
+- **`field=`** outlines the control's row with a border and a background — never colour alone — and the URL carries a matching fragment, so the browser scrolls to the right control with scripts off. With scripts on, focus is moved into the control and the move is announced through `wp.a11y.speak()`; a control inside a collapsed panel has the panel opened first, because focus on a zero-height element goes nowhere.
+- **System Status checks and the email compliance card deeplink** to the exact setting. "Set the recovery link lifetime to at least 30 days" is a link, and it crosses to another tab, which is precisely why it is a link and not a sentence.
+- **"Link"** sits on each section heading as a real anchor to that section, so right-click and open-in-new-tab keep working; with scripts on it copies to the clipboard instead and announces the result.
+- **Dependent fields are rendered and then hidden**, using the `hidden` attribute so they leave the accessibility tree as well as the layout — a row that is merely invisible is still read out and still takes focus on the way past. With scripts off nothing is hidden and every setting is present and editable, which is the difference between an enhancement and a dependency.
+- **Expandable panels** for advanced groups are native `<details>/<summary>`, keyboard-accessible with no ARIA required. Their open state is remembered per user through the `/ui-state` REST route, rendered into the page by PHP so a panel that should be open is open in the first paint; `localStorage` is the fallback when that request cannot be made.
+- **Forms** use the Settings API, so core handles nonces, `settings_errors()` and the save round-trip; each tab is its own settings group, and a hidden field names the tab so a save cannot wipe the other five.
+- **Destructive options** confirm on the way on and never on the way off — error prevention must not stand between somebody and safety.
 
 ## How pa11y-ci is run
 

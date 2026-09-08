@@ -8,6 +8,8 @@
 namespace WAcr\RecoveryFlow\Admin;
 
 use WAcr\RecoveryFlow\Admin\Settings\Page as Settings_Page;
+use WAcr\RecoveryFlow\REST\Routes;
+use WAcr\RecoveryFlow\REST\Settings_Controller;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -90,6 +92,20 @@ final class Assets {
 	}
 
 	/**
+	 * Which expandable panels this person left open.
+	 *
+	 * Read here rather than fetched by the script, so a panel that should be
+	 * open is open in the first paint instead of springing open a moment later.
+	 *
+	 * @return string[]
+	 */
+	private function open_panels(): array {
+		$state = get_user_meta( get_current_user_id(), Settings_Controller::UI_META, true );
+
+		return is_array( $state ) ? array_keys( $state ) : array();
+	}
+
+	/**
 	 * What the script needs to know, none of it personal.
 	 *
 	 * @return array<string,mixed>
@@ -98,6 +114,9 @@ final class Assets {
 		return array(
 			'focusField'  => Settings_Page::focused_field(),
 			'fieldPrefix' => Screen::field_anchor( '' ),
+			'uiStateUrl'  => Routes::url( 'ui-state' ),
+			'nonce'       => wp_create_nonce( 'wp_rest' ),
+			'openPanels'  => $this->open_panels(),
 			'strings'     => array(
 				'focused'    => __( 'Moved to the setting you followed the link for.', 'kdc-wacr-recoveryflow' ),
 				'linkCopied' => __( 'Link to this section copied.', 'kdc-wacr-recoveryflow' ),

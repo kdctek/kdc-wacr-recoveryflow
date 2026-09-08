@@ -422,6 +422,9 @@ function load_plugin_textdomain( $domain, $deprecated, $path ) {
  * conditional fields are checked by nobody; rendering it here means an assertion
  * can read the actual HTML the merchant would be served.
  */
+function wp_create_nonce( $action = -1 ) {
+	return substr( md5( (string) $action ), 0, 10 );
+}
 function is_admin() {
 	return true;
 }

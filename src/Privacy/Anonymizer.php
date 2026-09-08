@@ -12,6 +12,7 @@ use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Event_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_Repository;
+use WAcr\RecoveryFlow\Recovery\Journey_State;
 use WAcr\RecoveryFlow\Support\Logger;
 
 defined( 'ABSPATH' ) || exit;
@@ -157,7 +158,26 @@ final class Anonymizer {
 			if ( $journey->event_id > 0 ) {
 				$this->events->strip_items( $journey->event_id );
 			}
-		}
+
+			/*
+			 * A journey still in flight is stopped, not merely stripped.
+			 * Eligibility already refuses an anonymised customer, so nothing
+			 * would have been sent -- but leaving a scheduled journey sitting
+			 * in the queue until it expires means the recovery screen shows
+			 * work still being done for somebody who asked to be forgotten,
+			 * and every background pass keeps picking it up to decide again
+			 * that it must not.
+			 */
+			if ( ! $journey->is_terminal() ) {
+				$this->journeys->transition(
+					$journey->id,
+					$journey->status,
+					Journey_State::CANCELLED,
+					array(),
+					'erased'
+				);
+			}
+		}//end foreach
 
 		$this->journeys->clear_recovery_details( $customer_id );
 

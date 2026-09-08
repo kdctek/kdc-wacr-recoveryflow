@@ -205,10 +205,17 @@
 	/**
 	 * Remember which expandable panels somebody had open.
 	 *
-	 * Per browser, in localStorage. It is a convenience about the shape of a
-	 * screen rather than anything about the site, so it belongs in the browser
-	 * that is displaying it; storage being unavailable -- a private window, a
-	 * browser set to block it -- simply means the panels start closed.
+	 * Stored against the person rather than the browser, so the shape of a
+	 * screen follows them from a laptop to the shop's back-office machine.
+	 * Which panels were open is rendered into the page by PHP, so a panel that
+	 * should be open is open in the first paint rather than springing open a
+	 * moment later.
+	 *
+	 * localStorage is the fallback and not the store: it is what keeps the
+	 * panels behaving when the request fails, when the nonce has expired on a
+	 * page left open overnight, or when the viewer cannot write user meta. If
+	 * both are unavailable the panels simply start closed, which is a worse
+	 * screen and not a broken one.
 	 */
 	function bindPanelMemory() {
 		var panels = document.querySelectorAll( 'details[data-remember]' );
@@ -221,6 +228,37 @@
 			open = {};
 		}
 
+		// What the server knows wins over what this browser remembers.
+		( config.openPanels || [] ).forEach( function ( id ) {
+			open[ id ] = true;
+		} );
+
+		function remember( id, isOpen ) {
+			try {
+				open[ id ] = isOpen;
+				window.localStorage.setItem( key, JSON.stringify( open ) );
+			} catch ( e ) {
+				// The panel still works; it just will not be remembered here.
+			}
+
+			if ( ! config.uiStateUrl || ! window.fetch ) {
+				return;
+			}
+
+			window.fetch( config.uiStateUrl, {
+				method: 'POST',
+				credentials: 'same-origin',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-WP-Nonce': config.nonce || ''
+				},
+				body: JSON.stringify( { panel: id, open: isOpen } )
+			} ).catch( function () {
+				// Left to localStorage. A preference about the shape of a
+				// screen is not worth telling somebody their save failed.
+			} );
+		}
+
 		Array.prototype.forEach.call( panels, function ( panel ) {
 			var id = panel.getAttribute( 'data-remember' );
 
@@ -229,14 +267,7 @@
 			}
 
 			panel.addEventListener( 'toggle', function () {
-				open[ id ] = panel.open;
-
-				try {
-					window.localStorage.setItem( key, JSON.stringify( open ) );
-				} catch ( e ) {
-					// Nothing to do: the panel still works, it just will not be
-					// remembered.
-				}
+				remember( id, panel.open );
 			} );
 		} );
 	}

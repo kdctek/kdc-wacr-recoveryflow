@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T04:20:05+00:00\n"
+"POT-Creation-Date: 2026-09-08T04:24:19+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -39,15 +39,15 @@ msgstr ""
 msgid "https://kdc.in"
 msgstr ""
 
-#: src/Admin/Assets.php:102
+#: src/Admin/Assets.php:121
 msgid "Moved to the setting you followed the link for."
 msgstr ""
 
-#: src/Admin/Assets.php:103
+#: src/Admin/Assets.php:122
 msgid "Link to this section copied."
 msgstr ""
 
-#: src/Admin/Assets.php:104
+#: src/Admin/Assets.php:123
 msgid "The link could not be copied. Copy it from the address bar instead."
 msgstr ""
 
@@ -1348,7 +1348,7 @@ msgstr ""
 msgid "Every five minutes (RecoveryFlow)"
 msgstr ""
 
-#: src/Privacy/Anonymizer.php:191
+#: src/Privacy/Anonymizer.php:211
 msgid "Your contact details, name and basket contents have been removed, and any recovery links sent to you no longer work. A one-way code made from your phone number and email address is kept, and cannot be turned back into either: it is how this site continues to recognise that you asked not to be messaged. The value and date of past orders are kept as part of the shop's own accounts."
 msgstr ""
 
