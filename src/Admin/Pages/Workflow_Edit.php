@@ -16,6 +16,7 @@ use WAcr\RecoveryFlow\WAcr\Template_Catalog;
 use WAcr\RecoveryFlow\Workflow\Step_Registry;
 use WAcr\RecoveryFlow\Workflow\Variable_Context;
 use WAcr\RecoveryFlow\Workflow\Workflow;
+use WAcr\RecoveryFlow\Workflow\Email_Composer;
 use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
@@ -511,23 +512,39 @@ final class Workflow_Edit {
 
 		echo '</td></tr>';
 
-		if ( 'wacr.send_template' === $chosen ) {
-			echo '<tr><th scope="row">';
-			printf( '<label for="recoveryflow-step-%1$d-channel">%2$s</label>', (int) $index, esc_html__( 'Over', 'kdc-wacr-recoveryflow' ) );
-			echo '</th><td>';
-			$this->render_select(
-				sprintf( 'step[%d][channel]', $index ),
-				sprintf( 'recoveryflow-step-%d-channel', $index ),
-				array(
-					Workflow_Definition::CHANNEL_WHATSAPP => Step_Describer::channel( Workflow_Definition::CHANNEL_WHATSAPP ),
-					Workflow_Definition::CHANNEL_EMAIL    => Step_Describer::channel( Workflow_Definition::CHANNEL_EMAIL ),
-				),
-				Workflow_Definition::channel_for( $step )
-			);
-			echo '</td></tr>';
+		/*
+		 * The channel is stated, not chosen. It used to be a second dropdown
+		 * beside this one, offering WhatsApp or email for a WA.cr template --
+		 * which cannot arrive as email, and never did: whatever was picked, a
+		 * WhatsApp message went out and was billed as one. An action is a way
+		 * of reaching somebody, so the channel is a property of it, and saying
+		 * so here is the honest replacement for a choice that was never real.
+		 */
+		$handler = '' === $chosen ? null : $this->registry->action( $chosen );
 
+		if ( null !== $handler ) {
+			echo '<tr><th scope="row">';
+			echo esc_html__( 'Over', 'kdc-wacr-recoveryflow' );
+			echo '</th><td>';
+			printf( '<p>%s</p>', esc_html( Step_Describer::channel( $handler->get_channel() ) ) );
+
+			if ( ! $handler->is_available() ) {
+				printf(
+					'<p class="description">%s</p>',
+					esc_html__( 'This site cannot send on that channel yet, so steps using it will wait rather than send. The Channels tab says what is missing.', 'kdc-wacr-recoveryflow' )
+				);
+			}
+
+			echo '</td></tr>';
+		}
+
+		if ( 'wacr.send_template' === $chosen ) {
 			$this->render_template_fields( $index, (string) ( $with['template'] ?? '' ), $with );
-		}//end if
+		}
+
+		if ( 'wacr.send_email' === $chosen ) {
+			$this->render_email_fields( $index, $with );
+		}
 
 		if ( 'wacr.start_flow' === $chosen ) {
 			echo '<tr><th scope="row">';
@@ -545,6 +562,62 @@ final class Workflow_Edit {
 			);
 			echo '</td></tr>';
 		}
+	}
+
+	/**
+	 * The subject and body of a recovery email.
+	 *
+	 * There is no picker here and nothing to approve, which is the whole
+	 * difference from a WhatsApp template: the merchant writes the words. What
+	 * they are NOT asked to write is the postal address or the unsubscribe --
+	 * those are appended to every message by the composer, because a footer
+	 * somebody can edit is a footer somebody can delete, and both are what make
+	 * the message lawful to send.
+	 *
+	 * @param int                 $index Zero-based step position.
+	 * @param array<string,mixed> $with  The step's stored arguments.
+	 * @return void
+	 */
+	private function render_email_fields( int $index, array $with ): void {
+		echo '<tr><th scope="row">';
+		printf( '<label for="recoveryflow-step-%1$d-subject">%2$s</label>', (int) $index, esc_html__( 'Subject', 'kdc-wacr-recoveryflow' ) );
+		echo '</th><td>';
+		printf(
+			'<input type="text" id="recoveryflow-step-%1$d-subject" name="step[%1$d][subject]" value="%2$s" class="large-text" maxlength="%3$d" aria-describedby="recoveryflow-step-%1$d-subject-help">',
+			(int) $index,
+			esc_attr( (string) ( $with['subject'] ?? '' ) ),
+			(int) Email_Composer::MAX_SUBJECT_LENGTH
+		);
+		printf(
+			'<p class="description" id="recoveryflow-step-%1$d-subject-help">%2$s</p>',
+			(int) $index,
+			esc_html__( 'What the customer sees before they open it. Placeholders work here too.', 'kdc-wacr-recoveryflow' )
+		);
+		echo '</td></tr>';
+
+		echo '<tr><th scope="row">';
+		printf( '<label for="recoveryflow-step-%1$d-body">%2$s</label>', (int) $index, esc_html__( 'Message', 'kdc-wacr-recoveryflow' ) );
+		echo '</th><td>';
+		printf(
+			'<textarea id="recoveryflow-step-%1$d-body" name="step[%1$d][body]" rows="10" class="large-text code" aria-describedby="recoveryflow-step-%1$d-body-help">%2$s</textarea>',
+			(int) $index,
+			esc_textarea( (string) ( $with['body'] ?? '' ) )
+		);
+		printf(
+			'<p class="description" id="recoveryflow-step-%1$d-body-help">%2$s</p>',
+			(int) $index,
+			esc_html__( 'Plain text. Your postal address and an unsubscribe link are added to the foot of every message automatically -- do not type them here, and they cannot be removed.', 'kdc-wacr-recoveryflow' )
+		);
+
+		printf( '<p class="description">%s</p>', esc_html__( 'Placeholders you can use:', 'kdc-wacr-recoveryflow' ) );
+		echo '<ul class="recoveryflow-placeholder-list">';
+
+		foreach ( Variable_Context::keys() as $key ) {
+			printf( '<li><code>%s</code></li>', esc_html( '{{ ' . $key . ' }}' ) );
+		}
+
+		echo '</ul>';
+		echo '</td></tr>';
 	}
 
 	/**

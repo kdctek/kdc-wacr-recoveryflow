@@ -8,25 +8,25 @@ Stable tag: 0.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Turn lost conversions into conversations. RecoveryFlow recovers abandoned journeys over WhatsApp through WA.cr. An active WA.cr account is required.
+Turn lost conversions into conversations. RecoveryFlow recovers abandoned journeys over WhatsApp through WA.cr, and by email from WordPress.
 
 == Description ==
 
-Most sites lose more conversions than they finish. A shopper fills a cart and leaves at payment. Someone starts a booking and never confirms. A ticket order sits unpaid. RecoveryFlow by WA.cr is a recovery engine for WordPress commerce, forms, ticketing and booking systems. It notices when a journey stalls, works out whether the person may be contacted, and hands the conversation to WA.cr on WhatsApp, the channel people actually answer.
+Most sites lose more conversions than they finish. A shopper fills a cart and leaves at payment. Someone starts a booking and never confirms. A ticket order sits unpaid. RecoveryFlow by WA.cr is a recovery engine for WordPress commerce, forms, ticketing and booking systems. It notices when a journey stalls, works out whether the person may lawfully be contacted, and hands the conversation to WA.cr on WhatsApp, the channel people actually answer -- or sends a recovery email from WordPress itself, which needs no WA.cr account at all.
 
 **RecoveryFlow detects → WA.cr communicates → customer converts.**
 
-= An active WA.cr account is required =
+= An active WA.cr account is required, for WhatsApp =
 
-RecoveryFlow is one half of a pair. It is the detection, consent and orchestration half; the messaging half is [WA.cr](https://wa.cr), a separate third-party WhatsApp Business messaging platform with its own sign-up, terms and pricing. **The plugin cannot message anyone on its own.**
+RecoveryFlow is one half of a pair. It is the detection, consent and orchestration half; the WhatsApp half is [WA.cr](https://wa.cr), a separate third-party WhatsApp Business messaging platform with its own sign-up, terms and pricing. **The plugin cannot send a WhatsApp message on its own.**
 
-To get any recovery out of it you need all of the following on the WA.cr side:
+To get a WhatsApp recovery out of it you need all of the following on the WA.cr side:
 
 * An active WA.cr account and workspace, in good standing.
 * A connected WhatsApp Business sender in that workspace.
 * Either an Auto Flow with a "webhook received" trigger, or a WA.cr API key and at least one WhatsApp template approved by Meta.
 
-Install it without those and the plugin is only half a product: it will still detect abandoned journeys, record them and hold them as eligible, but every one of them stalls there unsent. Nothing in RecoveryFlow substitutes for the WA.cr side, and there is no built-in messaging fallback — no email, no SMS.
+Install it without those and the WhatsApp half of the plugin is inert: journeys are still detected, recorded and held as eligible, and every WhatsApp step stalls there unsent. Nothing in RecoveryFlow substitutes for the WA.cr side of that. What does work without WA.cr is the email channel — recovery emails are sent by WordPress itself, through whatever mail configuration the site already uses, and need no WA.cr account, no API key and no plan. There is no SMS.
 
 Creating a WA.cr account, whatever it costs on your chosen plan, and the WhatsApp conversation charges Meta bills through it are all matters between you and WA.cr. They are not part of this plugin, and this plugin is not affiliated with or endorsed by WhatsApp or Meta.
 
@@ -85,6 +85,8 @@ RecoveryFlow by WA.cr **requires an active account with WA.cr**, a third-party W
 * The mapped variable values for that template: the customer's first name, the cart total and currency, the item count, the recovery link and your site name.
 * For Auto Flow hand-off, the same values plus a short summary of item names, your site URL, the time the journey was abandoned, an opt-out link and an opaque journey reference, so your flow can personalise its own messages.
 * Only when you switch them on in Settings › WA.cr: the customer's last name and email address (default: first name on, last name and email off).
+
+**What is NOT sent to WA.cr.** Recovery emails do not go through WA.cr and are not sent by it. They are handed to WordPress's own `wp_mail()` and leave by whatever route the site already uses for its other mail, so no part of an email recovery — not the address, not the subject, not the message — reaches WA.cr at all.
 * Only when you enable "Sync contacts to WA.cr": the customer's phone number and name, saved as a contact in your WA.cr workspace. Only when you enable "Sync opt-out to WA.cr": the customer's opt-out flag.
 * Your WA.cr API key, in the request's authorisation header, so WA.cr can identify your workspace.
 
@@ -130,7 +132,7 @@ RecoveryFlow keeps its data in its own tables in your WordPress database. It sto
 
 = Do I need a WA.cr account? =
 
-Yes. An active WA.cr account with a connected WhatsApp Business sender is required for RecoveryFlow to do its job. WA.cr is a separate third-party service with its own sign-up, terms and pricing; this plugin is the WordPress side of it and holds no messaging ability of its own. Without an account you can install and activate the plugin, and it will detect and record abandoned journeys in your own database, but every journey stalls unsent and nothing is recovered. There is no email or SMS fallback.
+Yes, for WhatsApp — which is what the plugin is for. WA.cr is a separate third-party service with its own sign-up, terms and pricing, and this plugin holds no WhatsApp ability of its own: without an account, every WhatsApp step stalls unsent. It is not all-or-nothing, though. Recovery emails are sent by WordPress itself and need no WA.cr account at all, so a shop with no WA.cr workspace can still detect abandoned journeys and recover them by email. There is no SMS.
 
 = Which parts still work without one? =
 

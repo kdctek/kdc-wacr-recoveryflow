@@ -45,6 +45,24 @@ interface Action_Interface {
 	public function get_label(): string;
 
 	/**
+	 * The channel this action sends on.
+	 *
+	 * An action IS a way of reaching somebody, so the channel is a property of
+	 * the action rather than a free choice beside it: a WA.cr template goes out
+	 * over WhatsApp because that is what a WA.cr template is, and no setting
+	 * can make it arrive as email. A step's stored `channel` key must therefore
+	 * agree with this, and the engine refuses the step when it does not rather
+	 * than sending on whichever of the two it happened to read -- which is
+	 * exactly the bug this method exists to make impossible.
+	 *
+	 * Consent, opt-out, eligibility and the attempt ledger are all decided per
+	 * channel, so this is the value all four of them end up reading.
+	 *
+	 * @return string One of the Channel constants.
+	 */
+	public function get_channel(): string;
+
+	/**
 	 * Whether this action can run on this site right now.
 	 *
 	 * Checked by the editor so an unavailable action is explained rather than

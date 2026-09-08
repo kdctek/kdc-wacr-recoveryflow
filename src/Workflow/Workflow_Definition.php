@@ -70,6 +70,13 @@ final class Workflow_Definition {
 	public const CHANNEL_EMAIL    = 'email';
 	public const CHANNELS         = array( self::CHANNEL_WHATSAPP, self::CHANNEL_EMAIL );
 
+	/**
+	 * The actions that send through the WA.cr developer API.
+	 *
+	 * @var string[]
+	 */
+	public const DEVELOPER_API_ACTIONS = array( 'wacr.send_template' );
+
 	public const MIN_WAIT_SECONDS = 60;
 	public const MAX_WAIT_SECONDS = 2592000;
 
@@ -441,10 +448,21 @@ final class Workflow_Definition {
 	/**
 	 * Whether running this definition needs the WA.cr developer API.
 	 *
-	 * Handing a recovery to a WA.cr Auto Flow is a signed push to a hook and
-	 * needs no API key, so a workflow built only from hand-offs runs on every
-	 * plan. Anything that sends from WordPress needs the developer API, which
-	 * is included from the Scale plan upwards.
+	 * Only sending a WA.cr template from WordPress uses the developer API,
+	 * which is included from the Scale plan upwards. Handing a recovery to an
+	 * Auto Flow is a signed push to a hook, and a recovery email leaves through
+	 * the site's own mail configuration; neither needs an API key, so a
+	 * workflow built from those runs on every plan.
+	 *
+	 * The question is asked the way round it is deliberately. Naming the action
+	 * that NEEDS the API means an action this plugin does not ship is assumed
+	 * not to, and the cost of the two mistakes is not equal: guessing wrong
+	 * that way lets a workflow be saved that later defers at send time with a
+	 * reason the merchant can read, while guessing the other way blocks a
+	 * merchant on the Lite path from building a workflow at all -- which is
+	 * exactly what "the Lite path must stay fully functional" forbids. Every
+	 * email-only workflow would have been blocked by the previous wording the
+	 * moment email could be sent.
 	 *
 	 * The question is asked of the STEPS rather than of the workflow's slug, so
 	 * a hand-off workflow a merchant built themselves is treated exactly like
@@ -464,7 +482,7 @@ final class Workflow_Definition {
 				continue;
 			}
 
-			if ( 'wacr.start_flow' !== ( $step['do'] ?? '' ) ) {
+			if ( in_array( (string) ( $step['do'] ?? '' ), self::DEVELOPER_API_ACTIONS, true ) ) {
 				return true;
 			}
 		}

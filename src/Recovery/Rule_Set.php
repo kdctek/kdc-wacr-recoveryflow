@@ -58,6 +58,22 @@ final class Rule_Set {
 	}
 
 	/**
+	 * The whole resolved snapshot.
+	 *
+	 * For the few callers that must be handed the settings rather than asked a
+	 * question about them -- Email_Compliance builds the footer from the raw
+	 * values, and it must build it from the snapshot THIS run is working to. A
+	 * merchant saving a new postal address halfway through a batch would
+	 * otherwise put one address on the first half of the emails and another on
+	 * the rest, which is the exact drift Rule_Set exists to prevent.
+	 *
+	 * @return array<string,mixed>
+	 */
+	public function all(): array {
+		return $this->rules;
+	}
+
+	/**
 	 * One rule value.
 	 *
 	 * @param string $key      Rule name.

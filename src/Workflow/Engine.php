@@ -438,13 +438,41 @@ final class Engine {
 			return $this->fail( $journey, 'unknown_action' );
 		}
 
+		$channel = Workflow_Definition::channel_for( $step );
+
+		/*
+		 * The step says which channel it sends on and the action knows which
+		 * channel it can send on, and if those disagree the step is refused
+		 * rather than run. Sending on the action's channel would deliver a
+		 * message the merchant did not ask for, over a channel this person may
+		 * never have consented to, and record it in the ledger under a third
+		 * answer. A definition can only reach this state by being written
+		 * directly -- the editor sets the channel from the action -- so the
+		 * honest response is to stop and say which two values disagreed.
+		 */
+		if ( $channel !== $handler->get_channel() ) {
+			$this->logger->error(
+				'workflow',
+				'Workflow step names a channel the action cannot send on',
+				array(
+					'action'  => substr( $name, 0, 32 ),
+					'channel' => substr( $channel, 0, 16 ),
+					'sends'   => substr( $handler->get_channel(), 0, 16 ),
+					'step'    => $journey->current_step,
+				),
+				$journey->id
+			);
+
+			return $this->fail( $journey, 'channel_mismatch' );
+		}
+
 		$outcome = $this->guard_conversion( $journey, $context );
 
 		if ( $outcome instanceof Step_Outcome ) {
 			return $outcome;
 		}
 
-		$outcome = $this->guard_eligibility( $journey, $context );
+		$outcome = $this->guard_eligibility( $journey, $context, $channel );
 
 		if ( $outcome instanceof Step_Outcome ) {
 			return $outcome;
@@ -547,9 +575,10 @@ final class Engine {
 	 *
 	 * @param Recovery_Journey    $journey The journey.
 	 * @param array<string,mixed> $context Run context.
+	 * @param string              $channel The channel this step sends on.
 	 * @return Step_Outcome|null Null when the send may go ahead.
 	 */
-	private function guard_eligibility( Recovery_Journey $journey, array $context ): ?Step_Outcome {
+	private function guard_eligibility( Recovery_Journey $journey, array $context, string $channel = '' ): ?Step_Outcome {
 		$rules = $context['rules'];
 		$claim = (string) $context['claim_token'];
 
@@ -557,7 +586,7 @@ final class Engine {
 			return $this->fail( $journey, 'no_rules' );
 		}
 
-		$verdict = $this->eligibility->for_send( $context['customer'], $rules );
+		$verdict = $this->eligibility->for_send( $context['customer'], $rules, $channel );
 
 		if ( $verdict->allowed ) {
 			return null;

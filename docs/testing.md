@@ -81,6 +81,24 @@ CI runs lint, analyse and unit on PHP 8.0 and 8.3, and integration plus accessib
 
 ## What each suite covers
 
+> **Not built yet, and this section describes the intention rather than the state.**
+> `tests/unit/`, `tests/integration/` and `tests/security/` are empty. `composer
+> test:unit` reports "No tests executed!" and passes, which means CI's own **Unit
+> tests** job is green because it runs nothing -- do not read it as coverage.
+>
+> Everything actually asserted today lives in `tests/smoke.php`, which boots the
+> real container against the fakes in `tests/wp-stubs.php`. That is a real suite
+> and it is where the numbers quoted elsewhere come from.
+>
+> The gap is worth naming precisely, because it has already cost something. This
+> section has listed "the workflow `Engine` (sequencing, stop reasons, idempotent
+> advance)" since the first release, and until the email channel shipped **the
+> Engine had no test of any kind**. That is exactly how a workflow step could
+> name one channel and send on another for four slices with every gate green: a
+> document said it was covered, and nothing can check a promise. Treat the list
+> below as a to-do, and when a suite is written, delete the part of this note it
+> stops applying to.
+
 ### Unit
 
 Event normalisation (WooCommerce cart fixture to `Recovery_Event`); the eligibility rules and reason table; the identity-resolver matrix (user, phone, email fallback, external id, create, and the conflict cases); `Journey_State` allowed and forbidden transitions; `Token_Service` (alphabet and length, hash-only storage, expiry, per-journey revocation); the phone normaliser table; `Template_Renderer` (escaping, unknown variables, WhatsApp parameter rules); the workflow `Engine` (sequencing, stop reasons, idempotent advance); `WAcr\Client` with the fake transport (envelope decoding, error categories, 429 pause, timeout means unknown, no automatic retry on `POST`, exact HMAC signature bytes on a hook push); the Redactor; `Mask`; the `Rate_Limiter`.

@@ -13,6 +13,7 @@ use WAcr\RecoveryFlow\Core\Rewrites;
 use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
 use WAcr\RecoveryFlow\Recovery\Attempt;
+use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_State;
@@ -195,6 +196,15 @@ final class Start_Flow implements Action_Interface {
 	}
 
 	/**
+	 * The channel this action sends on.
+	 *
+	 * @return string
+	 */
+	public function get_channel(): string {
+		return Channel::WHATSAPP;
+	}
+
+	/**
 	 * Whether a hook URL has been saved.
 	 *
 	 * @return bool
@@ -277,7 +287,7 @@ final class Start_Flow implements Action_Interface {
 				'attempt_no'       => $attempt_no,
 				'idempotency_key'  => Attempt::key( $journey->journey_uid, $step, $attempt_no ),
 				'action_type'      => self::ID,
-				'channel'          => 'whatsapp',
+				'channel'          => $this->get_channel(),
 				'token_hash'       => Token_Service::hash( $token ),
 				'token_expires_at' => $this->clock->offset( $rules->link_ttl_seconds() ),
 				'status'           => Attempt::SENDING,

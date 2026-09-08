@@ -111,6 +111,67 @@ function apply_filters( $hook, $value, ...$args ) {
 function did_action( $hook ) {
 	return isset( $GLOBALS['__actions'][ $hook ] ) ? 1 : 0;
 }
+/*
+ * remove_action was missing entirely, and the first production code to call it
+ * -- Email_Sender, which attaches a wp_mail_failed listener for exactly the
+ * duration of one send and lets go afterwards -- fataled. A fatal reads as a
+ * failing suite rather than as a broken double, which is the same family of
+ * fault as the missing insert(), get_col() and get_var() before it.
+ */
+function remove_action( $hook, $callback, $priority = 10 ) {
+	foreach ( $GLOBALS['__actions'][ $hook ] ?? array() as $index => $attached ) {
+		if ( $attached === $callback ) {
+			unset( $GLOBALS['__actions'][ $hook ][ $index ] );
+		}
+	}
+
+	return true;
+}
+function remove_filter( $hook, $callback, $priority = 10 ) {
+	foreach ( $GLOBALS['__filters'][ $hook ] ?? array() as $index => $attached ) {
+		if ( $attached === $callback ) {
+			unset( $GLOBALS['__filters'][ $hook ][ $index ] );
+		}
+	}
+
+	return true;
+}
+
+/*
+ * Mail. Every message is recorded so a test can assert on the exact words a
+ * customer would have received, and the outcome is steerable so the refusal
+ * paths can be reached at all:
+ *
+ *   $GLOBALS['recoveryflow_mail_result'] = true            -- accepted
+ *   $GLOBALS['recoveryflow_mail_result'] = false           -- refused, silently
+ *   $GLOBALS['recoveryflow_mail_result'] = 'fail:smtp_bad' -- refused, and
+ *       wp_mail_failed fires with that code, which is the only way the real
+ *       wp_mail() ever says WHY
+ *   $GLOBALS['recoveryflow_mail_result'] = 'throw'         -- a transport that
+ *       raises instead of returning, as some SMTP plugins do
+ */
+function wp_mail( $to, $subject, $message, $headers = array(), $attachments = array() ) {
+	$GLOBALS['recoveryflow_mail_sent'][] = array(
+		'to'      => $to,
+		'subject' => $subject,
+		'message' => $message,
+		'headers' => $headers,
+	);
+
+	$result = $GLOBALS['recoveryflow_mail_result'] ?? true;
+
+	if ( 'throw' === $result ) {
+		throw new \RuntimeException( 'the transport blew up' );
+	}
+
+	if ( is_string( $result ) && 0 === strpos( $result, 'fail:' ) ) {
+		do_action( 'wp_mail_failed', new WP_Error( substr( $result, 5 ), 'Mail refused', array( 'to' => $to ) ) );
+
+		return false;
+	}
+
+	return (bool) $result;
+}
 
 // Strings and escaping.
 function __( $text, $domain = null ) {

@@ -42,7 +42,7 @@
 		"schema:audit": "php tests/schema-audit.php",
 		"dist:check": "php tests/dist-manifest.php",
 		"dist": "bin/build.sh",
-		"analyse": "phpstan analyse --memory-limit=1G",
+		"analyse": "phpstan analyse --memory-limit=2G",
 		"test": "@test:unit",
 		"test:unit": "phpunit --testsuite unit",
 		"test:integration": "phpunit --testsuite integration",
