@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T15:01:58+00:00\n"
+"POT-Creation-Date: 2026-09-08T18:14:05+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -246,7 +246,7 @@ msgstr ""
 
 #: src/Admin/Menu.php:198
 #: src/Admin/Menu.php:199
-#: src/Admin/Pages/Workflow_Edit.php:113
+#: src/Admin/Pages/Workflow_Edit.php:114
 msgid "Edit workflow"
 msgstr ""
 
@@ -387,23 +387,23 @@ msgstr ""
 msgid "Nothing scheduled"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:262
+#: src/Admin/Pages/Journeys_Table.php:295
 msgid "Open and act on it"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:263
+#: src/Admin/Pages/Journeys_Table.php:296
 msgid "Open"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:306
+#: src/Admin/Pages/Journeys_Table.php:333
 msgid "Not known"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:322
+#: src/Admin/Pages/Journeys_Table.php:349
 msgid "Not identified"
 msgstr ""
 
-#: src/Admin/Pages/Journeys_Table.php:326
+#: src/Admin/Pages/Journeys_Table.php:353
 #: src/REST/Journeys_Controller.php:573
 msgid "Removed at the customer's request"
 msgstr ""
@@ -490,7 +490,7 @@ msgid "Removed on"
 msgstr ""
 
 #: src/Admin/Pages/Journey_Detail.php:220
-#: src/Admin/Pages/Workflow_Edit.php:229
+#: src/Admin/Pages/Workflow_Edit.php:230
 msgid "Name"
 msgstr ""
 
@@ -686,7 +686,7 @@ msgid "You do not have permission to manage recovery workflows."
 msgstr ""
 
 #: src/Admin/Pages/Workflows.php:77
-#: src/Admin/Pages/Workflow_Edit.php:112
+#: src/Admin/Pages/Workflow_Edit.php:113
 msgid "Add workflow"
 msgstr ""
 
@@ -742,130 +742,130 @@ msgstr ""
 msgid "Active, but not the one new recoveries start on"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:91
+#: src/Admin/Pages/Workflow_Edit.php:92
 msgid "You do not have permission to edit recovery workflows."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:121
+#: src/Admin/Pages/Workflow_Edit.php:122
 msgid "The steps run in order, from the top, once a basket has been abandoned long enough to count. A recovery that is already running keeps the version of this workflow it started on, so saving here never changes what is already in flight."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:148
+#: src/Admin/Pages/Workflow_Edit.php:149
 msgid "Workflow not found"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:151
+#: src/Admin/Pages/Workflow_Edit.php:152
 msgid "This workflow no longer exists. It may have been deleted since the link you followed was made."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:156
-#: src/Admin/Pages/Workflow_Edit.php:887
+#: src/Admin/Pages/Workflow_Edit.php:157
+#: src/Admin/Pages/Workflow_Edit.php:888
 msgid "Back to workflows"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:225
+#: src/Admin/Pages/Workflow_Edit.php:226
 msgid "This workflow"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:237
+#: src/Admin/Pages/Workflow_Edit.php:238
 msgid "Only you and your colleagues see this. It appears on the workflows list and on each recovery, so name it after what it does."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:241
+#: src/Admin/Pages/Workflow_Edit.php:242
 msgid "When it runs"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:247
+#: src/Admin/Pages/Workflow_Edit.php:248
 msgid "Active. An inactive workflow is kept but never runs."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:253
+#: src/Admin/Pages/Workflow_Edit.php:254
 msgid "Use this for new recoveries. Only one workflow can be, so choosing this takes it off whichever has it now."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:271
+#: src/Admin/Pages/Workflow_Edit.php:272
 msgid "Steps"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:276
+#: src/Admin/Pages/Workflow_Edit.php:277
 msgid "This workflow has no steps yet, so it would do nothing. Add one below."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:286
+#: src/Admin/Pages/Workflow_Edit.php:287
 msgid "Add a step"
 msgstr ""
 
 #. translators: 1: a step number, 2: what the step does, in a sentence.
-#: src/Admin/Pages/Workflow_Edit.php:309
+#: src/Admin/Pages/Workflow_Edit.php:310
 #, php-format
 msgid "Step %1$d. %2$s"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:322
+#: src/Admin/Pages/Workflow_Edit.php:323
 msgid "This step"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:329
+#: src/Admin/Pages/Workflow_Edit.php:330
 msgid "Checks something, and can stop the recovery"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:330
+#: src/Admin/Pages/Workflow_Edit.php:331
 msgid "Waits"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:331
+#: src/Admin/Pages/Workflow_Edit.php:332
 msgid "Sends something"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:337
+#: src/Admin/Pages/Workflow_Edit.php:338
 msgid "Change this, then use Save to redraw the step with the right settings."
 msgstr ""
 
 #. translators: %d: a step number.
-#: src/Admin/Pages/Workflow_Edit.php:360
+#: src/Admin/Pages/Workflow_Edit.php:361
 #, php-format
 msgid "Move step %d up"
 msgstr ""
 
 #. translators: %d: a step number.
-#: src/Admin/Pages/Workflow_Edit.php:374
+#: src/Admin/Pages/Workflow_Edit.php:375
 #, php-format
 msgid "Move step %d down"
 msgstr ""
 
 #. translators: %d: a step number.
-#: src/Admin/Pages/Workflow_Edit.php:387
+#: src/Admin/Pages/Workflow_Edit.php:388
 #, php-format
 msgid "Remove step %d"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:412
+#: src/Admin/Pages/Workflow_Edit.php:413
 msgid "Carry on to the next step"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:419
+#: src/Admin/Pages/Workflow_Edit.php:420
 msgid "Check that"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:430
+#: src/Admin/Pages/Workflow_Edit.php:431
 msgid "If it is not true"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:452
+#: src/Admin/Pages/Workflow_Edit.php:453
 msgid "Wait for"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:463
+#: src/Admin/Pages/Workflow_Edit.php:464
 #: src/Admin/Settings/Schema.php:174
 msgid "minutes"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:464
+#: src/Admin/Pages/Workflow_Edit.php:465
 #: src/Admin/Settings/Schema.php:208
 msgid "hours"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:465
+#: src/Admin/Pages/Workflow_Edit.php:466
 #: src/Admin/Settings/Schema.php:182
 #: src/Admin/Settings/Schema.php:271
 #: src/Admin/Settings/Schema.php:299
@@ -874,186 +874,186 @@ msgstr ""
 msgid "days"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:468
+#: src/Admin/Pages/Workflow_Edit.php:469
 msgid "Unit of time"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:473
+#: src/Admin/Pages/Workflow_Edit.php:474
 msgid "At least one minute and at most 30 days. Quiet hours can push a send later than this, but never earlier."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:497
+#: src/Admin/Pages/Workflow_Edit.php:498
 msgid "Send by"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:509
+#: src/Admin/Pages/Workflow_Edit.php:510
 msgid "Only handing the recovery to a WA.cr Auto Flow can be saved on this workspace's plan. It needs no API key and works on every plan."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:527
+#: src/Admin/Pages/Workflow_Edit.php:528
 msgid "Over"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:534
+#: src/Admin/Pages/Workflow_Edit.php:535
 msgid "This site cannot send on that channel yet, so steps using it will wait rather than send. The Channels tab says what is missing."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:551
+#: src/Admin/Pages/Workflow_Edit.php:552
 msgid "Auto Flow hook"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:561
+#: src/Admin/Pages/Workflow_Edit.php:562
 msgid "Which configured hook to push to. Leave this as primary unless you have set up more than one."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:583
+#: src/Admin/Pages/Workflow_Edit.php:584
 msgid "Subject"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:594
+#: src/Admin/Pages/Workflow_Edit.php:595
 msgid "What the customer sees before they open it. Placeholders work here too."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:599
+#: src/Admin/Pages/Workflow_Edit.php:600
 msgid "Message"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:609
+#: src/Admin/Pages/Workflow_Edit.php:610
 msgid "Plain text. Your postal address and an unsubscribe link are added to the foot of every message automatically -- do not type them here, and they cannot be removed."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:612
+#: src/Admin/Pages/Workflow_Edit.php:613
 msgid "Placeholders you can use:"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:642
+#: src/Admin/Pages/Workflow_Edit.php:643
 msgid "Template"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:655
+#: src/Admin/Pages/Workflow_Edit.php:656
 msgid "Type the name of an approved template instead. It is checked when the message is sent."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:675
+#: src/Admin/Pages/Workflow_Edit.php:676
 msgid "Your WA.cr workspace has no approved templates yet, so there is nothing to choose from. Approve one in the WA.cr console, or type its name here if you know it."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:682
+#: src/Admin/Pages/Workflow_Edit.php:683
 msgid "Choose a template"
 msgstr ""
 
 #. translators: %s: a message template name.
-#: src/Admin/Pages/Workflow_Edit.php:690
+#: src/Admin/Pages/Workflow_Edit.php:691
 #, php-format
 msgid "%s -- cannot be used"
 msgstr ""
 
 #. translators: %s: a message template name.
-#: src/Admin/Pages/Workflow_Edit.php:702
+#: src/Admin/Pages/Workflow_Edit.php:703
 #, php-format
 msgid "%s -- no longer in your workspace"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:717
+#: src/Admin/Pages/Workflow_Edit.php:718
 msgid "Only templates WA.cr has approved are listed. One that RecoveryFlow cannot fill is listed too, and says so, rather than being hidden from somebody looking for it."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:758
-#: src/Admin/Pages/Workflow_Edit.php:775
+#: src/Admin/Pages/Workflow_Edit.php:759
+#: src/Admin/Pages/Workflow_Edit.php:776
 msgid "What goes in it"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:761
+#: src/Admin/Pages/Workflow_Edit.php:762
 msgid "This template has no blanks to fill, so it sends as written."
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:769
+#: src/Admin/Pages/Workflow_Edit.php:770
 msgid "Leave empty"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:777
+#: src/Admin/Pages/Workflow_Edit.php:778
 msgid "Where in the message"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:778
+#: src/Admin/Pages/Workflow_Edit.php:779
 msgid "What to put there"
 msgstr ""
 
 #. translators: %s: whatever the merchant typed into this slot, shown verbatim.
-#: src/Admin/Pages/Workflow_Edit.php:794
+#: src/Admin/Pages/Workflow_Edit.php:795
 #, php-format
 msgid "%s (kept as written)"
 msgstr ""
 
 #. translators: %s: the example value WhatsApp holds for this blank.
-#: src/Admin/Pages/Workflow_Edit.php:830
+#: src/Admin/Pages/Workflow_Edit.php:831
 #, php-format
 msgid "the blank shown as \"%s\""
 msgstr ""
 
 #. translators: 1: the template wording before the blank, 2: the wording after it.
-#: src/Admin/Pages/Workflow_Edit.php:840
+#: src/Admin/Pages/Workflow_Edit.php:841
 #, php-format
 msgid "%1$s ____ %2$s"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:854
+#: src/Admin/Pages/Workflow_Edit.php:855
 msgid "The customer's first name"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:855
+#: src/Admin/Pages/Workflow_Edit.php:856
 msgid "The customer's last name"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:856
+#: src/Admin/Pages/Workflow_Edit.php:857
 msgid "What the basket comes to, as a number"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:857
+#: src/Admin/Pages/Workflow_Edit.php:858
 msgid "What the basket comes to, with the currency"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:858
+#: src/Admin/Pages/Workflow_Edit.php:859
 msgid "The currency code"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:859
+#: src/Admin/Pages/Workflow_Edit.php:860
 msgid "How many items are in the basket"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:860
+#: src/Admin/Pages/Workflow_Edit.php:861
 msgid "A short list of what is in the basket"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:861
+#: src/Admin/Pages/Workflow_Edit.php:862
 msgid "The name of the first item"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:862
+#: src/Admin/Pages/Workflow_Edit.php:863
 msgid "The link that restores the basket"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:863
+#: src/Admin/Pages/Workflow_Edit.php:864
 msgid "The basket link's code, for a button URL"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:864
+#: src/Admin/Pages/Workflow_Edit.php:865
 msgid "The link to stop receiving these"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:865
+#: src/Admin/Pages/Workflow_Edit.php:866
 msgid "The shop's name"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:866
+#: src/Admin/Pages/Workflow_Edit.php:867
 msgid "The shop's address"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:867
+#: src/Admin/Pages/Workflow_Edit.php:868
 msgid "Where the basket was left, such as WooCommerce"
 msgstr ""
 
-#: src/Admin/Pages/Workflow_Edit.php:882
+#: src/Admin/Pages/Workflow_Edit.php:883
 msgid "Save workflow"
 msgstr ""
 
@@ -2564,55 +2564,55 @@ msgstr ""
 msgid "Cart and checkout recovery"
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:121
+#: src/Privacy/Erase_By_Phone.php:122
 msgid "You are not allowed to erase customer records on this site."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:155
+#: src/Privacy/Erase_By_Phone.php:156
 msgid "Type the phone number to erase."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:166
+#: src/Privacy/Erase_By_Phone.php:167
 msgid "That is not a phone number RecoveryFlow can read. Include the country code -- for example +44 7700 900123 -- and try again."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:177
+#: src/Privacy/Erase_By_Phone.php:178
 msgid "No customer is recorded against that number, so there is nothing to erase. Check the country code: a number stored with one and searched without it will not match."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:187
+#: src/Privacy/Erase_By_Phone.php:188
 msgid "That customer had already been erased. Nothing changed, and nothing about them was readable to begin with."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:194
+#: src/Privacy/Erase_By_Phone.php:195
 msgid "That customer could not be erased. Nothing was changed. The log will say why."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:200
+#: src/Privacy/Erase_By_Phone.php:201
 msgid "That customer has been erased. Their name, number, address and basket contents are gone, every recovery link they were sent has stopped working, and their open recoveries are closed."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:217
+#: src/Privacy/Erase_By_Phone.php:218
 msgid "WordPress's own privacy tools find somebody by email address. RecoveryFlow holds customers who gave a phone number at the checkout and never an address, and those people cannot be found that way at all. Erase one here instead."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:222
+#: src/Privacy/Erase_By_Phone.php:223
 msgid "This cannot be undone."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:223
+#: src/Privacy/Erase_By_Phone.php:224
 msgid "It does exactly what an erasure through WordPress does: the name, number, address and basket contents go, every recovery link already sent stops working, and the record that this person asked not to be messaged is deliberately kept, so erasing them does not start the reminders again."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:244
+#: src/Privacy/Erase_By_Phone.php:245
 msgid "Phone number of the customer to erase"
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:245
+#: src/Privacy/Erase_By_Phone.php:246
 msgid "Include the country code where you can. A number typed the way a customer reads it off their phone is understood, using this shop's default country when no code is given."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:246
+#: src/Privacy/Erase_By_Phone.php:247
 msgid "Erase this customer"
 msgstr ""
 

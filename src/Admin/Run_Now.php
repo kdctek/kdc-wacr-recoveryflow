@@ -309,7 +309,7 @@ final class Run_Now {
 			esc_url( admin_url( 'admin-post.php' ) )
 		);
 
-		wp_nonce_field( self::ACTION );
+		Nonce_Field::render( self::ACTION );
 
 		printf(
 			'<input type="hidden" name="action" value="%1$s" />

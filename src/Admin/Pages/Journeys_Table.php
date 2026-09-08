@@ -242,34 +242,61 @@ final class Journeys_Table extends \WP_List_Table {
 	 * @return string
 	 */
 	protected function column_reference( Recovery_Journey $item ): string {
-		$url = Screen::journey_url( $item->journey_uid );
-
-		/*
-		 * The row actions are LINKS TO the recovery's own screen, and the
-		 * things that change it are POST buttons once you are there. A row
-		 * action in a WP_List_Table is an anchor, and an anchor that cancels
-		 * somebody's recovery is fetched by anything that follows links -- a
-		 * prefetcher, a crawler, the antivirus proxy that opens every URL in
-		 * an incoming email. A nonce does not help: the link in the page
-		 * carries a valid one. So nothing here changes anything.
-		 */
-		$actions = array(
-			'open' => sprintf(
-				'<a href="%1$s">%2$s</a>',
-				esc_url( $url ),
-				esc_html(
-					current_user_can( Capabilities::MANAGE_JOURNEYS )
-						? __( 'Open and act on it', 'kdc-wacr-recoveryflow' )
-						: __( 'Open', 'kdc-wacr-recoveryflow' )
-				)
-			),
-		);
-
 		return sprintf(
-			'<strong><a href="%1$s">%2$s</a></strong>%3$s',
-			esc_url( $url ),
-			esc_html( $item->journey_uid ),
-			$this->row_actions( $actions )
+			'<strong><a href="%1$s">%2$s</a></strong>',
+			esc_url( Screen::journey_url( $item->journey_uid ) ),
+			esc_html( $item->journey_uid )
+		);
+	}
+
+	/**
+	 * The row's actions.
+	 *
+	 * WP_List_Table calls this once per column and expects a subclass to answer
+	 * for the primary one, which is where core then places the output. Building
+	 * them here rather than inside column_reference() is not a matter of taste:
+	 * WP_List_Table::row_actions() appends a "Show more details" toggle button,
+	 * and the base handle_row_actions() appends one too -- so a column that
+	 * called row_actions() itself put TWO identical toggle buttons in every
+	 * row. On a queue of six recoveries that was twelve buttons: a keyboard
+	 * user tabbed past a duplicate on every row, and a screen reader announced
+	 * "Show more details, button" twice per row, the second doing exactly what
+	 * the first had done.
+	 *
+	 * Neither pa11y runner reported it. Two buttons with the same accessible
+	 * name are valid HTML and break no success criterion on their own. It was
+	 * found by reading the markup the accessibility run put in front of us,
+	 * which is most of the argument for having the run at all.
+	 *
+	 * The actions are LINKS TO the recovery's own screen, and the things that
+	 * change it are POST buttons once you are there. A row action is an anchor,
+	 * and an anchor that cancels somebody's recovery is fetched by anything
+	 * that follows links -- a prefetcher, a crawler, the antivirus proxy that
+	 * opens every URL in an incoming email. A nonce is no defence, because the
+	 * link in the page carries a valid one. So nothing here changes anything.
+	 *
+	 * @param Recovery_Journey $item        The journey.
+	 * @param string           $column_name The column being rendered.
+	 * @param string           $primary     The primary column's name.
+	 * @return string
+	 */
+	protected function handle_row_actions( $item, $column_name, $primary ) {
+		if ( $column_name !== $primary ) {
+			return '';
+		}
+
+		return $this->row_actions(
+			array(
+				'open' => sprintf(
+					'<a href="%1$s">%2$s</a>',
+					esc_url( Screen::journey_url( $item->journey_uid ) ),
+					esc_html(
+						current_user_can( Capabilities::MANAGE_JOURNEYS )
+							? __( 'Open and act on it', 'kdc-wacr-recoveryflow' )
+							: __( 'Open', 'kdc-wacr-recoveryflow' )
+					)
+				),
+			)
 		);
 	}
 
