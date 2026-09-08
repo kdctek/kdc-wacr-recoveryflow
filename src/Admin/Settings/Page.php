@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Admin\Settings;
 
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Admin\Webhook_Setup;
 use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
@@ -368,6 +369,10 @@ final class Page {
 
 			case 'erase_by_phone':
 				Erase_By_Phone::form();
+				break;
+
+			case 'webhook_setup':
+				Webhook_Setup::render();
 				break;
 		}//end switch
 	}

@@ -56,6 +56,14 @@ final class Suppressor {
 	public const SOURCE_LINK = 'link';
 
 	/**
+	 * Where an opt-out reported by a WA.cr Auto Flow is recorded as coming from.
+	 *
+	 * A customer who replies STOP inside a flow has said it to the shop, not to
+	 * a plugin, and is suppressed exactly as if they had used the link.
+	 */
+	public const SOURCE_FLOW = 'flow';
+
+	/**
 	 * Customer storage.
 	 *
 	 * @var Customer_Repository

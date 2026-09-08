@@ -11,6 +11,7 @@ use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Admin\Webhook_Setup;
 use WAcr\RecoveryFlow\Admin\Journey_Actions;
 use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Workflow_Form;
@@ -64,6 +65,7 @@ use WAcr\RecoveryFlow\REST\Journeys_Controller;
 use WAcr\RecoveryFlow\REST\Integrations_Controller;
 use WAcr\RecoveryFlow\REST\Settings_Controller;
 use WAcr\RecoveryFlow\REST\Templates_Controller;
+use WAcr\RecoveryFlow\REST\Webhook_Controller;
 use WAcr\RecoveryFlow\REST\Status_Controller;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Conversion_Tracker;
@@ -248,6 +250,13 @@ final class Plugin {
 			'rest_settings'       => static fn (): Settings_Controller => new Settings_Controller(),
 			'rest_integrations'   => static fn ( Plugin $c ): Integrations_Controller => new Integrations_Controller( $c->sources() ),
 			'rest_templates'      => static fn ( Plugin $c ): Templates_Controller => new Templates_Controller( $c->template_catalog() ),
+			'rest_webhook'        => static fn ( Plugin $c ): Webhook_Controller => new Webhook_Controller(
+				$c->customers(),
+				$c->journeys(),
+				$c->suppressor(),
+				$c->receipts(),
+				$c->logger()
+			),
 
 			// Privacy. The anonymiser is shared: WordPress's eraser and the
 			// daily retention clear-out must not drift into two ideas of what
@@ -307,6 +316,7 @@ final class Plugin {
 			'admin_run_now'       => static fn ( Plugin $c ): Run_Now => new Run_Now( $c->runner() ),
 			'admin_journey_acts'  => static fn ( Plugin $c ): Journey_Actions => new Journey_Actions( $c->rest_journeys() ),
 			'privacy_erase_phone' => static fn ( Plugin $c ): Erase_By_Phone => new Erase_By_Phone( $c->customers(), $c->anonymizer() ),
+			'admin_webhook_setup' => static fn (): Webhook_Setup => new Webhook_Setup(),
 
 			// The public endpoint.
 			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
@@ -828,6 +838,15 @@ final class Plugin {
 	}
 
 	/**
+	 * The receiver a WA.cr Auto Flow can call back into.
+	 *
+	 * @return Webhook_Controller
+	 */
+	public function rest_webhook(): Webhook_Controller {
+		return $this->typed( 'rest_webhook', Webhook_Controller::class );
+	}
+
+	/**
 	 * The anonymizer service.
 	 *
 	 * @return Anonymizer
@@ -1008,6 +1027,15 @@ final class Plugin {
 	}
 
 	/**
+	 * The webhook address and secret on the WA.cr tab.
+	 *
+	 * @return Webhook_Setup
+	 */
+	public function admin_webhook_setup(): Webhook_Setup {
+		return $this->typed( 'admin_webhook_setup', Webhook_Setup::class );
+	}
+
+	/**
 	 * The first-run setup screen.
 	 *
 	 * @return Setup
@@ -1048,6 +1076,11 @@ final class Plugin {
 		return $this->typed( 'suppressor', Suppressor::class );
 	}
 
+	/**
+	 * The public recovery endpoint.
+	 *
+	 * @return Recovery_Controller
+	 */
 	public function recovery_controller(): Recovery_Controller {
 		return $this->typed( 'recovery_controller', Recovery_Controller::class );
 	}
@@ -1095,6 +1128,7 @@ final class Plugin {
 			$this->admin_run_now()->hooks();
 			$this->admin_journey_acts()->hooks();
 			$this->privacy_erase_phone()->hooks();
+			$this->admin_webhook_setup()->hooks();
 			$this->admin_setup()->hooks();
 		}
 
@@ -1104,6 +1138,7 @@ final class Plugin {
 		$this->rest_settings()->hooks();
 		$this->rest_integrations()->hooks();
 		$this->rest_templates()->hooks();
+		$this->rest_webhook()->hooks();
 
 		// The privacy tools. Registered on every request, not only in wp-admin:
 		// a privacy request is fulfilled by a background job, and an exporter

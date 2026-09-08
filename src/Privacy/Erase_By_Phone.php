@@ -12,9 +12,7 @@ use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Identity_Resolver;
-use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Security\Capabilities;
-use WAcr\RecoveryFlow\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -158,7 +156,7 @@ final class Erase_By_Phone {
 			);
 		}
 
-		$e164 = Identity_Resolver::to_e164( $typed, self::default_country() );
+		$e164 = Identity_Resolver::to_e164( $typed, Identity_Resolver::site_country() );
 
 		if ( '' === $e164 ) {
 			// Not the same as "nobody has this number", and saying so matters:
@@ -202,20 +200,6 @@ final class Erase_By_Phone {
 			'message' => __( 'That customer has been erased. Their name, number, address and basket contents are gone, every recovery link they were sent has stopped working, and their open recoveries are closed.', 'kdc-wacr-recoveryflow' )
 				. ' ' . Anonymizer::retained_notice(),
 		);
-	}
-
-	/**
-	 * The country a bare local number is read as belonging to.
-	 *
-	 * The merchant's own postal country, which they have already given for the
-	 * email footer. Empty is fine and simply means a number without a country
-	 * code cannot be resolved -- which the refusal says, rather than reporting
-	 * the customer as absent.
-	 *
-	 * @return string
-	 */
-	private static function default_country(): string {
-		return (string) Options::get( Email_Compliance::SETTING_COUNTRY, '' );
 	}
 
 	/**

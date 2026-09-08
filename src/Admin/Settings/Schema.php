@@ -415,6 +415,17 @@ final class Schema {
 				'title'       => __( 'How messages are sent', 'kdc-wacr-recoveryflow' ),
 				'description' => __( 'RecoveryFlow can hand a journey to a WA.cr Auto Flow and let WA.cr do the messaging, or send each message itself on the schedule in the workflow.', 'kdc-wacr-recoveryflow' ),
 				'cards'       => array(
+					'callback' => array(
+						'title'       => __( 'Letting a flow call this site back', 'kdc-wacr-recoveryflow' ),
+						'description' => __( 'Optional, and only useful once you have built an Auto Flow. It lets the flow tell this site that somebody replied STOP, so they are stopped here at once rather than at the next background pass.', 'kdc-wacr-recoveryflow' ),
+						'cards'       => array(
+							'secret' => array(
+								'title'    => __( 'Webhook address and secret', 'kdc-wacr-recoveryflow' ),
+								'fields'   => array(),
+								'renderer' => 'webhook_setup',
+							),
+						),
+					),
 					'dispatch' => array(
 						'title'    => __( 'Dispatch', 'kdc-wacr-recoveryflow' ),
 						'renderer' => 'auto_flow',

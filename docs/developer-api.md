@@ -105,9 +105,46 @@ A logged-out request gets `401`, a logged-in request without the capability gets
 
 Errors follow WordPress conventions: `WP_Error` with a `recoveryflow_*` code and an HTTP status.
 
-### Not built yet
+## The webhook receiver
 
-The `/webhooks/wacr` receiver does not exist yet.
+`POST /wp-json/kdc/v1/wacr/recoveryflow/webhooks/wacr`
+
+A WA.cr Auto Flow can call this site through a webhook node. Generate the secret at Settings > WA.cr > Letting a flow call this site back; it is shown once, because only its fingerprint is stored. Put it in the `x-recoveryflow-secret` header. That header name is this plugin's, not WA.cr's -- the merchant types it into the flow themselves, so it has to be written down somewhere and this is where.
+
+Send JSON:
+
+```json
+{ "event": "recovery.opt_out", "phone": "+447700900123", "id": "a-unique-id-per-event" }
+```
+
+| Field | Meaning |
+| --- | --- |
+| `event` | `recovery.opt_out` or `recovery.replied`. Anything else is a `400` that names what is accepted, so a mistyped event is not a silent success |
+| `phone` | The customer, in any form the checkout would have understood. It is normalised through the same resolver before being looked up |
+| `id` | Yours, different for every event. It is what lets this site recognise the same event arriving twice and do nothing the second time |
+
+`recovery.opt_out` is the one worth building: a customer who replies STOP inside your flow is suppressed here immediately rather than up to a poll interval later, and every minute of that delay is a minute in which another reminder can reach somebody who asked to be left alone. It does exactly what the unsubscribe link does -- every identity the customer has, every open recovery of theirs. `recovery.replied` marks their open recoveries engaged, and deliberately does not stop them: somebody asking "how much is postage?" has not finished their order.
+
+**The refusals are distinct because they need different fixes**, and a flow author reading their node log has nothing else to go on: `415` the body was not JSON, `413` it was over 16 KB, `401` the secret was wrong or absent, `400` the event is not one this accepts or the body is not readable JSON.
+
+**A `401` is the same answer whether the secret was wrong, missing, or never generated at all.** Telling those apart would tell somebody probing which sites are worth returning to.
+
+**A customer this site does not know is a `200` with `matched: 0`, not a `404`.** The flow did nothing wrong, and a `404` would turn the endpoint into a way to ask which phone numbers belong to this shop's customers.
+
+**A shared secret is replayable in a way a signature is not**, since it is not bound to the body. Two things narrow that: the endpoint is HTTPS, and every event carrying an `id` is deduplicated through the receipt ledger, so a replay is recognised and does nothing the first one did not.
+
+**It answers POST only.** WhatsApp's link-preview fetcher and every crawler in existence will GET any URL they find, and this one suppresses customers.
+
+### Built differently from the plan, and why
+
+Nothing from the plan is now missing, but one thing was built differently from how the plan described it, and the difference is worth stating plainly rather than leaving somebody to discover it.
+
+**The plan described `/webhooks/wacr` as a receiver for delivery statuses and inbound replies, verifying an `x-wacr-signature` header. Neither half of that is available from WA.cr, so neither was built.**
+
+- **WA.cr has no outbound webhook subscription.** There is no way to ask it to notify a URL when a message is delivered, read or replied to. That is why this plugin reconciles through the poll pass, asking `GET /v1/conversations/{e164}/messages?after=`, and the poll pass remains the only route by which a delivery status or a reply reaches this site. An event here reporting a delivery status would document a capability that does not exist.
+- **The one thing in WA.cr that can call a URL does not sign the body.** An Auto Flow webhook node sends `content-type: application/json` plus whatever headers the merchant typed into the flow, and computes no HMAC. The signature the plan is remembering runs the other way: RecoveryFlow signs what it pushes *into* a flow, with `x-wacr-signature: sha256=<hex>`. A receiver here verifying a signature would verify a header nothing sends, refuse every real request, and look rigorous while doing it.
+
+So the receiver authenticates with a shared secret, which is what the platform can actually present.
 
 ## A minimal custom source
 

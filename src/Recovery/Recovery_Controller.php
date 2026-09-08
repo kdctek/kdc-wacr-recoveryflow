@@ -142,6 +142,7 @@ final class Recovery_Controller {
 	 * @param Rate_Limiter       $limiter   Request throttle.
 	 * @param Logger             $logger    Logger.
 	 * @param Clock              $clock     Clock.
+	 * @param Suppressor         $suppressor The one implementation of "stop messaging me".
 	 */
 	public function __construct(
 		Attempt_Repository $attempts,

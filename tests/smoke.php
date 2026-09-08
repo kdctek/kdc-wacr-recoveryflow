@@ -75,6 +75,8 @@ use WAcr\RecoveryFlow\Database\Table_Names;
 use WAcr\RecoveryFlow\REST\Abstract_Controller;
 use WAcr\RecoveryFlow\REST\Routes;
 use WAcr\RecoveryFlow\REST\Journeys_Controller;
+use WAcr\RecoveryFlow\Security\Webhook_Secret;
+use WAcr\RecoveryFlow\REST\Webhook_Controller;
 use WAcr\RecoveryFlow\REST\Settings_Controller;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Security\Crypto;
@@ -85,6 +87,7 @@ use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
+use WAcr\RecoveryFlow\Admin\Webhook_Setup;
 use WAcr\RecoveryFlow\Admin\Journey_Actions;
 use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Setup;
@@ -4217,6 +4220,275 @@ $recoveryflow_sql = array_values(
 ok( 'closing stale events is addressed by primary key too', false !== stripos( $recoveryflow_sql[0], 'id IN (7)' ) );
 ok( 'and re-checks that they are still open and unclaimed', false !== stripos( $recoveryflow_sql[0], 'journey_id IS NULL' ) );
 
+$GLOBALS['wpdb']->rows = array();
+
+
+// ---------------------------------------------------------------------------
+// The webhook receiver an Auto Flow can call back into.
+//
+// Read the controller's own note for what this deliberately is NOT: WA.cr has
+// no outbound webhook subscription and its Auto Flow webhook node does not sign
+// the body, so a receiver verifying x-wacr-signature would verify a header
+// nothing sends. It is a shared secret because that is what the platform can
+// actually present.
+// ---------------------------------------------------------------------------
+
+$GLOBALS['recoveryflow_caps'] = null;
+
+// A flow reports whatever WhatsApp gave it, which is normally the full
+// international form -- but the resolver is given the shop's own country so a
+// local form resolves too, exactly as it does when erasing by phone.
+update_option(
+	Options::SETTINGS,
+	array_merge( (array) get_option( Options::SETTINGS, array() ), array( Email_Compliance::SETTING_COUNTRY => 'GB' ) )
+);
+
+$recoveryflow_hook = $plugin->rest_webhook();
+
+$recoveryflow_post = static function ( array $body, string $secret = '', string $type = 'application/json' ): WP_REST_Request {
+	$request = new WP_REST_Request( 'POST', '' );
+	$request->set_header( 'content-type', $type );
+
+	if ( '' !== $secret ) {
+		$request->set_header( Webhook_Secret::HEADER, $secret );
+	}
+
+	$request->set_body( wp_json_encode( $body ) );
+
+	return $request;
+};
+
+// Closed until configured. An endpoint that is open until somebody sets a
+// secret is open on every site that never got round to it.
+Webhook_Secret::forget();
+
+ok( 'the receiver is shut while no secret has been generated', ! Webhook_Secret::exists() );
+ok(
+	'and refuses a caller presenting nothing',
+	$recoveryflow_hook->authorised( $recoveryflow_post( array() ) ) instanceof WP_Error
+);
+$recoveryflow_unconfigured = $recoveryflow_hook->authorised( $recoveryflow_post( array(), 'guessed-it' ) );
+
+ok( 'and refuses a caller presenting anything', $recoveryflow_unconfigured instanceof WP_Error );
+
+$recoveryflow_secret = Webhook_Secret::generate();
+
+ok( 'generating a secret hands back a plaintext once', strlen( $recoveryflow_secret ) > 20 );
+ok( 'and the database keeps only its hash', (string) get_option( Options::WEBHOOK_SECRET, '' ) !== $recoveryflow_secret );
+ok( 'the right secret is accepted', true === $recoveryflow_hook->authorised( $recoveryflow_post( array(), $recoveryflow_secret ) ) );
+ok( 'a wrong one is not', $recoveryflow_hook->authorised( $recoveryflow_post( array(), 'not-the-secret' ) ) instanceof WP_Error );
+
+$recoveryflow_unauth = $recoveryflow_hook->authorised( $recoveryflow_post( array(), 'not-the-secret' ) );
+
+/*
+ * The comparison that matters is between a site with NO secret configured and a
+ * site with one where the caller guessed wrong. Telling those apart tells
+ * somebody probing which sites are worth coming back to. Both messages are
+ * captured from those two different states, not from the same one twice.
+ */
+check(
+	'a wrong secret and a site with none configured get the identical answer, so probing learns nothing',
+	$recoveryflow_unauth instanceof WP_Error ? $recoveryflow_unauth->get_error_message() : 'a',
+	$recoveryflow_unconfigured instanceof WP_Error ? $recoveryflow_unconfigured->get_error_message() : 'b'
+);
+
+// The refusals a flow author has to tell apart from their node log.
+$recoveryflow_form = $recoveryflow_post( array( 'event' => 'recovery.opt_out' ), $recoveryflow_secret, 'application/x-www-form-urlencoded' );
+
+$recoveryflow_wrong_type = $recoveryflow_hook->receive( $recoveryflow_form );
+
+check(
+	'a body that is not JSON is refused as unsupported media',
+	$recoveryflow_wrong_type instanceof WP_Error ? $recoveryflow_wrong_type->get_error_data()['status'] : 0,
+	415
+);
+
+$recoveryflow_big = $recoveryflow_post(
+	array(
+		'event' => 'recovery.opt_out',
+		'pad'   => str_repeat( 'x', Webhook_Controller::MAX_BODY ),
+	),
+	$recoveryflow_secret
+);
+
+$recoveryflow_oversize = $recoveryflow_hook->receive( $recoveryflow_big );
+
+check(
+	'an oversized body is refused rather than read',
+	$recoveryflow_oversize instanceof WP_Error ? $recoveryflow_oversize->get_error_data()['status'] : 0,
+	413
+);
+
+$recoveryflow_unknown_event = $recoveryflow_hook->receive( $recoveryflow_post( array( 'event' => 'message.delivered' ), $recoveryflow_secret ) );
+
+check(
+	'an event this site does not accept is refused',
+	$recoveryflow_unknown_event instanceof WP_Error ? $recoveryflow_unknown_event->get_error_data()['status'] : 0,
+	400
+);
+ok(
+	'and the refusal lists what it does accept, so a mistyped event is not a silent 200',
+	$recoveryflow_unknown_event instanceof WP_Error
+		&& false !== strpos( $recoveryflow_unknown_event->get_error_message(), 'recovery.opt_out' )
+);
+
+// A number nobody here has is a 200 with nothing matched -- the flow did
+// nothing wrong, and a 404 would answer "is this number one of your customers".
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array();
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array();
+
+$recoveryflow_nobody = $recoveryflow_hook->receive(
+	$recoveryflow_post(
+		array(
+			'event' => 'recovery.opt_out',
+			'id'    => 'evt-nobody-1',
+			'phone' => '+447700900999',
+		),
+		$recoveryflow_secret
+	)
+);
+
+ok( 'an unknown customer is accepted rather than refused', $recoveryflow_nobody instanceof WP_REST_Response );
+check(
+	'and reports nothing matched',
+	$recoveryflow_nobody instanceof WP_REST_Response ? $recoveryflow_nobody->get_data()['matched'] : -1,
+	0
+);
+
+// A STOP reported by a flow suppresses here and now. Every minute of waiting
+// for a poll is a minute another reminder can reach somebody who said stop.
+$recoveryflow_hook_hash = Identity_Repository::hash_for( Identity::E164, '+447700900123' );
+
+$GLOBALS['wpdb']->rows['recoveryflow_identities'] = array( array( 'customer_id' => 91 ) );
+$GLOBALS['wpdb']->rows['recoveryflow_customers']  = array(
+	array(
+		'id'            => 91,
+		'phone_hash'    => $recoveryflow_hook_hash,
+		'email_hash'    => '',
+		'anonymized_at' => null,
+	),
+);
+
+$GLOBALS['wpdb']->queries = array();
+
+$recoveryflow_stop = $recoveryflow_hook->receive(
+	$recoveryflow_post(
+		array(
+			'event' => 'recovery.opt_out',
+			'id'    => 'evt-stop-1',
+			'phone' => '07700 900123',
+		),
+		$recoveryflow_secret
+	)
+);
+
+ok( 'a STOP reported by a flow is accepted', $recoveryflow_stop instanceof WP_REST_Response );
+check(
+	'and matches the customer',
+	$recoveryflow_stop instanceof WP_REST_Response ? $recoveryflow_stop->get_data()['matched'] : -1,
+	1
+);
+
+/*
+ * And that it matched by the NORMALISED number. The fake database hands back a
+ * primed row for any query naming the table, so "matched: 1" says nothing about
+ * what was searched for -- a receiver that skipped normalisation would look
+ * identical here. The query itself is the only witness, so it is what is
+ * asserted. A mutation survived until this existed.
+ */
+ok(
+	'and searched for the international form, not the local one it was sent',
+	'' !== $recoveryflow_hook_hash
+		&& false !== strpos( implode( ' | ', $GLOBALS['wpdb']->queries ), $recoveryflow_hook_hash )
+);
+
+// The same event twice does what the first did, which is nothing. The node is
+// at-most-once, but a shared secret is replayable by whoever has seen it.
+$recoveryflow_replay = $recoveryflow_hook->receive(
+	$recoveryflow_post(
+		array(
+			'event' => 'recovery.opt_out',
+			'id'    => 'evt-stop-1',
+			'phone' => '07700 900123',
+		),
+		$recoveryflow_secret
+	)
+);
+
+ok(
+	'a replayed event is recognised',
+	$recoveryflow_replay instanceof WP_REST_Response && true === ( $recoveryflow_replay->get_data()['repeat'] ?? false )
+);
+check(
+	'and does nothing the first did not',
+	$recoveryflow_replay instanceof WP_REST_Response ? $recoveryflow_replay->get_data()['matched'] : -1,
+	0
+);
+
+// It must never accept a GET: WhatsApp's link-preview fetcher and every crawler
+// will GET any URL they find, and this one suppresses customers.
+$GLOBALS['recoveryflow_routes'] = array();
+$recoveryflow_hook->register_routes();
+
+$recoveryflow_hook_methods = array();
+
+foreach ( $GLOBALS['recoveryflow_routes'] as $recoveryflow_route ) {
+	foreach ( $recoveryflow_route['endpoints'] as $recoveryflow_endpoint ) {
+		$recoveryflow_hook_methods[] = (string) ( $recoveryflow_endpoint['methods'] ?? '' );
+	}
+}
+
+check( 'the receiver answers POST and nothing else', $recoveryflow_hook_methods, array( 'POST' ) );
+ok(
+	'and sits under this plugin\'s prefix in the shared KDC namespace',
+	0 === strpos( $GLOBALS['recoveryflow_routes'][0]['route'], '/' . Routes::PREFIX . '/' )
+);
+
+// No event here reports a delivery status, because WA.cr does not push them and
+// an event for one would document a capability that does not exist.
+foreach ( Webhook_Controller::EVENTS as $recoveryflow_event ) {
+	ok(
+		"{$recoveryflow_event} is not a delivery status this platform cannot send",
+		false === strpos( $recoveryflow_event, 'deliver' ) && false === strpos( $recoveryflow_event, 'read' )
+	);
+}
+
+// The address and the secret have to arrive together: a merchant types all
+// three of address, header name and secret into WA.cr by hand, and giving them
+// one while leaving the rest to the documentation is how this gets configured
+// wrongly and reported as broken.
+$GLOBALS['recoveryflow_caps'] = array( Capabilities::MANAGE_SETTINGS );
+
+Webhook_Secret::forget();
+
+$recoveryflow_setup_html = recoveryflow_render_screen( array( Webhook_Setup::class, 'render' ) );
+
+ok( 'the setup card gives the address to post to', false !== strpos( $recoveryflow_setup_html, Routes::path( 'webhooks/wacr' ) ) );
+ok( 'and names the header the secret goes in', false !== strpos( $recoveryflow_setup_html, Webhook_Secret::HEADER ) );
+ok( 'and lists the events a flow may send', false !== strpos( $recoveryflow_setup_html, 'recovery.opt_out' ) );
+ok(
+	'and says the secret is shown once before it is generated, not after',
+	false !== strpos( $recoveryflow_setup_html, 'shown once' )
+);
+ok(
+	'and says the endpoint refuses everything until one exists',
+	false !== strpos( $recoveryflow_setup_html, 'refuses every request' )
+);
+
+Webhook_Secret::generate();
+
+$recoveryflow_setup_html = recoveryflow_render_screen( array( Webhook_Setup::class, 'render' ) );
+
+ok(
+	'once a secret exists the screen warns that replacing it breaks the flow',
+	false !== strpos( $recoveryflow_setup_html, 'will start being refused' )
+);
+ok(
+	'and never offers to show the existing one, because only its fingerprint is kept',
+	false === strpos( $recoveryflow_setup_html, (string) get_option( Options::WEBHOOK_SECRET, 'no-secret' ) )
+);
+
+Webhook_Secret::forget();
 $GLOBALS['wpdb']->rows = array();
 
 

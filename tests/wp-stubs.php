@@ -441,6 +441,28 @@ class WP_REST_Request {
 	public function set_param( $key, $value ) {
 		$this->params[ $key ] = $value;
 	}
+
+	/*
+	 * Headers and a body, without which no test could reach a controller that
+	 * reads either -- which is every webhook receiver there will ever be here.
+	 * Header names are matched case-insensitively, as WordPress does, because
+	 * the case a caller sends is not the case anybody writes in a test.
+	 */
+	private $headers = array();
+	private $body    = '';
+
+	public function set_header( $name, $value ) {
+		$this->headers[ strtolower( (string) $name ) ] = $value;
+	}
+	public function get_header( $name ) {
+		return $this->headers[ strtolower( (string) $name ) ] ?? null;
+	}
+	public function set_body( $body ) {
+		$this->body = (string) $body;
+	}
+	public function get_body() {
+		return $this->body;
+	}
 }
 
 /**
@@ -718,8 +740,35 @@ class Fake_Wpdb extends wpdb {
 	public function esc_like( $text ) {
 		return addcslashes( (string) $text, '_%\\' );
 	}
+	/**
+	 * Rows an INSERT IGNORE has already claimed, keyed by table and first value.
+	 *
+	 * MySQL's INSERT IGNORE writes nothing and reports zero rows when it would
+	 * break a UNIQUE key, and the whole point of the receipt ledger is that
+	 * second write failing. This stub used to report one row for every insert,
+	 * so a duplicate always looked claimed: the dedupe guarantee this plugin
+	 * leans on for "a retry cannot double-send" could not be exercised by any
+	 * test, and every assertion about it passed because the fake always said
+	 * yes. The first column carries the unique value in every such table here.
+	 *
+	 * @var array<string,bool>
+	 */
+	public $claimed = array();
+
 	public function query( $sql ) {
 		$this->queries[] = $sql;
+
+		if ( 0 === stripos( ltrim( (string) $sql ), 'INSERT IGNORE' ) ) {
+			if ( preg_match( '/INTO\s+`([^`]+)`.*?VALUES\s*\(\s*(\'[^\']*\'|[^,)]+)/is', (string) $sql, $m ) ) {
+				$key = $m[1] . '|' . trim( $m[2] );
+
+				if ( isset( $this->claimed[ $key ] ) ) {
+					return 0;
+				}
+
+				$this->claimed[ $key ] = true;
+			}
+		}
 
 		// Real wpdb sets insert_id on an INSERT, and repositories here read it
 		// straight back to learn the new row's id. A stub that leaves it at
