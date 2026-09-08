@@ -45,7 +45,13 @@ fi
 
 target="${POT}"
 if [[ "${mode}" == "check" ]]; then
-	target="$(mktemp -t recoveryflow-pot)"
+	# A full path template ending in X's is the one mktemp form that means the
+	# same thing to BSD and GNU. BSD reads -t as a bare prefix and appends its
+	# own randomness; GNU demands the X's and dies with "too few X's in
+	# template". So "-t recoveryflow-pot" passes on a developer's macOS and
+	# fails on CI's Linux -- the worst way round for a check whose entire
+	# purpose is to run in CI.
+	target="$(mktemp "${TMPDIR:-/tmp}/recoveryflow-pot.XXXXXX")"
 	trap 'rm -f "${target}"' EXIT
 fi
 
