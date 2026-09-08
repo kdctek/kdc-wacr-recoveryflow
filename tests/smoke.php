@@ -60,6 +60,7 @@ use WAcr\RecoveryFlow\Support\Uuid;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Setup;
 use WAcr\RecoveryFlow\WAcr\Credentials;
+use WAcr\RecoveryFlow\WAcr\Template_Catalog;
 use WAcr\RecoveryFlow\WAcr\Error;
 use WAcr\RecoveryFlow\WAcr\Result;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
@@ -67,6 +68,8 @@ use WAcr\RecoveryFlow\WAcr\Send_Request;
 use WAcr\RecoveryFlow\WAcr\Transport;
 use WAcr\RecoveryFlow\Admin\Step_Describer;
 use WAcr\RecoveryFlow\Admin\Workflow_Form;
+use WAcr\RecoveryFlow\Workflow\Message_Composer;
+use WAcr\RecoveryFlow\Workflow\Variable_Context;
 use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
 
@@ -2585,6 +2588,319 @@ ok( 'and the draft is consumed, so it does not reappear on the next visit', null
 
 
 update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_before );
+$GLOBALS['wpdb']->rows = array();
+
+/*
+ * The template picker. The response shape asserted here is WA.cr's own, read
+ * off apps/api/src/app/v1/templates/route.ts rather than guessed: `{ ok,
+ * templates: [ { name, language, category, variables: [ { id, component, key,
+ * index, required, sample?, before?, after? } ] } ] }`. The platform resolves
+ * each template's blanks there deliberately, so that every client stops
+ * reimplementing the placeholder scan and drifting from the others -- and the
+ * `id` it hands back IS the slot key this plugin already stores.
+ */
+set_transient(
+	'recoveryflow_wacr_templates',
+	array(
+		'waba'  => '',
+		'value' => array(
+			'ok'        => true,
+			'templates' => array(
+				array(
+					'name'      => 'cart_reminder_1',
+					'language'  => 'en',
+					'category'  => 'MARKETING',
+					'variables' => array(
+						array(
+							'id'       => 'body_1',
+							'key'      => '1',
+							'index'    => 1,
+							'required' => true,
+							'before'   => 'Hi',
+							'after'    => ', your basket is waiting',
+						),
+						array(
+							'id'       => 'button_0_url_1',
+							'key'      => '1',
+							'index'    => 1,
+							'required' => true,
+							'sample'   => 'abc123',
+						),
+					),
+				),
+				array(
+					'name'      => 'seasonal_carousel',
+					'language'  => 'en',
+					'category'  => 'MARKETING',
+					'variables' => array(
+						array(
+							'id'       => 'header_media_image',
+							'key'      => 'image',
+							'index'    => 1,
+							'required' => true,
+						),
+						array(
+							'id'       => 'card_0_body_1',
+							'key'      => '1',
+							'index'    => 1,
+							'required' => true,
+						),
+					),
+				),
+				array(
+					'name'      => 'plain_notice',
+					'language'  => 'en',
+					'category'  => 'UTILITY',
+					'variables' => array(),
+				),
+			),
+		),
+	),
+	900
+);
+
+$recoveryflow_catalog = $plugin->template_catalog()->all();
+
+ok( 'the catalog reads WA.cr\'s answer', $recoveryflow_catalog['ok'] );
+check( 'and lists every approved template, usable or not', count( $recoveryflow_catalog['templates'] ), 3 );
+
+$recoveryflow_by_name = array();
+
+foreach ( $recoveryflow_catalog['templates'] as $recoveryflow_template ) {
+	$recoveryflow_by_name[ (string) $recoveryflow_template['name'] ] = $recoveryflow_template;
+}
+
+ok( 'a text-and-URL-button template can be used', $recoveryflow_by_name['cart_reminder_1']['usable'] );
+check( 'and its blanks are the slots this plugin already stores', array_column( $recoveryflow_by_name['cart_reminder_1']['slots'], 'id' ), array( 'body_1', 'button_0_url_1' ) );
+check( 'carrying the template\'s own wording, so the blank is recognisable', $recoveryflow_by_name['cart_reminder_1']['slots'][0]['before'], 'Hi' );
+
+// The verdict that matters: a template needing a value this plugin cannot
+// supply is listed and refused HERE, at the moment of choosing, rather than at
+// send time -- hours later, in a log, against a customer who got nothing.
+ok( 'a template needing an image header cannot be used', ! $recoveryflow_by_name['seasonal_carousel']['usable'] );
+ok( 'and it is listed rather than hidden from somebody looking for it', isset( $recoveryflow_by_name['seasonal_carousel'] ) );
+ok( 'and the refusal names the values it could not supply', false !== strpos( Template_Catalog::refusal( $recoveryflow_by_name['seasonal_carousel'] ), 'header_media_image' ) );
+check( 'a usable template has nothing to refuse', Template_Catalog::refusal( $recoveryflow_by_name['cart_reminder_1'] ), '' );
+ok( 'a template with no blanks is usable', $recoveryflow_by_name['plain_notice']['usable'] );
+
+// The rule is the composer's, asked in one place, so the picker cannot offer
+// what the composer will later refuse.
+ok( 'the composer fills a body slot', Message_Composer::supports_slot( 'body_1' ) );
+ok( 'and a header slot', Message_Composer::supports_slot( 'header_2' ) );
+ok( 'and a URL button slot', Message_Composer::supports_slot( 'button_0_url_1' ) );
+ok( 'but not an image header', ! Message_Composer::supports_slot( 'header_media_image' ) );
+ok( 'nor a button payload', ! Message_Composer::supports_slot( 'button_1_payload' ) );
+ok( 'nor a carousel card', ! Message_Composer::supports_slot( 'card_0_body_1' ) );
+ok( 'nor a limited-time-offer expiry', ! Message_Composer::supports_slot( 'limited_time_offer_expiration' ) );
+ok( 'and refuses a button index beyond the tenth', ! Message_Composer::supports_slot( 'button_10_url_1' ) );
+
+// An optional slot this plugin cannot fill must not condemn the template:
+// Meta marks the two decorative location-header slots optional, and refusing a
+// template over a value nobody has to send hides one that works.
+$recoveryflow_optional = $plugin->template_catalog();
+
+set_transient(
+	'recoveryflow_wacr_templates',
+	array(
+		'waba'  => '',
+		'value' => array(
+			'ok'        => true,
+			'templates' => array(
+				array(
+					'name'      => 'located',
+					'variables' => array(
+						array(
+							'id'       => 'header_location_name',
+							'required' => false,
+						),
+						array(
+							'id'       => 'body_1',
+							'required' => true,
+						),
+					),
+				),
+			),
+		),
+	),
+	900
+);
+
+ok( 'an OPTIONAL unsupported slot does not condemn a template', $recoveryflow_optional->all()['templates'][0]['usable'] );
+
+// The picker as the merchant meets it: a list, the template's own wording
+// beside each blank, and the variable choices from the allow-list.
+set_transient(
+	'recoveryflow_wacr_templates',
+	array(
+		'waba'  => '',
+		'value' => array(
+			'ok'        => true,
+			'templates' => array(
+				array(
+					'name'      => 'cart_reminder_1',
+					'variables' => array(
+						array(
+							'id'       => 'body_1',
+							'required' => true,
+							'before'   => 'Hi',
+							'after'    => ', your basket is waiting',
+						),
+					),
+				),
+				array(
+					'name'      => 'seasonal_carousel',
+					'variables' => array(
+						array(
+							'id'       => 'header_media_image',
+							'required' => true,
+						),
+					),
+				),
+			),
+		),
+	),
+	900
+);
+
+$recoveryflow_snapshot_keep = get_option( Options::ME_SNAPSHOT, array() );
+
+update_option(
+	Options::ME_SNAPSHOT,
+	array(
+		'ok'     => true,
+		'scopes' => array( 'messages:send', 'templates:read' ),
+	)
+);
+
+$GLOBALS['wpdb']->rows['recoveryflow_workflows'] = array(
+	$recoveryflow_row( 1, Workflow_Repository::SLUG_DIRECT, $recoveryflow_seeded( 'direct_definition' ), true ),
+);
+
+$_GET['workflow']    = 1;
+$recoveryflow_picker = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'the template is a list, not a box to type a name into', 1 === preg_match( '/<select name="step\[2\]\[template\]"/', $recoveryflow_picker ) );
+ok( 'and offers the approved template', false !== strpos( $recoveryflow_picker, '>cart_reminder_1</option>' ) );
+ok( 'and lists the one it cannot send, saying so rather than hiding it', false !== strpos( $recoveryflow_picker, esc_html( sprintf( __( '%s -- cannot be used', 'kdc-wacr-recoveryflow' ), 'seasonal_carousel' ) ) ) );
+ok( 'and names each blank in the template\'s own words, not as body_1', false !== strpos( $recoveryflow_picker, esc_html( sprintf( __( '%1$s ____ %2$s', 'kdc-wacr-recoveryflow' ), 'Hi', ', your basket is waiting' ) ) ) );
+ok( 'and offers a variable in plain language', false !== strpos( $recoveryflow_picker, esc_html__( 'The customer\'s first name', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and keeps the stored value selected', false !== strpos( $recoveryflow_picker, 'value="{{customer.first_name}}" selected' ) );
+
+/*
+ * The seeded workflow's second send names cart_reminder_2, which this
+ * workspace does not have. It must still appear, selected, and say why --
+ * dropping it from the list would leave the select showing whatever sits at
+ * the top, and the next save would silently send a different template to every
+ * customer than the one the merchant last chose.
+ */
+ok(
+	'a template no longer in the workspace is still shown, and marked',
+	false !== strpos(
+		$recoveryflow_picker,
+		esc_html(
+			sprintf(
+				/* translators: %s: a message template name. */
+				__( '%s -- no longer in your workspace', 'kdc-wacr-recoveryflow' ),
+				'cart_reminder_2'
+			)
+		)
+	)
+);
+ok( 'and stays selected rather than being swapped for the top of the list', false !== strpos( $recoveryflow_picker, 'value="cart_reminder_2" selected' ) );
+
+// Every variable the picker offers must be one the renderer will substitute.
+// A picker offering a variable that renders empty is a picker that quietly
+// deletes half of somebody's message.
+preg_match_all( '/name="step\[\d+\]\[variables\]\[[^\]]+\]".*?<\/select>/s', $recoveryflow_picker, $recoveryflow_varsel, PREG_SET_ORDER );
+
+ok( 'the picker renders a control for each blank', count( $recoveryflow_varsel ) > 0 );
+
+foreach ( $recoveryflow_varsel as $recoveryflow_one ) {
+	preg_match_all( '/value="\{\{([^}]*)\}\}"/', $recoveryflow_one[0], $recoveryflow_keys );
+
+	foreach ( $recoveryflow_keys[1] as $recoveryflow_key ) {
+		ok( "the picker only offers {{{$recoveryflow_key}}}, which the renderer knows", in_array( $recoveryflow_key, Variable_Context::KEYS, true ) );
+	}
+}
+
+// And the form reads only slots the composer can fill.
+$recoveryflow_vars = Workflow_Form::read(
+	array(
+		'workflow_name' => 'Mapped',
+		'step'          => array(
+			array(
+				'type'      => 'action',
+				'do'        => 'wacr.send_template',
+				'channel'   => 'whatsapp',
+				'template'  => 'cart_reminder_1',
+				'variables' => array(
+					'body_1'                        => '{{customer.first_name}}',
+					'button_0_url_1'                => '{{recovery.token}}',
+					'header_media_image'            => 'https://example.test/x.png',
+					'limited_time_offer_expiration' => '123',
+					'body_2'                        => '',
+				),
+			),
+		),
+	)
+);
+
+$recoveryflow_slots = $recoveryflow_vars['steps'][0]['with']['variables'];
+
+ok( 'the form keeps a body slot', isset( $recoveryflow_slots['body_1'] ) );
+ok( 'and a URL button slot', isset( $recoveryflow_slots['button_0_url_1'] ) );
+ok( 'and drops a slot the composer cannot fill', ! isset( $recoveryflow_slots['header_media_image'] ) );
+ok( 'and another it cannot fill', ! isset( $recoveryflow_slots['limited_time_offer_expiration'] ) );
+ok( 'and leaves an empty slot out rather than storing a gap', ! isset( $recoveryflow_slots['body_2'] ) );
+ok( 'and what it builds is a definition the validator accepts', true === Workflow_Definition::validate( $recoveryflow_vars ) );
+
+/*
+ * And when WA.cr cannot be asked. Blocking here would be wrong: a credential
+ * without templates:read, or a minute of no network, still leaves a merchant
+ * in front of the screen who knows the name of their own template. What the
+ * fallback must not do is pretend there was no list to have.
+ */
+delete_transient( 'recoveryflow_wacr_templates' );
+
+$GLOBALS['__http_response'] = array(
+	'response' => array( 'code' => 403 ),
+	'body'     => '{"ok":false,"error":{"code":"insufficient_scope","message":"This key does not hold templates:read."}}',
+	'headers'  => array(),
+);
+
+$_GET['workflow']      = 1;
+$recoveryflow_fallback = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'with no list available the template becomes a box to type into', 1 === preg_match( '/<input type="text"[^>]*name="step\[2\]\[template\]"/', $recoveryflow_fallback ) );
+ok( 'and the merchant is told to type the name instead', false !== strpos( $recoveryflow_fallback, esc_html__( 'Type the name of an approved template instead. It is checked when the message is sent.', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and it does not silently drop the template already chosen', false !== strpos( $recoveryflow_fallback, 'value="cart_reminder_1"' ) );
+
+/*
+ * Connected, asked, and the answer was none: a different state from "could not
+ * ask", and one an empty select would render as a picker with nothing in it
+ * and no way to tell whether the plugin or the workspace was at fault.
+ */
+$GLOBALS['__http_response'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => '{"ok":true,"templates":[]}',
+	'headers'  => array(),
+);
+
+delete_transient( 'recoveryflow_wacr_templates' );
+
+$_GET['workflow']   = 1;
+$recoveryflow_empty = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+unset( $_GET['workflow'] );
+
+ok( 'a workspace with no approved templates is told so', false !== strpos( $recoveryflow_empty, esc_html__( 'Your WA.cr workspace has no approved templates yet, so there is nothing to choose from. Approve one in the WA.cr console, or type its name here if you know it.', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'rather than being shown an empty list with no explanation', 1 !== preg_match( '/<select name="step\[2\]\[template\]"/', $recoveryflow_empty ) );
+
+unset( $GLOBALS['__http_response'] );
+delete_transient( 'recoveryflow_wacr_templates' );
+
+update_option( Options::ME_SNAPSHOT, $recoveryflow_snapshot_keep );
 $GLOBALS['wpdb']->rows = array();
 
 /*

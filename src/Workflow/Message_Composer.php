@@ -114,6 +114,42 @@ final class Message_Composer {
 	}
 
 	/**
+	 * Whether this plugin can fill a template slot.
+	 *
+	 * WA.cr resolves every value a send of a template must supply and hands
+	 * each one back with an `id` -- `body_1`, `header_2`, `button_0_url_1`, and
+	 * also `header_media_image`, `button_1_payload`, `card_0_body_1`,
+	 * `limited_time_offer_expiration`. RecoveryFlow fills the first three kinds
+	 * and no others: a recovery message is text and a link back to a basket.
+	 *
+	 * The rule is stated once, here, because the template picker asks it too. A
+	 * picker offering a template this class cannot compose lets a merchant
+	 * choose something that fails at send time, hours later, against a customer
+	 * who gets nothing -- the failure furthest in both time and understanding
+	 * from the choice that caused it.
+	 *
+	 * @param string $slot A slot id as WA.cr reports it.
+	 * @return bool
+	 */
+	public static function supports_slot( string $slot ): bool {
+		if ( 1 === preg_match( '/^header_[1-9][0-9]?$/', $slot ) ) {
+			return true;
+		}
+
+		if ( 1 === preg_match( '/^body_[1-9][0-9]?$/', $slot ) ) {
+			return true;
+		}
+
+		$matches = array();
+
+		if ( 1 === preg_match( '/^button_([0-9])_url_[1-9]$/', $slot, $matches ) ) {
+			return (int) $matches[1] <= self::MAX_BUTTON_INDEX;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Turn the named variable map into Cloud API components.
 	 *
 	 * @param array<int|string,mixed> $variables The step's variables block.

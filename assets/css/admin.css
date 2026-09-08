@@ -282,6 +282,29 @@
 	margin-right: 0.3em;
 }
 
+/*
+ * The reason a template cannot be used. Stated in words with a border to draw
+ * the eye, never by colour alone -- somebody who cannot distinguish the border
+ * colour still reads the sentence, which carries the whole message.
+ */
+.recoveryflow-template-refused {
+	margin: 0.6em 0 0;
+	padding: 0.5em 0.8em;
+	border-left: 4px solid #b32d2e;
+	background: #fcf0f1;
+	max-width: 44em;
+}
+
+.recoveryflow-variables {
+	max-width: 44em;
+	margin-top: 0.4em;
+}
+
+.recoveryflow-variables th {
+	width: 45%;
+	font-weight: 400;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.recoveryflow-settings * {
 		transition: none !important;

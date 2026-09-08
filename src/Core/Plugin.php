@@ -63,6 +63,7 @@ use WAcr\RecoveryFlow\Security\Rate_Limiter;
 use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\WAcr\Client;
 use WAcr\RecoveryFlow\WAcr\Credentials;
+use WAcr\RecoveryFlow\WAcr\Template_Catalog;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 use WAcr\RecoveryFlow\WAcr\Transport;
 use WAcr\RecoveryFlow\Workflow\Actions\Send_Template;
@@ -263,7 +264,8 @@ final class Plugin {
 			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
 			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health() ),
 			'admin_workflows'     => static fn ( Plugin $c ): Workflows_Page => new Workflows_Page( $c->workflows() ),
-			'admin_workflow'      => static fn ( Plugin $c ): Workflow_Edit => new Workflow_Edit( $c->workflows(), $c->steps() ),
+			'template_catalog'    => static fn ( Plugin $c ): Template_Catalog => new Template_Catalog( $c->wacr() ),
+			'admin_workflow'      => static fn ( Plugin $c ): Workflow_Edit => new Workflow_Edit( $c->workflows(), $c->steps(), $c->template_catalog() ),
 			'admin_workflow_form' => static fn ( Plugin $c ): Workflow_Form => new Workflow_Form( $c->workflows() ),
 			'admin_setup'         => static fn ( Plugin $c ): Setup => new Setup( $c->wacr(), $c->credentials() ),
 			'admin_menu'          => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
@@ -833,6 +835,15 @@ final class Plugin {
 	 */
 	public function admin_workflows(): Workflows_Page {
 		return $this->typed( 'admin_workflows', Workflows_Page::class );
+	}
+
+	/**
+	 * The approved templates a step may choose from.
+	 *
+	 * @return Template_Catalog
+	 */
+	public function template_catalog(): Template_Catalog {
+		return $this->typed( 'template_catalog', Template_Catalog::class );
 	}
 
 	/**

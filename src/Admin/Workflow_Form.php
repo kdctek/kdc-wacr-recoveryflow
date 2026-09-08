@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Admin;
 
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\Workflow\Message_Composer;
 use WAcr\RecoveryFlow\Workflow\Workflow;
 use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
@@ -292,6 +293,12 @@ final class Workflow_Form {
 				$with['language'] = $language;
 			}
 
+			$variables = self::read_variables( $row );
+
+			if ( array() !== $variables ) {
+				$with['variables'] = $variables;
+			}
+
 			return $with;
 		}
 
@@ -302,6 +309,44 @@ final class Workflow_Form {
 		}
 
 		return array();
+	}
+
+	/**
+	 * What the merchant chose to put in each of the template's blanks.
+	 *
+	 * A slot is written only when it has a value. An empty one is left out
+	 * rather than stored as an empty string, because the composer refuses a
+	 * variables block with a gap in its numbering -- WhatsApp fills these in
+	 * order, so a gap sends the wrong value to a customer -- and an empty
+	 * string is a gap wearing a value's clothes.
+	 *
+	 * Slot names are checked against what the composer can fill, not merely
+	 * sanitised. The names arrive from a form, and a form is not a boundary.
+	 *
+	 * @param array<string,mixed> $row The posted step row.
+	 * @return array<string,string>
+	 */
+	private static function read_variables( array $row ): array {
+		$posted = isset( $row['variables'] ) && is_array( $row['variables'] ) ? $row['variables'] : array();
+		$slots  = array();
+
+		foreach ( $posted as $slot => $value ) {
+			$slot = sanitize_text_field( (string) $slot );
+
+			if ( ! Message_Composer::supports_slot( $slot ) ) {
+				continue;
+			}
+
+			$value = sanitize_text_field( (string) $value );
+
+			if ( '' === $value ) {
+				continue;
+			}
+
+			$slots[ $slot ] = $value;
+		}
+
+		return $slots;
 	}
 
 	/**

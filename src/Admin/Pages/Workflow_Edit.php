@@ -12,7 +12,9 @@ use WAcr\RecoveryFlow\Admin\Step_Describer;
 use WAcr\RecoveryFlow\Admin\Workflow_Form;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\WAcr\Template_Catalog;
 use WAcr\RecoveryFlow\Workflow\Step_Registry;
+use WAcr\RecoveryFlow\Workflow\Variable_Context;
 use WAcr\RecoveryFlow\Workflow\Workflow;
 use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
@@ -59,14 +61,23 @@ final class Workflow_Edit {
 	private Step_Registry $registry;
 
 	/**
+	 * The approved templates a step may choose from.
+	 *
+	 * @var Template_Catalog
+	 */
+	private Template_Catalog $catalog;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Workflow_Repository $workflows The workflow store.
 	 * @param Step_Registry       $registry  The step registry.
+	 * @param Template_Catalog    $catalog   The approved templates.
 	 */
-	public function __construct( Workflow_Repository $workflows, Step_Registry $registry ) {
+	public function __construct( Workflow_Repository $workflows, Step_Registry $registry, Template_Catalog $catalog ) {
 		$this->workflows = $workflows;
 		$this->registry  = $registry;
+		$this->catalog   = $catalog;
 	}
 
 	/**
@@ -515,20 +526,7 @@ final class Workflow_Edit {
 			);
 			echo '</td></tr>';
 
-			echo '<tr><th scope="row">';
-			printf( '<label for="recoveryflow-step-%1$d-template">%2$s</label>', (int) $index, esc_html__( 'Template', 'kdc-wacr-recoveryflow' ) );
-			echo '</th><td>';
-			printf(
-				'<input type="text" id="recoveryflow-step-%1$d-template" name="step[%1$d][template]" value="%2$s" class="regular-text" aria-describedby="recoveryflow-step-%1$d-template-help">',
-				(int) $index,
-				esc_attr( (string) ( $with['template'] ?? '' ) )
-			);
-			printf(
-				'<p class="description" id="recoveryflow-step-%1$d-template-help">%2$s</p>',
-				(int) $index,
-				esc_html__( 'The name of an approved template in your WA.cr workspace. A template that is not approved is refused when the message is sent, not when you save.', 'kdc-wacr-recoveryflow' )
-			);
-			echo '</td></tr>';
+			$this->render_template_fields( $index, (string) ( $with['template'] ?? '' ), $with );
 		}//end if
 
 		if ( 'wacr.start_flow' === $chosen ) {
@@ -547,6 +545,256 @@ final class Workflow_Edit {
 			);
 			echo '</td></tr>';
 		}
+	}
+
+	/**
+	 * Which template to send, and what goes into it.
+	 *
+	 * The picker is a list when WA.cr can be asked and a text box when it
+	 * cannot. Falling back rather than blocking matters: a workspace whose
+	 * credential lacks templates:read, or whose network is down for a minute,
+	 * still has a merchant in front of the screen who knows the name of their
+	 * own template. What the fallback must not do is pretend -- so it says why
+	 * there is no list.
+	 *
+	 * @param int                 $index    Zero-based step position.
+	 * @param string              $chosen   The template name currently stored.
+	 * @param array<string,mixed> $with     The step's arguments.
+	 * @return void
+	 */
+	private function render_template_fields( int $index, string $chosen, array $with ): void {
+		$catalog = $this->catalog->all();
+
+		echo '<tr><th scope="row">';
+		printf( '<label for="recoveryflow-step-%1$d-template">%2$s</label>', (int) $index, esc_html__( 'Template', 'kdc-wacr-recoveryflow' ) );
+		echo '</th><td>';
+
+		if ( ! $catalog['ok'] ) {
+			printf(
+				'<input type="text" id="recoveryflow-step-%1$d-template" name="step[%1$d][template]" value="%2$s" class="regular-text" aria-describedby="recoveryflow-step-%1$d-template-help">',
+				(int) $index,
+				esc_attr( $chosen )
+			);
+			printf(
+				'<p class="description" id="recoveryflow-step-%1$d-template-help">%2$s %3$s</p>',
+				(int) $index,
+				esc_html( $catalog['reason'] ),
+				esc_html__( 'Type the name of an approved template instead. It is checked when the message is sent.', 'kdc-wacr-recoveryflow' )
+			);
+			echo '</td></tr>';
+
+			return;
+		}
+
+		// Connected, asked, and the answer was none. Distinct from "could not
+		// ask", and it must not present as an empty list with no explanation:
+		// a merchant staring at a picker with nothing in it cannot tell whether
+		// the plugin is broken or their workspace is empty.
+		if ( array() === $catalog['templates'] ) {
+			printf(
+				'<input type="text" id="recoveryflow-step-%1$d-template" name="step[%1$d][template]" value="%2$s" class="regular-text" aria-describedby="recoveryflow-step-%1$d-template-help">',
+				(int) $index,
+				esc_attr( $chosen )
+			);
+			printf(
+				'<p class="description" id="recoveryflow-step-%1$d-template-help">%2$s</p>',
+				(int) $index,
+				esc_html__( 'Your WA.cr workspace has no approved templates yet, so there is nothing to choose from. Approve one in the WA.cr console, or type its name here if you know it.', 'kdc-wacr-recoveryflow' )
+			);
+			echo '</td></tr>';
+
+			return;
+		}
+
+		$options = array( '' => __( 'Choose a template', 'kdc-wacr-recoveryflow' ) );
+
+		foreach ( $catalog['templates'] as $template ) {
+			$name = (string) $template['name'];
+
+			$options[ $name ] = empty( $template['usable'] )
+				? sprintf(
+					/* translators: %s: a message template name. */
+					__( '%s -- cannot be used', 'kdc-wacr-recoveryflow' ),
+					$name
+				)
+				: $name;
+		}
+
+		// A template that was chosen before and has since been deleted, or
+		// un-approved, would otherwise vanish from the select and be silently
+		// replaced by whatever sits at the top of the list on the next save.
+		if ( '' !== $chosen && ! isset( $options[ $chosen ] ) ) {
+			$options[ $chosen ] = sprintf(
+				/* translators: %s: a message template name. */
+				__( '%s -- no longer in your workspace', 'kdc-wacr-recoveryflow' ),
+				$chosen
+			);
+		}
+
+		$this->render_select(
+			sprintf( 'step[%d][template]', $index ),
+			sprintf( 'recoveryflow-step-%d-template', $index ),
+			$options,
+			$chosen
+		);
+
+		printf(
+			'<p class="description" id="recoveryflow-step-%1$d-template-help">%2$s</p>',
+			(int) $index,
+			esc_html__( 'Only templates WA.cr has approved are listed. One that RecoveryFlow cannot fill is listed too, and says so, rather than being hidden from somebody looking for it.', 'kdc-wacr-recoveryflow' )
+		);
+
+		$template = '' === $chosen ? null : $this->catalog->find( $chosen );
+
+		if ( null !== $template && empty( $template['usable'] ) ) {
+			printf(
+				'<p class="recoveryflow-template-refused">%s</p>',
+				esc_html( Template_Catalog::refusal( $template ) )
+			);
+		}
+
+		echo '</td></tr>';
+
+		if ( null !== $template && ! empty( $template['usable'] ) ) {
+			$this->render_variable_fields( $index, $template, $with );
+		}
+	}
+
+	/**
+	 * What fills each blank in the chosen template.
+	 *
+	 * WA.cr resolves the blanks itself and hands back, for each one, the
+	 * template's own wording either side of it. That wording is shown, because
+	 * "body_2" tells a merchant nothing and "Your basket of {} is waiting"
+	 * tells them exactly what they are choosing a value for. Nobody should have
+	 * to keep the template open in another tab to fill it in.
+	 *
+	 * Every value is picked from the allow-list, never typed. The renderer will
+	 * only substitute allow-listed variables in any case, so a free text box
+	 * would be a box in which most of what somebody typed silently disappeared.
+	 *
+	 * @param int                 $index    Zero-based step position.
+	 * @param array<string,mixed> $template The chosen template.
+	 * @param array<string,mixed> $with     The step's arguments.
+	 * @return void
+	 */
+	private function render_variable_fields( int $index, array $template, array $with ): void {
+		$slots = isset( $template['slots'] ) && is_array( $template['slots'] ) ? $template['slots'] : array();
+
+		if ( array() === $slots ) {
+			echo '<tr><th scope="row">' . esc_html__( 'What goes in it', 'kdc-wacr-recoveryflow' ) . '</th><td>';
+			printf(
+				'<p class="description">%s</p>',
+				esc_html__( 'This template has no blanks to fill, so it sends as written.', 'kdc-wacr-recoveryflow' )
+			);
+			echo '</td></tr>';
+
+			return;
+		}
+
+		$stored  = isset( $with['variables'] ) && is_array( $with['variables'] ) ? $with['variables'] : array();
+		$choices = array( '' => __( 'Leave empty', 'kdc-wacr-recoveryflow' ) );
+
+		foreach ( Variable_Context::KEYS as $key ) {
+			$choices[ '{{' . $key . '}}' ] = self::variable_label( (string) $key );
+		}
+
+		echo '<tr><th scope="row">' . esc_html__( 'What goes in it', 'kdc-wacr-recoveryflow' ) . '</th><td>';
+		echo '<table class="widefat striped recoveryflow-variables"><thead><tr>';
+		printf( '<th scope="col">%s</th>', esc_html__( 'Where in the message', 'kdc-wacr-recoveryflow' ) );
+		printf( '<th scope="col">%s</th>', esc_html__( 'What to put there', 'kdc-wacr-recoveryflow' ) );
+		echo '</tr></thead><tbody>';
+
+		foreach ( $slots as $slot ) {
+			$id      = (string) $slot['id'];
+			$current = isset( $stored[ $id ] ) ? (string) $stored[ $id ] : '';
+			$field   = sprintf( 'recoveryflow-step-%d-var-%s', $index, str_replace( '_', '-', $id ) );
+			$options = $choices;
+
+			// Anything hand-written -- a fixed word, or two variables in one
+			// slot -- is kept and offered as it stands. Dropping it because the
+			// picker cannot express it would quietly rewrite a message somebody
+			// composed on purpose.
+			if ( '' !== $current && ! isset( $options[ $current ] ) ) {
+				$options[ $current ] = sprintf(
+					/* translators: %s: whatever the merchant typed into this slot, shown verbatim. */
+					__( '%s (kept as written)', 'kdc-wacr-recoveryflow' ),
+					$current
+				);
+			}
+
+			echo '<tr><th scope="row">';
+			printf( '<label for="%1$s">%2$s</label>', esc_attr( $field ), esc_html( self::slot_wording( $slot ) ) );
+			echo '</th><td>';
+			$this->render_select(
+				sprintf( 'step[%d][variables][%s]', $index, $id ),
+				$field,
+				$options,
+				$current
+			);
+			echo '</td></tr>';
+		}//end foreach
+
+		echo '</tbody></table></td></tr>';
+	}
+
+	/**
+	 * How one blank reads, using the template's own words.
+	 *
+	 * @param array<string,mixed> $slot One resolved slot.
+	 * @return string
+	 */
+	private static function slot_wording( array $slot ): string {
+		$before = trim( (string) ( $slot['before'] ?? '' ) );
+		$after  = trim( (string) ( $slot['after'] ?? '' ) );
+
+		if ( '' === $before && '' === $after ) {
+			$sample = trim( (string) ( $slot['sample'] ?? '' ) );
+
+			if ( '' !== $sample ) {
+				return sprintf(
+					/* translators: %s: the example value WhatsApp holds for this blank. */
+					__( 'the blank shown as "%s"', 'kdc-wacr-recoveryflow' ),
+					$sample
+				);
+			}
+
+			return (string) $slot['id'];
+		}
+
+		return sprintf(
+			/* translators: 1: the template wording before the blank, 2: the wording after it. */
+			__( '%1$s ____ %2$s', 'kdc-wacr-recoveryflow' ),
+			$before,
+			$after
+		);
+	}
+
+	/**
+	 * How one allow-listed variable reads in the picker.
+	 *
+	 * @param string $key A Variable_Context key.
+	 * @return string
+	 */
+	private static function variable_label( string $key ): string {
+		$labels = array(
+			'customer.first_name'      => __( 'The customer\'s first name', 'kdc-wacr-recoveryflow' ),
+			'customer.last_name'       => __( 'The customer\'s last name', 'kdc-wacr-recoveryflow' ),
+			'recovery.total'           => __( 'What the basket comes to, as a number', 'kdc-wacr-recoveryflow' ),
+			'recovery.total_formatted' => __( 'What the basket comes to, with the currency', 'kdc-wacr-recoveryflow' ),
+			'recovery.currency'        => __( 'The currency code', 'kdc-wacr-recoveryflow' ),
+			'recovery.item_count'      => __( 'How many items are in the basket', 'kdc-wacr-recoveryflow' ),
+			'recovery.items_summary'   => __( 'A short list of what is in the basket', 'kdc-wacr-recoveryflow' ),
+			'recovery.first_item_name' => __( 'The name of the first item', 'kdc-wacr-recoveryflow' ),
+			'recovery.recovery_url'    => __( 'The link that restores the basket', 'kdc-wacr-recoveryflow' ),
+			'recovery.token'           => __( 'The basket link\'s code, for a button URL', 'kdc-wacr-recoveryflow' ),
+			'recovery.opt_out_url'     => __( 'The link to stop receiving these', 'kdc-wacr-recoveryflow' ),
+			'site.name'                => __( 'The shop\'s name', 'kdc-wacr-recoveryflow' ),
+			'site.url'                 => __( 'The shop\'s address', 'kdc-wacr-recoveryflow' ),
+			'source.name'              => __( 'Where the basket was left, such as WooCommerce', 'kdc-wacr-recoveryflow' ),
+		);
+
+		return $labels[ $key ] ?? $key;
 	}
 
 	/**
