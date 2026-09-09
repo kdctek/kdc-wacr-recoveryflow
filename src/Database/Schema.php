@@ -79,8 +79,8 @@ final class Schema {
 		foreach ( Table_Names::all() as $table ) {
 			$name = Table_Names::get( $table );
 
-			$found = $wpdb->get_var(
-				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- the table name is bound as a value to SHOW TABLES LIKE, which takes a pattern rather than an identifier.
+			$found = $wpdb->get_var( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- asking what is actually on disk; a cached answer would defeat the question.
+				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- the table name is bound as a value to SHOW TABLES LIKE, which takes a pattern rather than an identifier.
 				$wpdb->prepare( 'SHOW TABLES LIKE %s', $name )
 			);
 
@@ -104,7 +104,7 @@ final class Schema {
 			$name = Table_Names::get( $table );
 
 			// The name comes from a class constant, never from input.
-			$wpdb->query( "DROP TABLE IF EXISTS `{$name}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange
+			$wpdb->query( "DROP TABLE IF EXISTS `{$name}`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $name is Table_Names::get() on a class constant: the site prefix and a literal. No caller supplies it.
 		}
 
 		delete_option( self::VERSION_OPTION );
@@ -126,7 +126,7 @@ final class Schema {
 		$table = Table_Names::get( Table_Names::LOCKS );
 
 		foreach ( array( 'evaluate', 'dispatch', 'poll', 'expire', 'retention', 'wacr_rate' ) as $key ) {
-			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table is Table_Names::get() on a class constant: the site prefix and a literal. The lock key is bound.
 				$wpdb->prepare(
 					"INSERT IGNORE INTO `{$table}` (lock_key, owner, expires_at) VALUES (%s, NULL, NULL)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					$key

@@ -398,7 +398,7 @@ final class Retention implements Stage_Interface {
 
 		$args = array_merge( $statuses, array( $before, $after, max( 1, $limit ) ) );
 
-		$rows = $wpdb->get_results(
+		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $sql interpolates only Table_Names::get() on class constants and a %s list sized by count(); a per-batch paging query has nothing to cache.
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- table names come from class constants, the placeholder list is generated from a count, and every value is bound.
 			$wpdb->prepare( $sql, $args ),
 			ARRAY_A
@@ -436,7 +436,7 @@ final class Retention implements Stage_Interface {
 		$logs = Table_Names::get( Table_Names::LOGS );
 		$sql  = "DELETE FROM `{$logs}` WHERE created_at < %s ORDER BY id ASC LIMIT %d";
 
-		$removed = $wpdb->query(
+		$removed = $wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $sql interpolates only Table_Names::get() on a class constant; a DELETE has nothing to cache.
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- the table name comes from a class constant; every value is bound.
 			$wpdb->prepare( $sql, $before, max( 1, $limit ) )
 		);
