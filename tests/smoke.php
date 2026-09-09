@@ -103,6 +103,7 @@ use WAcr\RecoveryFlow\Admin\Webhook_Setup;
 use WAcr\RecoveryFlow\Admin\Journey_Actions;
 use WAcr\RecoveryFlow\Admin\Run_Now;
 use WAcr\RecoveryFlow\Admin\Setup;
+use WAcr\RecoveryFlow\WAcr\Flow_Status;
 use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
 use WAcr\RecoveryFlow\Workflow\Actions\Send_Template;
 use WAcr\RecoveryFlow\Workflow\Step_Outcome;
@@ -443,6 +444,43 @@ update_option(
 ok( 'a workspace below Scale cannot author workflows here', ! Feature_Gate::is_enabled( Feature_Gate::WORKFLOW_EDITOR ) );
 ok( 'the upgrade message names the hand-off alternative', false !== strpos( Feature_Gate::unavailable_reason(), 'Auto Flow' ) );
 
+/*
+ * And says what THAT needs, which for a release it did not. "Your workspace can
+ * still hand recovery journeys to a WA.cr Auto Flow" is false on free, trial
+ * and starter -- whose Auto Flow allowance is zero -- and false on enterprise
+ * for the same reason. Only Growth and above can run one at all. The assertion
+ * above passed the whole time, because it only ever asked whether the words
+ * "Auto Flow" appeared.
+ */
+ok( 'and what the hand-off itself needs, so it is not read as "any plan"', false !== strpos( Feature_Gate::unavailable_reason(), 'Growth' ) );
+ok( 'stated in one place, so the two messages cannot drift apart', false !== strpos( Feature_Gate::unavailable_reason(), Feature_Gate::auto_flow_requirement() ) );
+
+/*
+ * The listing is where this claim does the most damage, because it is read
+ * before anybody installs anything and it is the one text nothing else checks.
+ * It said the hand-off "works on every WA.cr plan".
+ */
+$recoveryflow_listing = (string) file_get_contents( dirname( __DIR__ ) . '/readme.txt' );
+
+ok( 'the listing was read at all', strlen( $recoveryflow_listing ) > 2000 );
+
+foreach ( array(
+	'works on every WA.cr plan',
+	'works on any WA.cr workspace',
+	'no particular plan is',
+) as $recoveryflow_overclaim ) {
+	ok(
+		"the listing does not promise the hand-off works regardless of plan ({$recoveryflow_overclaim})",
+		false === stripos( $recoveryflow_listing, $recoveryflow_overclaim )
+	);
+}
+
+ok( 'and names the plan the hand-off needs', false !== strpos( $recoveryflow_listing, 'Growth' ) );
+ok(
+	'and says plainly what the whole WhatsApp half requires, rather than leaving it to be assembled',
+	false !== strpos( $recoveryflow_listing, 'needs the WA.cr Growth plan or above' )
+);
+
 update_option(
 	Options::ME_SNAPSHOT,
 	array(
@@ -675,6 +713,7 @@ ok( 'and the message names where to fix it', false !== strpos( $err->message, 's
 $err = Error::from_response( 403, array( 'error' => array( 'code' => 'plan_upgrade_required' ) ) );
 check( 'a plan refusal is an authorisation failure', $err->category, Error::AUTHORIZATION );
 ok( 'and the message offers the hand-off instead', false !== strpos( $err->message, 'Auto Flow' ) );
+ok( 'while saying what the hand-off needs, from the same one sentence', false !== strpos( $err->message, Feature_Gate::auto_flow_requirement() ) );
 
 $err = Error::from_response( 403, array( 'error' => array( 'code' => 'insufficient_scope' ) ) );
 ok( 'a missing scope names the console', false !== strpos( $err->message, 'WA.cr console' ) );
@@ -3214,6 +3253,283 @@ check(
 check( 'a test push carries no phone number, so a flow that sends has nobody to send to', Hook_Test::payload()['phone'], '' );
 ok( 'and names itself a test, so a flow can branch on it', Hook_Test::EVENT !== Start_Flow::EVENT );
 ok( 'and says so in the payload as well', true === Hook_Test::payload()['test'] );
+
+/*
+ * ---------------------------------------------------------------------------
+ * A 200 FROM THE AUTO FLOW HOOK IS NOT AN OUTCOME.
+ *
+ * WA.cr answers HTTP 200 with {ok:true, enrolled:false, reason:...} to three
+ * states in which it ran nothing at all: feature_disabled, flow_not_active
+ * (a draft or paused flow -- which is every workspace below the plan that can
+ * activate one) and trigger_not_published. Only malformed, unresolvable,
+ * unsigned and rate-limited pushes come back at 400 or above.
+ *
+ * The dispatcher read the status and nothing else, so on any such workspace it
+ * marked every attempt sent and moved every journey to MESSAGE_SENT while not
+ * one message existed. Six gates were green over that, and they still are --
+ * the stub's default response is a bare 200, which is exactly the shape that
+ * cannot see this.
+ * ---------------------------------------------------------------------------
+ */
+$recoveryflow_hook_answer = static function ( array $body ): Result {
+	return Result::success( $body, 200 );
+};
+
+check(
+	'a flow that actually started is a send',
+	Start_Flow::not_enrolled(
+		$recoveryflow_hook_answer(
+			array(
+				'ok'       => true,
+				'enrolled' => true,
+			)
+		)
+	),
+	null
+);
+
+foreach ( array( Flow_Status::FEATURE_DISABLED, Flow_Status::FLOW_NOT_ACTIVE, Flow_Status::TRIGGER_NOT_PUBLISHED ) as $recoveryflow_reason ) {
+	check(
+		"a 200 saying {$recoveryflow_reason} is not a send",
+		Start_Flow::not_enrolled(
+			$recoveryflow_hook_answer(
+				array(
+					'ok'       => true,
+					'enrolled' => false,
+					'reason'   => $recoveryflow_reason,
+				)
+			)
+		),
+		$recoveryflow_reason
+	);
+}
+
+check(
+	'and one that refuses without saying why still is not a send',
+	Start_Flow::not_enrolled(
+		$recoveryflow_hook_answer(
+			array(
+				'ok'       => true,
+				'enrolled' => false,
+			)
+		)
+	),
+	'not_enrolled'
+);
+
+// The reason is somebody else's text on its way to a log line and a screen.
+check(
+	'a reason is reduced to a code before it is kept',
+	Start_Flow::not_enrolled(
+		$recoveryflow_hook_answer(
+			array(
+				'ok'       => true,
+				'enrolled' => false,
+				'reason'   => '<b>Flow Not Active</b>',
+			)
+		)
+	),
+	'bflownotactiveb'
+);
+
+/*
+ * Absent is not false, and this direction matters as much as the other. An
+ * endpoint that does not speak this contract at all would otherwise have every
+ * successful hand-off deferred and pushed again an hour later -- turning a fix
+ * for silent under-sending into duplicate messages at real customers.
+ */
+check(
+	'a body with no enrolled key is left alone',
+	Start_Flow::not_enrolled( $recoveryflow_hook_answer( array( 'ok' => true ) ) ),
+	null
+);
+check(
+	'and so is an empty body, which is what every older deployment answers',
+	Start_Flow::not_enrolled( $recoveryflow_hook_answer( array() ) ),
+	null
+);
+
+// What the merchant is told. Each reason has to name the thing to go and do:
+// "flow_not_active" is a code from somebody else's system.
+foreach ( array( Flow_Status::FEATURE_DISABLED, Flow_Status::FLOW_NOT_ACTIVE, Flow_Status::TRIGGER_NOT_PUBLISHED, 'something_new' ) as $recoveryflow_reason ) {
+	$recoveryflow_said = Flow_Status::label( $recoveryflow_reason );
+
+	ok( "a merchant reading about {$recoveryflow_reason} is told nothing was sent", false !== strpos( $recoveryflow_said, 'Nothing has been sent' ) );
+	ok( "and that the reminders are waiting rather than lost ({$recoveryflow_reason})", false !== strpos( $recoveryflow_said, 'waiting rather than lost' ) );
+}
+
+ok(
+	'the plan requirement is named, because no amount of clicking fixes a plan',
+	false !== strpos( Flow_Status::label( Flow_Status::FEATURE_DISABLED ), 'Growth' )
+);
+
+// The store the background pass writes and the screen reads.
+delete_option( Flow_Status::OPTION );
+check( 'nothing is remembered until something is refused', Flow_Status::refusal(), array() );
+
+Flow_Status::refused( Flow_Status::FLOW_NOT_ACTIVE );
+check( 'a refusal is remembered', Flow_Status::refusal()['reason'], Flow_Status::FLOW_NOT_ACTIVE );
+
+Flow_Status::enrolled();
+check( 'and a flow that starts again clears it, so a fixed problem stops being reported', Flow_Status::refusal(), array() );
+
+/*
+ * And the half that matters: the dispatcher has to ACT on that answer. Asserting
+ * not_enrolled() alone would repeat the mistake that let the per-step channel
+ * survive four slices -- a helper that returns the right value, tested, while
+ * nothing in the execution path calls it. So the real push() is driven, with a
+ * real 200 on the wire, and the outcome is read off the far side.
+ */
+$recoveryflow_flow_action = new Start_Flow(
+	$plugin->wacr(),
+	$plugin->credentials(),
+	$plugin->attempts(),
+	$plugin->journeys(),
+	$plugin->send_gate(),
+	$plugin->rate_budget(),
+	$plugin->logger(),
+	$plugin->clock()
+);
+
+$recoveryflow_push = new ReflectionMethod( Start_Flow::class, 'push' );
+$recoveryflow_push->setAccessible( true );
+
+$recoveryflow_hand_off = static function ( array $body ) use ( $recoveryflow_flow_action, $recoveryflow_push ): Step_Outcome {
+	$GLOBALS['__http_response'] = array(
+		'response' => array( 'code' => 200 ),
+		'body'     => (string) wp_json_encode( $body ),
+		'headers'  => array(),
+	);
+
+	$journey = Recovery_Journey::from_row(
+		array(
+			'id'               => 7700,
+			'journey_uid'      => 'rec-7700-enrolment',
+			'status'           => Journey_State::SCHEDULED,
+			'customer_id'      => 9900,
+			'event_id'         => 8800,
+			'workflow_id'      => 3300,
+			'workflow_version' => 1,
+			'current_step'     => 0,
+			'source_id'        => 'woocommerce',
+		)
+	);
+
+	return $recoveryflow_push->invoke(
+		$recoveryflow_flow_action,
+		$journey,
+		array(
+			'claim_token' => 'claim-for-the-enrolment-test',
+			'step_index'  => 0,
+		),
+		Attempt::from_row(
+			array(
+				'id'         => 6600,
+				'journey_id' => 7700,
+				'step_index' => 0,
+				'attempt_no' => 1,
+				'status'     => Attempt::SENDING,
+			)
+		),
+		Customer::from_row(
+			array(
+				'id'         => 9900,
+				'first_name' => 'Ada',
+			)
+		),
+		Recovery_Event::from_row(
+			array(
+				'id'       => 8800,
+				'status'   => Recovery_Event::OPEN,
+				'currency' => 'GBP',
+				'amount'   => '25.0000',
+			)
+		),
+		'plaintext-token-for-the-enrolment-test'
+	);
+};
+
+delete_option( Flow_Status::OPTION );
+
+// There has to be somewhere to push to, or every run below stops at no_hook
+// and the whole block asserts nothing about enrolment.
+$recoveryflow_settings_before_flow = (array) get_option( Options::SETTINGS, array() );
+
+update_option(
+	Options::SETTINGS,
+	array_replace( Options::defaults(), array( 'wacr_hook_url' => 'https://api.wa.cr/automations/hooks/tok_enrolment_test' ) )
+);
+
+$recoveryflow_took_it = $recoveryflow_hand_off(
+	array(
+		'ok'       => true,
+		'enrolled' => true,
+	)
+);
+check( 'a hand-off the flow took up is recorded as sent', $recoveryflow_took_it->status, Step_Outcome::SENT );
+check( 'and says it was handed off', $recoveryflow_took_it->reason, 'handed_off' );
+check( 'and leaves nothing for the Connection screen to complain about', Flow_Status::refusal(), array() );
+
+/*
+ * The bug itself. Before this, the line below returned SENT/handed_off and the
+ * journey moved to MESSAGE_SENT -- on every free, trial and starter workspace,
+ * every enterprise workspace, and every workspace whose flow was merely paused.
+ */
+$recoveryflow_dropped = $recoveryflow_hand_off(
+	array(
+		'ok'       => true,
+		'enrolled' => false,
+		'reason'   => Flow_Status::FLOW_NOT_ACTIVE,
+	)
+);
+
+ok( 'a 200 that ran nothing is NOT recorded as sent', Step_Outcome::SENT !== $recoveryflow_dropped->status );
+check( 'it waits instead', $recoveryflow_dropped->status, Step_Outcome::WAITING );
+check( 'carrying the reason WA.cr gave', $recoveryflow_dropped->reason, Flow_Status::FLOW_NOT_ACTIVE );
+check( 'and the Connection screen is told, because a background pass has no reader', Flow_Status::refusal()['reason'], Flow_Status::FLOW_NOT_ACTIVE );
+
+// And it recovers: the merchant activates the flow, the next push is taken up,
+// and the warning goes away on its own.
+$recoveryflow_recovered = $recoveryflow_hand_off(
+	array(
+		'ok'       => true,
+		'enrolled' => true,
+	)
+);
+check( 'activating the flow lets the next one through', $recoveryflow_recovered->status, Step_Outcome::SENT );
+check( 'and clears the warning', Flow_Status::refusal(), array() );
+
+/*
+ * And it has to reach a person. A deferral inside a background pass has no
+ * reader at all: the merchant's evidence is a queue that never sends and a
+ * status screen that says everything is fine.
+ */
+$recoveryflow_flow_check = static function () use ( $plugin ): array {
+	foreach ( $plugin->health()->connection_checks() as $recoveryflow_row ) {
+		if ( 'wacr_flow' === $recoveryflow_row['id'] ) {
+			return $recoveryflow_row;
+		}
+	}
+
+	return array();
+};
+
+check( 'a working flow puts nothing on the Connection screen', $recoveryflow_flow_check(), array() );
+
+Flow_Status::refused( Flow_Status::FEATURE_DISABLED );
+$recoveryflow_shown = $recoveryflow_flow_check();
+
+ok( 'a refused hand-off does', array() !== $recoveryflow_shown );
+check( 'and is an error rather than a note, because nothing is being sent', $recoveryflow_shown['severity'], 'error' );
+ok( 'and names the plan the hook needs', false !== strpos( (string) $recoveryflow_shown['message'], 'Growth' ) );
+
+Flow_Status::enrolled();
+check( 'and it goes away once the flow runs again', $recoveryflow_flow_check(), array() );
+
+unset( $GLOBALS['__http_response'] );
+update_option( Options::SETTINGS, $recoveryflow_settings_before_flow );
+
+unset( $GLOBALS['__http_response'] );
 ok( 'and the button warns that the flow really runs', false !== strpos( recoveryflow_render_screen( array( Hook_Test::class, 'button' ) ), esc_html__( 'This really runs your Auto Flow, because a webhook trigger fires on anything that reaches it. The test carries no phone number, so a flow that goes on to send has nobody to send to.', 'kdc-wacr-recoveryflow' ) ) );
 
 // Without a hook address there is nothing to test, and saying so beats a

@@ -25,6 +25,8 @@ use WAcr\RecoveryFlow\Support\Logger;
 use WAcr\RecoveryFlow\WAcr\Client;
 use WAcr\RecoveryFlow\WAcr\Credentials;
 use WAcr\RecoveryFlow\WAcr\Error;
+use WAcr\RecoveryFlow\WAcr\Flow_Status;
+use WAcr\RecoveryFlow\WAcr\Result;
 use WAcr\RecoveryFlow\WAcr\Rate_Budget;
 use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Workflow\Step_Outcome;
@@ -339,12 +341,76 @@ final class Start_Flow implements Action_Interface {
 		do_action( Hooks::AFTER_MESSAGE, $journey, $attempt, $result );
 
 		if ( $result->ok ) {
-			$this->attempts->mark_sent( $attempt->id );
+			$refused = self::not_enrolled( $result );
 
-			return $this->record_sent( $journey, $context, 'handed_off' );
-		}
+			if ( null === $refused ) {
+				Flow_Status::enrolled();
+				$this->attempts->mark_sent( $attempt->id );
+
+				return $this->record_sent( $journey, $context, 'handed_off' );
+			}
+
+			// WA.cr took the request, answered 200, and ran nothing. Recording
+			// this as sent is how a merchant comes to believe a fortnight of
+			// recoveries went out when not one of them did.
+			Flow_Status::refused( $refused );
+
+			$this->logger->warning(
+				'workflow',
+				'WA.cr accepted the hand-off and did not start the flow',
+				array( 'reason' => $refused ),
+				$journey->id
+			);
+
+			return $this->handle_failure(
+				$journey,
+				$context,
+				$attempt,
+				Error::configuration( $refused, Flow_Status::label( $refused ) )
+			);
+		}//end if
 
 		return $this->handle_failure( $journey, $context, $attempt, $result->error );
+	}
+
+	/**
+	 * Whether WA.cr accepted the hand-off and then ran nothing.
+	 *
+	 * The Auto Flow hook answers **HTTP 200** to three states in which no
+	 * action ran at all -- `feature_disabled`, `flow_not_active` and
+	 * `trigger_not_published` -- with `{ok:true, enrolled:false, reason:...}`.
+	 * Only malformed, unresolvable, unsigned and rate-limited pushes come back
+	 * at 400 or above. So the status line is not the outcome, and a dispatcher
+	 * that reads only the status reports every recovery as handed off on any
+	 * workspace whose flow is not running.
+	 *
+	 * Kept apart from everything it causes so that the rule can be asserted
+	 * against the exact bodies WA.cr returns, rather than inferred from a
+	 * journey's state three side effects later.
+	 *
+	 * A body with **no** `enrolled` key is treated as enrolled, deliberately.
+	 * Absent is not the same as false: an endpoint that does not speak this
+	 * contract would otherwise have every one of its successful sends deferred
+	 * and retried an hour later, which is how a fix for silent under-sending
+	 * turns into duplicate messages to real customers.
+	 *
+	 * @param Result $result What the hook answered.
+	 * @return string|null The reason, or null when the flow was actually started.
+	 */
+	public static function not_enrolled( Result $result ): ?string {
+		if ( ! array_key_exists( 'enrolled', $result->value ) ) {
+			return null;
+		}
+
+		if ( false !== (bool) $result->value['enrolled'] ) {
+			return null;
+		}
+
+		$reason = $result->get( 'reason', '' );
+		$reason = is_scalar( $reason ) ? strtolower( trim( (string) $reason ) ) : '';
+		$reason = (string) preg_replace( '/[^a-z0-9_]/', '', $reason );
+
+		return '' === $reason ? 'not_enrolled' : substr( $reason, 0, 32 );
 	}
 
 	/**

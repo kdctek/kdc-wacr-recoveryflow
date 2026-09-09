@@ -101,6 +101,28 @@ final class Feature_Gate {
 	}
 
 	/**
+	 * What the Auto Flow hand-off itself needs, which is not nothing.
+	 *
+	 * The hook is not gated on the developer API, and that was read for a
+	 * whole release as "so it works on any plan". It does not. Running an Auto
+	 * Flow needs a plan whose Auto Flow allowance is above zero, which starts
+	 * at Growth -- so on free, trial and starter RecoveryFlow can dispatch
+	 * nothing to WA.cr at all, by either route.
+	 *
+	 * The plugin cannot check this from here and does not pretend to: the
+	 * endpoint that would answer is itself part of the developer API, so a
+	 * workspace on Growth -- exactly the one this sentence is for -- cannot
+	 * call it. The truthful runtime signal is the hook's own answer, which
+	 * Flow_Status carries to the Connection screen the first time a hand-off
+	 * is refused.
+	 *
+	 * @return string
+	 */
+	public static function auto_flow_requirement(): string {
+		return __( 'Handing journeys to a WA.cr Auto Flow needs a WA.cr plan that can run one, which is Growth and above.', 'kdc-wacr-recoveryflow' );
+	}
+
+	/**
 	 * Why the developer API is unavailable, in words an operator can act on.
 	 *
 	 * @return string Empty when it is available.
@@ -116,7 +138,7 @@ final class Feature_Gate {
 
 		switch ( $reason ) {
 			case 'plan_upgrade_required':
-				return __( 'Authoring recovery workflows in WordPress is included with the WA.cr Scale plan and above. Your workspace can still hand recovery journeys to a WA.cr Auto Flow.', 'kdc-wacr-recoveryflow' );
+				return __( 'Authoring recovery workflows in WordPress is included with the WA.cr Scale plan and above. Your workspace can instead hand recovery journeys to a WA.cr Auto Flow.', 'kdc-wacr-recoveryflow' ) . ' ' . self::auto_flow_requirement();
 
 			case 'invalid_key':
 			case 'key_revoked':

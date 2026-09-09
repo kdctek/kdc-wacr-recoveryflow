@@ -7,6 +7,8 @@
 
 namespace WAcr\RecoveryFlow\WAcr;
 
+use WAcr\RecoveryFlow\Core\Feature_Gate;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -252,7 +254,7 @@ final class Error {
 				return __( 'This API key is missing a permission RecoveryFlow needs. Edit the key in the WA.cr console and tick the scopes listed on the RecoveryFlow settings screen.', 'kdc-wacr-recoveryflow' );
 
 			case 'plan_upgrade_required':
-				return __( 'Sending directly from WordPress needs the WA.cr developer API, which is included from the Scale plan upwards. RecoveryFlow can still hand journeys to a WA.cr Auto Flow instead.', 'kdc-wacr-recoveryflow' );
+				return __( 'Sending directly from WordPress needs the WA.cr developer API, which is included from the Scale plan upwards. RecoveryFlow can hand journeys to a WA.cr Auto Flow instead.', 'kdc-wacr-recoveryflow' ) . ' ' . Feature_Gate::auto_flow_requirement();
 
 			case 'rate_limited':
 				return __( 'WA.cr is rate limiting this workspace. RecoveryFlow has paused sending and will resume shortly.', 'kdc-wacr-recoveryflow' );

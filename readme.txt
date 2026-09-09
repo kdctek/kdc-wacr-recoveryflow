@@ -24,7 +24,9 @@ To get a WhatsApp recovery out of it you need all of the following on the WA.cr 
 
 * An active WA.cr account and workspace, in good standing.
 * A connected WhatsApp Business sender in that workspace.
-* Either an Auto Flow with a "webhook received" trigger, or a WA.cr API key and at least one WhatsApp template approved by Meta.
+* Either an Auto Flow with a "webhook received" trigger, on a WA.cr plan that can run one (Growth and above), or a WA.cr API key and at least one WhatsApp template approved by Meta (Scale and above).
+
+**In short: sending WhatsApp through RecoveryFlow needs the WA.cr Growth plan or above.** Growth and Scale differ only in which of the two paths you get -- Growth hands journeys to an Auto Flow, Scale adds workflows authored here with direct template sends. On free, trial and starter neither path can run, so no WhatsApp reminder can leave the site whatever the plugin is set to. The email channel is unaffected and needs no WA.cr account at all.
 
 Install it without those and the WhatsApp half of the plugin is inert: journeys are still detected, recorded and held as eligible, and every WhatsApp step stalls there unsent. Nothing in RecoveryFlow substitutes for the WA.cr side of that. What does work without WA.cr is the email channel — recovery emails are sent by WordPress itself, through whatever mail configuration the site already uses, and need no WA.cr account, no API key and no plan. There is no SMS.
 
@@ -45,7 +47,7 @@ RecoveryFlow owns detection, identity, consent, timing, the recovery link and at
 
 = Works with any WA.cr plan =
 
-An account is required either way, but no particular plan is. Everything in RecoveryFlow works with a WA.cr Auto Flow. The plugin pushes a signed `recovery.journey_eligible` event to your flow, and WA.cr runs the delays, follow-ups, stop-on-reply and quiet hours. This needs nothing more than Auto Flows on your workspace; no API key is required for the hand-off.
+An account is required either way. The plugin pushes a signed `recovery.journey_eligible` event to your flow, and WA.cr runs the delays, follow-ups, stop-on-reply and quiet hours. No API key is required for the hand-off -- but your workspace does have to be able to run an Auto Flow, which starts at the WA.cr Growth plan. On plans below that, RecoveryFlow still records everything it finds; it just has nowhere to hand it yet.
 
 WordPress-authored multi-touch workflows with direct template sends, where the plugin decides the timing and content of each touch and reads delivery status and replies back, use the WA.cr developer API and are **included with WA.cr Scale and above**. The plugin detects what your workspace has and shows the right screens. Nothing is a disabled shell, and the Auto Flow path is complete on its own.
 
@@ -150,7 +152,7 @@ No. Explicit consent is the default: an unchecked checkbox at checkout that name
 
 = Which WA.cr plan do I need? =
 
-Every plan needs an active account; the plan only decides which of the two workflow paths you can use. Auto Flow hand-off works on any WA.cr workspace with Auto Flows and does not need an API key. WordPress-authored workflows with direct template sends and reply polling use the WA.cr developer API (`/v1`), which is included with WA.cr Scale and above. The plugin detects which you have after you connect and shows the matching screens.
+Every plan needs an active account, and the plan decides which of the two workflow paths you can use. Auto Flow hand-off needs a workspace that can run an Auto Flow, which starts at WA.cr Growth, and needs no API key. WordPress-authored workflows with direct template sends and reply polling use the WA.cr developer API (`/v1`), which is included with WA.cr Scale and above. If WA.cr accepts a hand-off and does not run the flow -- because the plan cannot run one, or the flow is paused -- RecoveryFlow holds the reminder and says so on its status screen rather than recording it as sent.
 
 = Can I build my own integration? =
 
@@ -190,7 +192,7 @@ First release.
 * Detects abandoned WooCommerce carts and checkouts, on both the classic and the block checkout, and records one recovery per shopping session.
 * Picks up a phone number and email address as they are typed at the checkout, and records whether the shopper agreed to be messaged. Explicit consent is the default.
 * Can also ask before the checkout -- a short form below the basket, a field beside the "add to basket" button -- and can make the checkout's phone number compulsory. All three are off until you turn them on, each says what it costs, and all three work with scripts blocked and on block-based pages.
-* Recovers through WA.cr: either by handing the journey to an Auto Flow, which works on every WA.cr plan and needs no API key, or by sending approved WhatsApp templates on a schedule this plugin decides. The second is included with WA.cr Scale and above.
+* Recovers through WA.cr: either by handing the journey to an Auto Flow, which needs no API key and a plan that can run one (Growth and above), or by sending approved WhatsApp templates on a schedule this plugin decides. The second is included with WA.cr Scale and above.
 * Recovery email sent by WordPress itself, through the site's own mail configuration -- no WA.cr account, no API key and no plan. Every message carries the sender's postal address and an unsubscribe link that keeps working for thirty days, and the channel stays off until those are set.
 * Recovery links that rebuild the basket without wiping what the shopper has now, and stop working the moment the order is placed.
 * A form-based workflow editor that works with JavaScript switched off, a template picker that shows each blank in the template's own words, and quiet hours and frequency caps.
