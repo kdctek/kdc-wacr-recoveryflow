@@ -7635,6 +7635,75 @@ ok(
  */
 
 /*
+ * ONE. The direct-access guard has to be found, not merely present.
+ *
+ * `defined( 'ABSPATH' ) || exit;` was in all 167 source files, so a grep for it
+ * passed -- and Plugin Check still reported src/Core/Plugin.php as having no
+ * protection at all. It reads the FIRST 50 LINES of a file
+ * (Direct_File_Access_Check::has_guard(), `array_slice( $lines, 0, 50 )`), and
+ * Plugin.php imports 94 classes, which had pushed its guard to line 105.
+ *
+ * So the assertion is on the LINE NUMBER, not on presence. The convention in
+ * this codebase is to put the guard under the use block, which is correct right
+ * up until a use block grows past the window -- and nothing would have said so.
+ */
+$recoveryflow_guard_limit = 50;
+$recoveryflow_guard_walk  = new RecursiveIteratorIterator(
+	new RecursiveDirectoryIterator( dirname( __DIR__ ) . '/src', FilesystemIterator::SKIP_DOTS )
+);
+$recoveryflow_unguarded   = array();
+$recoveryflow_guard_files = 0;
+
+foreach ( $recoveryflow_guard_walk as $recoveryflow_guard_file ) {
+	if ( ! $recoveryflow_guard_file->isFile() || 'php' !== $recoveryflow_guard_file->getExtension() ) {
+		continue;
+	}
+
+	++$recoveryflow_guard_files;
+
+	$recoveryflow_guard_lines = (array) file( $recoveryflow_guard_file->getPathname(), FILE_IGNORE_NEW_LINES );
+	$recoveryflow_guard_at    = 0;
+
+	foreach ( $recoveryflow_guard_lines as $recoveryflow_guard_index => $recoveryflow_guard_line ) {
+		if ( false !== strpos( (string) $recoveryflow_guard_line, "defined( 'ABSPATH' )" ) ) {
+			$recoveryflow_guard_at = $recoveryflow_guard_index + 1;
+			break;
+		}
+	}
+
+	if ( 0 === $recoveryflow_guard_at || $recoveryflow_guard_at > $recoveryflow_guard_limit ) {
+		$recoveryflow_unguarded[] = str_replace( dirname( __DIR__ ) . '/', '', $recoveryflow_guard_file->getPathname() )
+			. ( 0 === $recoveryflow_guard_at ? ' (absent)' : " (line {$recoveryflow_guard_at})" );
+	}
+}
+
+// A walk that found nothing passes every assertion inside it and asserts nothing.
+ok( 'there are source files to check for a direct-access guard', $recoveryflow_guard_files > 100 );
+ok(
+	"every shipped file guards direct access within its first {$recoveryflow_guard_limit} lines, where Plugin Check looks: "
+		. ( array() === $recoveryflow_unguarded ? 'all of them' : 'TOO LATE OR MISSING IN ' . implode( ', ', $recoveryflow_unguarded ) ),
+	array() === $recoveryflow_unguarded
+);
+
+/*
+ * TWO. `Update URI: false` is an ERROR on WordPress.org, not a nicety.
+ *
+ * The header is how a plugin distributed anywhere else says "never update me
+ * from .org". On a plugin that IS hosted there it means merchants are never
+ * offered a single update, and Plugin Check refuses it outright
+ * (plugin_updater_detected). It had been in the header since the first commit
+ * with no decision recorded anywhere, which is how it survived to the day of
+ * the submission.
+ */
+$recoveryflow_main_file = (string) file_get_contents( dirname( __DIR__ ) . '/kdc-wacr-recoveryflow.php' );
+
+ok( 'the main plugin file was read at all', strlen( $recoveryflow_main_file ) > 1000 );
+ok(
+	'the plugin declares no Update URI, which WordPress.org refuses on a plugin it hosts',
+	false === stripos( $recoveryflow_main_file, 'Update URI' )
+);
+
+/*
  * THREE. The plan overclaim, caught by what it MEANS rather than by how it was
  * last worded.
  *

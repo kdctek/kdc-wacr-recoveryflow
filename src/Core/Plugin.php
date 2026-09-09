@@ -7,6 +7,17 @@
 
 namespace WAcr\RecoveryFlow\Core;
 
+/*
+ * The guard sits ABOVE the use block here, unlike everywhere else in src/,
+ * and that is deliberate. Every other file puts it below because the block is
+ * a few lines long; this one imports 94 classes, which pushed the guard to
+ * line 105 -- past the window WordPress.org's Plugin Check reads, so the file
+ * was reported as having no protection at all. tests/smoke.php now asserts the
+ * guard's LINE NUMBER for every shipped file, so a use block that grows cannot
+ * quietly push another one out of reach.
+ */
+defined( 'ABSPATH' ) || exit;
+
 use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
@@ -101,8 +112,6 @@ use WAcr\RecoveryFlow\Workflow\Message_Composer;
 use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Workflow\Step_Registry;
 use WAcr\RecoveryFlow\Workflow\Workflow_Repository;
-
-defined( 'ABSPATH' ) || exit;
 
 /**
  * Wires the plugin together and hands services to whoever needs them.
