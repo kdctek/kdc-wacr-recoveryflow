@@ -72,7 +72,6 @@ The Integrations screen states, per source, which of four things is true, and it
 | --- | --- |
 | `unavailable` | The system this source integrates with is not installed or not active |
 | `switched_off` | Present and working, switched off here |
-| `not_included` | Present and switched on, but the WA.cr plan does not include sources beyond WooCommerce. **The hooks are not attached**, so nothing is recorded |
 | `active` | Watching |
 
 ### Sending events into the core
@@ -157,7 +156,7 @@ Requires WooCommerce 8.0 or later. The plugin declares compatibility with High-P
 
 ## Gravity Forms
 
-Requires Gravity Forms 2.4 or later, and a WA.cr plan that includes integrations beyond WooCommerce. It recovers two things, deliberately unalike, because a second adapter that recovered another kind of basket would prove nothing about the abstraction.
+Requires Gravity Forms 2.4 or later, and no particular WA.cr plan -- detection is local and calls WA.cr for nothing. It recovers two things, deliberately unalike, because a second adapter that recovered another kind of basket would prove nothing about the abstraction.
 
 | Question | Gravity Forms |
 | --- | --- |

@@ -4,7 +4,7 @@ Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.1.1
+Stable tag: 0.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -65,7 +65,7 @@ All processing runs in the background, through Action Scheduler when it is avail
 = Supported integrations =
 
 * **WooCommerce** 8.0 or later: carts and checkouts, classic and block-based, HPOS compatible. Available now.
-* **Gravity Forms** 2.4 or later: save-and-continue drafts, and entries whose payment never went through. Nothing is rebuilt from a snapshot -- Gravity Forms hands the half-finished form back on its own resume link. Available now, with the WA.cr Scale plan or above.
+* **Gravity Forms** 2.4 or later: save-and-continue drafts, and entries whose payment never went through. Nothing is rebuilt from a snapshot -- Gravity Forms hands the half-finished form back on its own resume link. Available now; spotting these is local work and needs no WA.cr account.
 * **Tickera**: planned.
 * **Event Tickets**: planned.
 * **Easy Digital Downloads**: planned.
@@ -186,6 +186,11 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 
 == Changelog ==
 
+= 0.1.2 =
+
+* **Detecting an abandoned basket no longer depends on your WA.cr plan.** Any recovery source other than WooCommerce -- including the Gravity Forms integration that comes with the plugin -- used to be switched off unless your WA.cr workspace was on the Scale plan, and its hooks were never attached, so nothing from it was recorded. Spotting an abandoned form entry happens entirely on your own site and asks WA.cr for nothing, so no plan decides whether it runs. Sending still needs WA.cr.
+* **The workflow screen offered fewer kinds of workflow than the plugin would accept.** It went read-only without a WA.cr developer API, so a shop could not start an email-only workflow it was perfectly entitled to build. Only a step that sends a template from WordPress is refused now, and the notice says so.
+
 = 0.1.1 =
 
 Eight fixes on top of the first release. Three came from running the plugin against real Gravity Forms and a real WA.cr hand-off for the first time, and nothing here changes what it is for.
@@ -220,6 +225,9 @@ First release.
 * Fully translatable, with the .pot shipped.
 
 == Upgrade Notice ==
+
+= 0.1.2 =
+Gravity Forms and every other integration now run whatever your WA.cr plan is -- detection happens on your own site and never needed a plan. The workflow screen no longer goes read-only when it should only be refusing one kind of step.
 
 = 0.1.1 =
 Fixes reminders being recorded as sent when WA.cr ran nothing, corrects the WA.cr plan the WhatsApp hand-off actually needs (Growth and above), lets a Gravity Forms form record consent, and restores the plugin's ability to be updated at all.

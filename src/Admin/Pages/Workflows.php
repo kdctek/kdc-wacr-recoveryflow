@@ -70,13 +70,19 @@ final class Workflows {
 		echo '<div class="wrap recoveryflow-workflows">';
 		printf( '<h1 class="wp-heading-inline">%s</h1>', esc_html__( 'Workflows', 'kdc-wacr-recoveryflow' ) );
 
-		if ( $editable ) {
-			printf(
-				' <a href="%1$s" class="page-title-action">%2$s</a>',
-				esc_url( Screen::workflow_url( 0 ) ),
-				esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' )
-			);
-		}
+		/*
+		 * Always offered. This button used to be hidden whenever the workspace
+		 * had no developer API, which was stricter than the rule the save path
+		 * actually applies: Workflow_Form::may_write() accepts any definition
+		 * whose steps do not call /v1, and a workflow of email steps calls WA.cr
+		 * for nothing at all. So the screen refused to let a merchant build
+		 * something the plugin was perfectly willing to save.
+		 */
+		printf(
+			' <a href="%1$s" class="page-title-action">%2$s</a>',
+			esc_url( Screen::workflow_url( 0 ) ),
+			esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' )
+		);
 
 		echo '<hr class="wp-header-end">';
 
@@ -104,13 +110,18 @@ final class Workflows {
 	}
 
 	/**
-	 * Say why the editor is closed, and what still works.
+	 * Say which step is refused, and what still works.
+	 *
+	 * The editor is not closed and never should have been described as closed.
+	 * Only a step that sends a template through the WA.cr developer API is
+	 * refused; waits, checks, Auto Flow hand-offs and email steps all save
+	 * normally, and a workflow built from those needs no WA.cr credential.
 	 *
 	 * @return void
 	 */
 	private function render_gate_notice(): void {
 		echo '<div class="notice notice-info inline recoveryflow-gate">';
-		printf( '<p><strong>%s</strong></p>', esc_html__( 'Workflows are read-only on this workspace', 'kdc-wacr-recoveryflow' ) );
+		printf( '<p><strong>%s</strong></p>', esc_html__( 'One kind of step cannot be saved on this workspace', 'kdc-wacr-recoveryflow' ) );
 		printf( '<p>%s</p>', esc_html( Feature_Gate::unavailable_reason() ) );
 		printf(
 			'<p><a href="%1$s">%2$s</a></p>',

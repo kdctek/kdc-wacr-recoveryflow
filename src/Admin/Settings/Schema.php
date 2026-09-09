@@ -709,9 +709,6 @@ final class Schema {
 			case Source_Registry::UNAVAILABLE:
 				return __( 'Whatever this integration needs is not installed or not active on this site, so this switch changes nothing until it is.', 'kdc-wacr-recoveryflow' );
 
-			case Source_Registry::NOT_INCLUDED:
-				return __( 'Integrations beyond WooCommerce are included with the WA.cr Scale plan and above. This switch is remembered, and takes effect when the workspace can use it.', 'kdc-wacr-recoveryflow' );
-
 			default:
 				return __( 'Switching this off stops new journeys being recorded from here. Journeys already under way finish or expire on their own, and nothing already recorded is deleted.', 'kdc-wacr-recoveryflow' );
 		}

@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
-define( 'KDC_WACR_RECOVERYFLOW_VERSION', '0.1.1' );
+define( 'KDC_WACR_RECOVERYFLOW_VERSION', '0.1.2' );
 define( 'KDC_WACR_RECOVERYFLOW_FILE', dirname( __DIR__ ) . '/kdc-wacr-recoveryflow.php' );
 define( 'KDC_WACR_RECOVERYFLOW_DIR', dirname( __DIR__ ) . '/' );
 define( 'KDC_WACR_RECOVERYFLOW_URL', 'https://example.test/wp-content/plugins/kdc-wacr-recoveryflow/' );

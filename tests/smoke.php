@@ -2415,7 +2415,7 @@ ok( 'and names the raw condition nowhere on the screen', false === strpos( $reco
 ok( 'and says which channel a send goes over', false !== strpos( $recoveryflow_html, esc_html( _x( 'WhatsApp', 'message channel', 'kdc-wacr-recoveryflow' ) ) ) );
 ok( 'and says whether a workflow is the one new recoveries start on', false !== strpos( $recoveryflow_html, esc_html__( 'Active, and used for new recoveries', 'kdc-wacr-recoveryflow' ) ) );
 ok( 'a connected workspace is offered a new workflow', false !== strpos( $recoveryflow_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
-ok( 'and is not told the screen is read-only', false === strpos( $recoveryflow_html, esc_html__( 'Workflows are read-only on this workspace', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and is told nothing about a step it cannot save', false === strpos( $recoveryflow_html, esc_html__( 'One kind of step cannot be saved on this workspace', 'kdc-wacr-recoveryflow' ) ) );
 
 // The other direction. A gate that is only ever exercised in one state is a
 // gate whose decision no assertion can see: reversing it would change nothing.
@@ -2430,9 +2430,17 @@ update_option(
 $recoveryflow_html = recoveryflow_render_screen( array( $plugin->admin_workflows(), 'render' ) );
 
 ok( 'a workspace below Scale still sees its workflows', false !== strpos( $recoveryflow_html, esc_html( 'Cart recovery' ) ) );
-ok( 'and is told the screen is read-only', false !== strpos( $recoveryflow_html, esc_html__( 'Workflows are read-only on this workspace', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'and is told which step it cannot save', false !== strpos( $recoveryflow_html, esc_html__( 'One kind of step cannot be saved on this workspace', 'kdc-wacr-recoveryflow' ) ) );
 ok( 'and is told why in words it can act on', false !== strpos( $recoveryflow_html, esc_html( Feature_Gate::unavailable_reason() ) ) );
-ok( 'and is not offered a new workflow it could not save', false === strpos( $recoveryflow_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
+
+/*
+ * And is STILL offered a new workflow. The assertion here used to be the
+ * reverse -- "not offered a new workflow it could not save" -- which was true
+ * of a direct-send workflow and false of every other kind. Email steps and
+ * Auto Flow hand-offs save on any plan, so hiding the button refused a
+ * merchant the thing Workflow_Form::may_write() would have accepted.
+ */
+ok( 'and is still offered a new workflow, because most kinds still save', false !== strpos( $recoveryflow_html, esc_html__( 'Add workflow', 'kdc-wacr-recoveryflow' ) ) );
 
 /*
  * The exemption that keeps the Lite path from being trialware: handing a
@@ -4032,24 +4040,10 @@ function recoveryflow_integration_says( string $phrase ): int {
 $recoveryflow_phrases = array(
 	'unavailable' => 'Not available.',
 	'off'         => 'switched off here',
-	'plan'        => 'not included in this WA.cr plan',
 	'active'      => 'Abandoned baskets from here are being recorded',
 );
 
 $recoveryflow_before = array_map( 'recoveryflow_integration_says', $recoveryflow_phrases );
-
-// The entitlement, made switchable so all four states can actually be rendered
-// rather than read out of the source of the method that words them.
-$GLOBALS['recoveryflow_extra_sources'] = false;
-
-add_filter(
-	Hooks::FILTER_FEATURE_ENABLED,
-	static fn ( bool $on, string $feature ): bool => Feature_Gate::EXTRA_SOURCES === $feature
-		? (bool) $GLOBALS['recoveryflow_extra_sources']
-		: $on,
-	10,
-	2
-);
 
 $recoveryflow_state_source = new Recoveryflow_Fake_Pollable( $plugin->ingest(), 'statecheck' );
 $plugin->sources()->add( $recoveryflow_state_source );
@@ -4078,13 +4072,29 @@ check( 'a source somebody switched off says so', recoveryflow_integration_says( 
 // The bug this section exists for: installed, switched on, excluded by the
 // plan, and the screen used to call that "Active".
 $plugin->sources()->set_enabled( 'statecheck', true );
-check( 'a source the plan does not include says that, in those words', recoveryflow_integration_says( $recoveryflow_phrases['plan'] ), $recoveryflow_before['plan'] + 1 );
-check( 'and is not described as recording anything', recoveryflow_integration_says( $recoveryflow_phrases['active'] ), $recoveryflow_before['active'] );
-check( 'and its hooks are not attached', array_key_exists( 'statecheck', $plugin->sources()->active() ), false );
 
-$GLOBALS['recoveryflow_extra_sources'] = true;
-check( 'and once the plan includes it, it is recording', recoveryflow_integration_says( $recoveryflow_phrases['active'] ), $recoveryflow_before['active'] + 1 );
+/*
+ * A source registered by somebody else's plugin runs on a site with NO WA.cr
+ * credential at all, and these two assertions are the ones that say so.
+ *
+ * They used to say the opposite. `extra_sources` refused every source but
+ * WooCommerce unless the workspace was on WA.cr Scale -- which switched off
+ * the Gravity Forms adapter shipped in this plugin, and any integration a
+ * third party registered through the filter, on plan alone. Both watch local
+ * tables and call WA.cr for nothing, so that was a paywall on the plugin's own
+ * behaviour: WordPress.org guideline 5, which forbids restricting
+ * functionality implemented in the plugin's code, as distinct from guideline
+ * 6, which permits requiring the paid service for what genuinely needs it.
+ *
+ * There is no credential in scope here -- the snapshot is cleared below and
+ * asserted, so this cannot pass by accidentally being entitled.
+ */
+delete_option( Options::ME_SNAPSHOT );
+
+ok( 'the workspace really has no developer API for this check', ! Feature_Gate::has_developer_api() );
+check( 'a third-party source runs anyway, because nothing it does needs WA.cr', $plugin->sources()->status( 'statecheck' ), Source_Registry::ACTIVE );
 check( 'and its hooks are attached', array_key_exists( 'statecheck', $plugin->sources()->active() ), true );
+check( 'and it is described as recording, not as withheld', recoveryflow_integration_says( $recoveryflow_phrases['active'] ), $recoveryflow_before['active'] + 1 );
 
 // The switch. enabled_sources was read by the registry from the first slice and
 // written by nothing: a merchant could not switch an integration off, and the
@@ -4108,8 +4118,6 @@ ok(
 	'an adapter field is stored under a key of the adapter\'s own',
 	'source_statecheck_phone_field' === Source_Registry::setting_key( 'statecheck', 'phone_field' )
 );
-
-$GLOBALS['recoveryflow_extra_sources'] = true;
 
 /*
  * ---------------------------------------------------------------------------
@@ -4157,7 +4165,6 @@ check(
 	'vanished'
 );
 
-$GLOBALS['recoveryflow_extra_sources'] = false;
 update_option( Options::SETTINGS, Options::defaults() );
 
 
@@ -4210,19 +4217,10 @@ function recoveryflow_run_evaluate( Plugin $plugin ): Stage_Stats {
 $recoveryflow_pollable = new Recoveryflow_Fake_Pollable( $plugin->ingest() );
 $plugin->sources()->add( $recoveryflow_pollable );
 
-// A source beyond the built-in set is a paid feature, and the gate is asked
-// before a single row is read: an entitlement that only hid the card while the
-// integration went on working would be no gate at all.
+// A pollable source is asked on any plan. This block used to assert the
+// reverse -- that a source outside the built-in set "is never even asked" --
+// which was the paywall reaching all the way down into the backfill.
 $recoveryflow_pollable->pages = array( new Event_Batch( array( recoveryflow_poll_draft( 'fake_pollable', 'b:1' ) ), 'cur-1', false ) );
-recoveryflow_run_evaluate( $plugin );
-check( 'a source the plan does not include is never even asked', $recoveryflow_pollable->asked, array() );
-
-add_filter(
-	Hooks::FILTER_FEATURE_ENABLED,
-	static fn ( bool $on, string $feature ): bool => Feature_Gate::EXTRA_SOURCES === $feature ? true : $on,
-	10,
-	2
-);
 
 $recoveryflow_stats = recoveryflow_run_evaluate( $plugin );
 
@@ -7861,6 +7859,111 @@ if ( ! $recoveryflow_dot_org_approved ) {
 		'kdc-wacr-recoveryflow'
 	);
 }
+
+
+/*
+ * FIVE. Nothing the plugin can do on its own may be gated on the WA.cr plan.
+ *
+ * WordPress.org guideline 5 forbids restricting functionality implemented in
+ * the plugin's own code -- "paywalls, license/feature gating, time-limited
+ * trials, usage cutoffs". Guideline 6 permits requiring a paid third-party
+ * service for what genuinely needs one. The whole compliance question for this
+ * plugin is which side of that line each Feature_Gate entry falls on, and the
+ * answer has to be checked rather than remembered: `extra_sources` sat in that
+ * list through a release and a tag, switching off the Gravity Forms adapter
+ * that ships in this zip, on plan alone.
+ *
+ * So the list itself is asserted. Every feature named here calls WA.cr and
+ * cannot be performed without it; adding a fourth forces somebody to come here
+ * and say which side it is on.
+ */
+$recoveryflow_gated = array();
+
+foreach ( ( new ReflectionClass( Feature_Gate::class ) )->getConstants() as $recoveryflow_const => $recoveryflow_value ) {
+	if ( is_string( $recoveryflow_value ) ) {
+		$recoveryflow_gated[] = $recoveryflow_value;
+	}
+}
+
+sort( $recoveryflow_gated );
+
+check(
+	'every plan-gated feature is one that calls the WA.cr API, so none of them gates local behaviour',
+	$recoveryflow_gated,
+	array( 'direct_send', 'engagement_polling', 'workflow_editor' )
+);
+
+/*
+ * And the behaviour, on a site with no credential at all -- which is the state
+ * a WordPress.org reviewer installs into. Asserted through the registry rather
+ * than by reading Feature_Gate, because the gate that caused this was not in
+ * Feature_Gate: it was a plan check in Source_Registry::status() that named a
+ * feature constant.
+ */
+delete_option( Options::ME_SNAPSHOT );
+
+ok( 'the plugin has no WA.cr credential for this check', ! Feature_Gate::has_developer_api() );
+
+$recoveryflow_ungated = new Recoveryflow_Fake_Pollable( $plugin->ingest(), 'guideline5' );
+$plugin->sources()->add( $recoveryflow_ungated );
+$plugin->sources()->set_enabled( 'guideline5', true );
+
+check(
+	'an integration registered by another plugin is active with no WA.cr account',
+	$plugin->sources()->status( 'guideline5' ),
+	Source_Registry::ACTIVE
+);
+ok(
+	'and it is in the set whose hooks get attached',
+	array_key_exists( 'guideline5', $plugin->sources()->active() )
+);
+
+/*
+ * The editor's own rule, stated where the save path applies it. A workflow of
+ * email steps calls WA.cr for nothing and must save on any plan; only the
+ * template send is refused, and it is refused because /v1 is unreachable, not
+ * because of a price.
+ */
+$recoveryflow_email_only = array(
+	'steps' => array(
+		array(
+			'type' => Workflow_Definition::TYPE_ACTION,
+			'do'   => 'wacr.send_email',
+		),
+	),
+);
+$recoveryflow_handoff_only = array(
+	'steps' => array(
+		array(
+			'type' => Workflow_Definition::TYPE_ACTION,
+			'do'   => 'wacr.start_flow',
+		),
+	),
+);
+$recoveryflow_direct_send = array(
+	'steps' => array(
+		array(
+			'type' => Workflow_Definition::TYPE_ACTION,
+			'do'   => 'wacr.send_template',
+		),
+	),
+);
+
+ok( 'a workflow of email steps can be written with no WA.cr account', Workflow_Form::may_write( $recoveryflow_email_only ) );
+ok( 'and one that hands off to an Auto Flow can too', Workflow_Form::may_write( $recoveryflow_handoff_only ) );
+ok( 'while a direct template send is refused, because it is a call this site cannot make', ! Workflow_Form::may_write( $recoveryflow_direct_send ) );
+
+/*
+ * The screen must not be stricter than that rule. It was: "Add workflow" was
+ * hidden whenever the workspace had no developer API, so a merchant could not
+ * start the email workflow the save path above would have accepted.
+ */
+$recoveryflow_workflows_html = recoveryflow_render_screen( array( $plugin->admin_workflows(), 'render' ) );
+
+ok(
+	'and the workflows screen still offers a way to add one',
+	false !== strpos( $recoveryflow_workflows_html, 'Add workflow' )
+);
 
 
 echo "\n";

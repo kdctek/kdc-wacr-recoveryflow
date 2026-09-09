@@ -7,7 +7,6 @@
 
 namespace WAcr\RecoveryFlow\Integration;
 
-use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Recovery\Event_Ingest;
 use WAcr\RecoveryFlow\Support\Options;
@@ -41,21 +40,9 @@ final class Source_Registry {
 	public const SWITCHED_OFF = 'switched_off';
 
 	/**
-	 * Present and switched on, but not included in this WA.cr plan.
-	 */
-	public const NOT_INCLUDED = 'not_included';
-
-	/**
 	 * Watching.
 	 */
 	public const ACTIVE = 'active';
-
-	/**
-	 * The sources that ship inside the plugin and need no entitlement.
-	 *
-	 * @var string[]
-	 */
-	private const BUILT_IN = array( 'woocommerce' );
 
 	/**
 	 * The one route any adapter has for reporting what it saw.
@@ -260,13 +247,12 @@ final class Source_Registry {
 			return self::SWITCHED_OFF;
 		}
 
-		// Sources beyond the built-in set are a paid feature; a site that has
-		// one registered but no entitlement keeps it visible on the
-		// Integrations screen rather than having it vanish.
-		if ( ! in_array( $id, self::BUILT_IN, true ) && ! Feature_Gate::is_enabled( Feature_Gate::EXTRA_SOURCES ) ) {
-			return self::NOT_INCLUDED;
-		}
-
+		/*
+		 * There is deliberately no plan check here. Every source watches local
+		 * tables and calls WA.cr for nothing, so whether one runs is not
+		 * WA.cr's to decide -- see Feature_Gate, which explains why the gate
+		 * that used to sit on this line was removed rather than reworded.
+		 */
 		return self::ACTIVE;
 	}
 
@@ -308,9 +294,6 @@ final class Source_Registry {
 			case self::SWITCHED_OFF:
 				return __( 'Available, but switched off here. Nothing from this integration is being recorded.', 'kdc-wacr-recoveryflow' );
 
-			case self::NOT_INCLUDED:
-				return __( 'Installed and switched on, but not included in this WA.cr plan, so nothing from it is being recorded. Integrations beyond WooCommerce are included with the WA.cr Scale plan and above.', 'kdc-wacr-recoveryflow' );
-
 			default:
 				return __( 'Active. Abandoned baskets from here are being recorded.', 'kdc-wacr-recoveryflow' );
 		}
@@ -319,11 +302,21 @@ final class Source_Registry {
 	/**
 	 * Whether a source ships inside the plugin.
 	 *
+	 * Asked of the class rather than of a list of ids. There WAS a list, and
+	 * it held one id -- because it used to decide entitlement rather than
+	 * describe the package, naming the single source that stayed on without a
+	 * paid plan. Once that gate went, the list was simply wrong: a second
+	 * adapter ships in this plugin and was not in it, and a third would not
+	 * have been either. A source that ships here lives in this namespace, so
+	 * that is the question to ask.
+	 *
 	 * @param string $id Source id.
 	 * @return bool
 	 */
 	public function is_built_in( string $id ): bool {
-		return in_array( $id, self::BUILT_IN, true );
+		$source = $this->get( $id );
+
+		return null !== $source && 0 === strpos( get_class( $source ), __NAMESPACE__ . '\\' );
 	}
 
 	/**

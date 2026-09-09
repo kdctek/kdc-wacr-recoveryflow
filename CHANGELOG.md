@@ -10,6 +10,13 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-09
+
+### Fixed
+
+- **Detecting an abandoned basket no longer depends on your WA.cr plan, for any integration.** Any recovery source other than WooCommerce -- the Gravity Forms adapter that ships in this plugin, and any integration another plugin registers -- was switched off unless the site's WA.cr workspace was on the Scale plan. Not merely hidden: its hooks were never attached, so nothing from it was recorded at all. That was wrong on its own terms. These integrations watch tables that are already on the site and ask WA.cr for nothing, so a plan cannot be what decides whether they run, and WordPress.org's guidelines say so plainly: a plugin may require a paid service for what genuinely needs one, and may not withhold what its own code already does. Sending still needs WA.cr, which is the honest place for that line and where it stays.
+- **The workflow screen let you build fewer kinds of workflow than the plugin would accept.** It went read-only whenever the workspace had no developer API -- no "Add workflow" button, and a notice saying workflows were read-only -- while the save path underneath happily accepted anything that did not send a template from WordPress. So a shop could not start the email-only workflow it was entitled to build, and was told the screen was closed when one kind of step was. The button is always there now, and the notice names the step that is actually refused.
+
 ## [0.1.1] - 2026-09-09
 
 Eight fixes on top of the first release, and none of them changes what the plugin is for.

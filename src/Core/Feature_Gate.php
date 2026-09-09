@@ -25,13 +25,28 @@ defined( 'ABSPATH' ) || exit;
  * merchant which plan they are on: a credential that can call the API is the
  * definition of eligible, and a plan change takes effect on the next check
  * without anybody re-entering anything.
+ *
+ * ! EVERY FEATURE NAMED HERE MUST BE ONE THIS PLUGIN CANNOT PERFORM ON ITS OWN.
+ *
+ * WordPress.org guideline 5 forbids restricting functionality that is
+ * implemented in the plugin's own code, and guideline 6 permits requiring a
+ * paid third-party service for what genuinely needs one. Sending a WhatsApp
+ * template and reading its delivery status are calls to WA.cr; without a
+ * credential the plugin cannot make them, so refusing is a fact rather than a
+ * restriction.
+ *
+ * `extra_sources` used to be here and was neither. It switched off every
+ * recovery source but one -- adapters that ship in this plugin, watching local
+ * tables and calling WA.cr for nothing, plus anything a third party registered
+ * through the filter -- on any workspace below Scale. That is a paywall on the
+ * plugin's own behaviour, and it was removed rather than reworded.
+ * tests/smoke.php asserts the list below stays API-only.
  */
 final class Feature_Gate {
 
 	public const WORKFLOW_EDITOR = 'workflow_editor';
 	public const DIRECT_SEND     = 'direct_send';
 	public const ENGAGEMENT_POLL = 'engagement_polling';
-	public const EXTRA_SOURCES   = 'extra_sources';
 
 	/**
 	 * Whether a feature is available on this site.

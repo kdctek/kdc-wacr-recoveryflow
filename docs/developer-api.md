@@ -49,7 +49,7 @@ Registries are passed by object; return the registry from your callback.
 | `recoveryflow_normalize_phone` | `?string $e164, string $raw, ?string $country_iso2` | Override or correct the result of phone normalisation. Return `null` to mark the number invalid |
 | `recoveryflow_calling_codes` | `array $codes` | Map of ISO 3166-1 alpha-2 country code to calling code, used by the normaliser. Add or correct entries |
 | `recoveryflow_capability_map` | `array $map` | Capability name to list of roles, applied on activation and whenever the capability version changes. See [`security.md`](security.md#capabilities) |
-| `recoveryflow_feature_enabled` | `bool $enabled, string $feature` | Override the plan gate for `workflow_editor`, `direct_send`, `engagement_polling` or `extra_sources`. WA.cr still enforces its own plan rules server-side |
+| `recoveryflow_feature_enabled` | `bool $enabled, string $feature` | Override the gate for `workflow_editor`, `direct_send` or `engagement_polling` -- the three things that call the WA.cr developer API. WA.cr still enforces its own plan rules server-side. (`extra_sources` was removed: which integrations run is not WA.cr's to decide) |
 | `recoveryflow_optout_keywords` | `string[] $keywords` | Whole-message keywords that count as an opt-out when read from the conversation. Default `STOP`, `UNSUBSCRIBE`, `CANCEL`, `END`, `QUIT` |
 | `recoveryflow_wacr_allowed_hosts` | `string[] $hosts` | Hostnames the client and the Auto Flow hook URL may target. Default `api.wa.cr` and `api.wacart.dev`. A custom host is only honoured for white-label keys and must be HTTPS |
 | `recoveryflow_pre_ingest_event` | `Event_Draft|null $draft` | Every event any adapter reports, immediately before it is written. Return `null` to drop it |
