@@ -31,6 +31,11 @@ defined( 'ABSPATH' ) || exit;
  * failure. It is a form nobody could ever be messaged about, and reporting one
  * would create a row that the eligibility rules would spend the rest of its
  * life refusing. Those are dropped here, before anything is written.
+ *
+ * So is an ENTRY that answered neither, which is a different question and the
+ * one that catches more people: Gravity Forms discards a phone value whose
+ * E.164 form it cannot validate, so a form asking for a number routinely
+ * yields entries with none. See is_messageable() and has_contact().
  */
 final class Field_Map {
 

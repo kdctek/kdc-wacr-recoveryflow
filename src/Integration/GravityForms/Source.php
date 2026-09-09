@@ -71,10 +71,13 @@ defined( 'ABSPATH' ) || exit;
  *    defaults to nothing here.
  * 7. **What consent constraints apply?** The same as everywhere else, with one
  *    difference that matters: Gravity Forms has no checkout and no consent
- *    field of ours, so in explicit_consent mode a form must carry the
- *    merchant's own consent question and record it. Until it does, this source
- *    identifies people it may not message -- which is the correct failure, and
- *    is stated on the Integrations screen rather than left to be discovered.
+ *    field of ours, so in explicit_consent mode the merchant's own consent
+ *    question is the only place a yes can come from. Gravity Forms' Consent
+ *    field is read wherever a watched form carries one. A form without one
+ *    records nothing either way -- never asked is not the same as declined --
+ *    and its entries are refused at evaluation with no_consent, which is the
+ *    correct failure. consent_note() is what puts that on the Integrations
+ *    screen instead of leaving it to be discovered.
  */
 final class Source extends Abstract_Source implements Pollable_Source_Interface {
 
