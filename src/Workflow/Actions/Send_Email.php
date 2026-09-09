@@ -51,8 +51,8 @@ defined( 'ABSPATH' ) || exit;
  * arrive.
  *
  * There is no plan gate. Email costs the merchant nothing, goes through their
- * own mail configuration and never touches WA.cr's API, so it works on every
- * workspace including one with no API key at all. That is what stops the Lite
+ * own mail configuration and never touches WA.cr's API, so it needs no WA.cr
+ * plan at all, not even a workspace or an API key. That is what stops the Lite
  * path being trialware: a shop that cannot send WhatsApp from WordPress can
  * still recover a basket.
  *

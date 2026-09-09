@@ -607,7 +607,7 @@ final class Workflow_Form {
 	 * true of its own value, neither an answer.
 	 *
 	 * So the refusal names the step that caused it, then gives the reason, then
-	 * gives the way forward that works on every plan.
+	 * gives the way forward that needs no developer API.
 	 *
 	 * @return string
 	 */
@@ -616,7 +616,7 @@ final class Workflow_Form {
 
 		return sprintf(
 			/* translators: %s: a sentence explaining why the WA.cr developer API is unavailable. */
-			__( 'This workflow was not saved, because one of its steps sends a message from WordPress and this site cannot do that yet. %s Until then, a step can hand the recovery to a WA.cr Auto Flow instead, which needs no API key and works on every plan.', 'kdc-wacr-recoveryflow' ),
+			__( 'This workflow was not saved, because one of its steps sends a message from WordPress and this site cannot do that yet. %s Until then, a step can hand the recovery to a WA.cr Auto Flow instead, which needs no API key but does need a WA.cr plan that can run a flow, which is Growth and above.', 'kdc-wacr-recoveryflow' ),
 			$reason
 		);
 	}

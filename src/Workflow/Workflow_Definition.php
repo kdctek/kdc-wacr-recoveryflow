@@ -452,7 +452,8 @@ final class Workflow_Definition {
 	 * which is included from the Scale plan upwards. Handing a recovery to an
 	 * Auto Flow is a signed push to a hook, and a recovery email leaves through
 	 * the site's own mail configuration; neither needs an API key, so a
-	 * workflow built from those runs on every plan.
+	 * workflow built from those needs no developer API. (Email needs no WA.cr
+	 * plan at all; the Auto Flow still needs one that can run a flow.)
 	 *
 	 * The question is asked the way round it is deliberately. Naming the action
 	 * that NEEDS the API means an action this plugin does not ship is assumed

@@ -7625,6 +7625,105 @@ ok(
 );
 
 
+// ------------------------------------------- The WordPress.org submission.
+
+/*
+ * Three things WordPress.org's own Plugin Check refuses, or would have refused,
+ * on the tree that was about to be submitted. All three are the shape this repo
+ * keeps re-learning: a rule that IS obeyed everywhere, and one place where it
+ * silently is not, with every other gate green.
+ */
+
+/*
+ * THREE. The plan overclaim, caught by what it MEANS rather than by how it was
+ * last worded.
+ *
+ * The existing gate above blocks three literal phrases in readme.txt. It was
+ * green while the listing carried a section HEADING reading "Works with any
+ * WA.cr plan" -- directly above its own paragraph explaining that the hand-off
+ * starts at Growth -- and while the settings screen told merchants, in a
+ * translated string, that "Handing over works on every WA.cr plan".
+ *
+ * A blocklist of sentences somebody already thought of cannot catch the next
+ * rewording. This asks the question the claim is made of instead: does any
+ * shipped text put "works" and "any/every plan" in one breath? Only Growth and
+ * above can run an Auto Flow at all, so the answer must always be no.
+ */
+/*
+ * The window between the verb and the object must cross "WA.cr" -- which holds
+ * a full stop -- while still stopping at the end of a sentence. `[^.!?]` does
+ * the second and not the first, and the four self-tests below failed on exactly
+ * that until it was fixed. A full stop only ends a sentence when whitespace
+ * follows it.
+ */
+$recoveryflow_overclaim_pattern = '/\b(works?|working|available|runs?)\b(?:(?!\.\s)[^!?\n]){0,45}\b(any|every)\b(?:(?!\.\s)[^!?\n]){0,30}\b(plan|workspace)\b/i';
+
+/*
+ * Assert the detector detects, before trusting it to say a tree is clean. These
+ * are the four claims that actually shipped, in the words they shipped in; a
+ * pattern that stopped matching would otherwise report every future tree as
+ * fine. The two controls below are sentences that are TRUE and must not trip it
+ * -- without them the rule could be tightened into uselessness and stay green.
+ */
+foreach ( array(
+	'Works with any WA.cr plan',
+	'Handing over works on every WA.cr plan and puts the timing in WA.cr.',
+	'the hand-off works on any WA.cr workspace',
+	'a "webhook received" trigger (works on any workspace with Auto Flows)',
+) as $recoveryflow_known_bad ) {
+	ok(
+		"the overclaim detector fires on the wording that shipped: \"{$recoveryflow_known_bad}\"",
+		1 === preg_match( $recoveryflow_overclaim_pattern, $recoveryflow_known_bad )
+	);
+}
+
+foreach ( array(
+	'Every plan needs an active account, and the plan decides which of the two paths you can use.',
+	'It works on any WordPress site running 6.5 or later.',
+) as $recoveryflow_known_good ) {
+	ok(
+		"and does not fire on a true sentence: \"{$recoveryflow_known_good}\"",
+		0 === preg_match( $recoveryflow_overclaim_pattern, $recoveryflow_known_good )
+	);
+}
+
+/*
+ * Now the tree. The listing AND the source, because the claim was in both and
+ * only the listing was ever checked -- and the source copy is the one a merchant
+ * reads while deciding which dispatch path to configure.
+ */
+$recoveryflow_claim_walk  = new RecursiveIteratorIterator(
+	new RecursiveDirectoryIterator( dirname( __DIR__ ) . '/src', FilesystemIterator::SKIP_DOTS )
+);
+$recoveryflow_claim_files = array( dirname( __DIR__ ) . '/readme.txt' );
+
+foreach ( $recoveryflow_claim_walk as $recoveryflow_claim_file ) {
+	if ( $recoveryflow_claim_file->isFile() && 'php' === $recoveryflow_claim_file->getExtension() ) {
+		$recoveryflow_claim_files[] = $recoveryflow_claim_file->getPathname();
+	}
+}
+
+$recoveryflow_overclaims = array();
+
+foreach ( $recoveryflow_claim_files as $recoveryflow_claim_path ) {
+	$recoveryflow_claim_body = (string) file_get_contents( $recoveryflow_claim_path );
+
+	if ( 1 !== preg_match( $recoveryflow_overclaim_pattern, $recoveryflow_claim_body, $recoveryflow_claim_hit ) ) {
+		continue;
+	}
+
+	$recoveryflow_overclaims[] = str_replace( dirname( __DIR__ ) . '/', '', $recoveryflow_claim_path )
+		. ': "' . trim( (string) $recoveryflow_claim_hit[0] ) . '"';
+}
+
+ok( 'there is shipped text to check the plan claim against', count( $recoveryflow_claim_files ) > 100 );
+ok(
+	'nothing shipped says the plugin works on any or every WA.cr plan, in the listing or on a screen: '
+		. ( array() === $recoveryflow_overclaims ? 'clean' : 'CLAIMED IN ' . implode( ' | ', $recoveryflow_overclaims ) ),
+	array() === $recoveryflow_overclaims
+);
+
+
 echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";

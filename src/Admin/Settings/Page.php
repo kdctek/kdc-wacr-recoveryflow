@@ -530,8 +530,8 @@ final class Page {
 	/**
 	 * How to build the Auto Flow on the other end of the hook.
 	 *
-	 * The hand-off is the path that works on every WA.cr plan, which makes it
-	 * the path most merchants take -- and it is the one where everything that
+	 * The hand-off is the path that needs no API key, which makes it the path
+	 * most merchants take -- and it is the one where everything that
 	 * matters happens somewhere else. A merchant pastes an address here and
 	 * then has to go and build the thing that receives it, with no statement
 	 * anywhere of what will arrive. Guessing wrong shows up as recovery
