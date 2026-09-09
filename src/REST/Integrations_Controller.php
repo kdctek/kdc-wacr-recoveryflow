@@ -119,7 +119,7 @@ final class Integrations_Controller extends Abstract_Controller {
 			// The machine code above is what a script should branch on; this is
 			// what a human reading the response is owed. Both, always, because
 			// a status code with no sentence is how a support thread turns into
-			// a guessing game about what "not_included" meant.
+			// a guessing game about what "switched_off" meant.
 			'message'     => Source_Registry::status_message( $status ),
 			'available'   => $source->is_available(),
 			'enabled'     => $this->sources->is_enabled( $id ),

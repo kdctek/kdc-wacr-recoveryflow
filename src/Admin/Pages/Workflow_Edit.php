@@ -507,7 +507,7 @@ final class Workflow_Edit {
 		if ( ! Feature_Gate::is_enabled( Feature_Gate::WORKFLOW_EDITOR ) ) {
 			printf(
 				'<p class="description">%s</p>',
-				esc_html__( 'Only handing the recovery to a WA.cr Auto Flow can be saved on this workspace\'s plan. It needs no API key, but it does need a WA.cr plan that can run a flow, which is Growth and above.', 'kdc-wacr-recoveryflow' )
+				esc_html__( 'Sending a template from WordPress needs the WA.cr developer API, which this workspace does not have, so a step set to it cannot be saved yet. Handing the recovery to a WA.cr Auto Flow saves fine and needs no API key, though it does need a plan that can run a flow, which is Growth and above. A recovery email saves on any plan and needs no WA.cr account at all.', 'kdc-wacr-recoveryflow' )
 			);
 		}
 

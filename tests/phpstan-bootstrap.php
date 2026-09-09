@@ -6,7 +6,7 @@
  */
 
 defined( 'ABSPATH' ) || define( 'ABSPATH', __DIR__ . '/' );
-defined( 'KDC_WACR_RECOVERYFLOW_VERSION' ) || define( 'KDC_WACR_RECOVERYFLOW_VERSION', '0.1.1' );
+defined( 'KDC_WACR_RECOVERYFLOW_VERSION' ) || define( 'KDC_WACR_RECOVERYFLOW_VERSION', '0.1.2' );
 defined( 'KDC_WACR_RECOVERYFLOW_FILE' ) || define( 'KDC_WACR_RECOVERYFLOW_FILE', __DIR__ . '/kdc-wacr-recoveryflow.php' );
 defined( 'KDC_WACR_RECOVERYFLOW_DIR' ) || define( 'KDC_WACR_RECOVERYFLOW_DIR', __DIR__ . '/' );
 defined( 'KDC_WACR_RECOVERYFLOW_URL' ) || define( 'KDC_WACR_RECOVERYFLOW_URL', 'https://example.test/wp-content/plugins/kdc-wacr-recoveryflow/' );
