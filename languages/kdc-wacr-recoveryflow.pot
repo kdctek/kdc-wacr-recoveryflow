@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-09T04:29:29+00:00\n"
+"POT-Creation-Date: 2026-09-09T04:40:58+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -2567,23 +2567,23 @@ msgstr ""
 msgid "Form numbers, separated by commas, for example 3, 7, 12. Leave this empty to watch every form. A form with no phone field and no email field is skipped either way, because nobody on it could be messaged."
 msgstr ""
 
-#: src/Integration/GravityForms/Source.php:138
+#: src/Integration/GravityForms/Source.php:141
 msgid "Gravity Forms"
 msgstr ""
 
-#: src/Integration/GravityForms/Source.php:147
+#: src/Integration/GravityForms/Source.php:150
 msgid "Recovers half-finished forms somebody saved to come back to, and entries whose payment never went through."
 msgstr ""
 
-#: src/Integration/GravityForms/Source.php:220
+#: src/Integration/GravityForms/Source.php:223
 msgid "RecoveryFlow adds no consent question to a form. Put Gravity Forms' own Consent field on any form you want recovered and its answer is recorded with the entry. Until a form has one, people who fill it in are identified but never messaged."
 msgstr ""
 
-#: src/Integration/GravityForms/Source.php:279
+#: src/Integration/GravityForms/Source.php:282
 msgid "That form is no longer available."
 msgstr ""
 
-#: src/Integration/GravityForms/Source.php:324
+#: src/Integration/GravityForms/Source.php:327
 msgid "A form"
 msgstr ""
 
