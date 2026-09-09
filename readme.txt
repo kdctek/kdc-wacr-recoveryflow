@@ -189,16 +189,19 @@ First release.
 
 * Detects abandoned WooCommerce carts and checkouts, on both the classic and the block checkout, and records one recovery per shopping session.
 * Picks up a phone number and email address as they are typed at the checkout, and records whether the shopper agreed to be messaged. Explicit consent is the default.
+* Can also ask before the checkout -- a short form below the basket, a field beside the "add to basket" button -- and can make the checkout's phone number compulsory. All three are off until you turn them on, each says what it costs, and all three work with scripts blocked and on block-based pages.
 * Recovers through WA.cr: either by handing the journey to an Auto Flow, which works on every WA.cr plan and needs no API key, or by sending approved WhatsApp templates on a schedule this plugin decides. The second is included with WA.cr Scale and above.
+* Recovery email sent by WordPress itself, through the site's own mail configuration -- no WA.cr account, no API key and no plan. Every message carries the sender's postal address and an unsubscribe link that keeps working for thirty days, and the channel stays off until those are set.
 * Recovery links that rebuild the basket without wiping what the shopper has now, and stop working the moment the order is placed.
 * A form-based workflow editor that works with JavaScript switched off, a template picker that shows each blank in the template's own words, and quiet hours and frequency caps.
 * Admin screens built from core WordPress components: an overview, the recovery queue, one screen per recovery, integrations, six tabs of settings with linkable addresses, and a system status screen with a diagnostic report safe to paste into a support thread.
-* Acting on a recovery: stop it, try a failed one again, stop its links working, or record that a customer asked by telephone never to be messaged again.
+* Acting on a recovery: stop it, try a failed one again, stop its links working, or record that a customer asked by telephone never to be messaged again -- one at a time, or on a page of the queue at once. A bulk action runs the same code and gives the same refusals, named by reference.
 * Opt-out honoured from every direction -- the unsubscribe link, an opt-out recorded in WA.cr, a STOP reported by an Auto Flow, or a shopkeeper acting on a phone call -- and the suppression survives a privacy erasure.
 * WordPress privacy export and erasure, plus erasure by phone number for the customers core's tools cannot find, and a scheduled clear-out of data nobody has a reason to keep.
 * A REST API under `/wp-json/kdc/v1/wacr/recoveryflow/`, capability-gated, with customer contact details masked unless revealing them is both permitted and asked for, and every reveal recorded.
 * WP-CLI: `wp recoveryflow status`, `tick`, `journeys` and `sources`. Contact details are always masked.
 * A Gravity Forms integration for save-and-continue drafts and entries whose payment never went through, and a documented interface for building your own.
+* Every screen checked against WCAG 2.2 AA on every build -- all the admin screens, every settings tab and the pages a customer sees -- plus a keyboard pass over the same screens.
 * Fully translatable, with the .pot shipped.
 
 == Upgrade Notice ==

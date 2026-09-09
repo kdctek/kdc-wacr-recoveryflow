@@ -124,7 +124,9 @@ and hands Chrome the cookies. That the session actually held is not taken on
 trust: every admin entry sets `rootElement` to `#wpbody-content`, which exists
 only inside wp-admin, so a run that lost its session fails instead of passing.
 Verified by mutation — point `rootElement` at a selector that does not exist and
-19 of the 22 URLs fail.
+all 19 admin URLs fail. That was measured when the list held 22 entries; it
+holds 24 now, and both additions are public pages, which set no `rootElement`
+and are not what this mutation reaches.
 
 **Rows on the screens.** An empty `WP_List_Table` renders none of the status
 badges, none of the shortened contact columns and none of the row actions this
@@ -297,16 +299,24 @@ those really sends and really bills.
 It also checks that a `?field=` deeplink moves focus into that control, because
 a broken deeplink looks exactly like a working one in a screenshot.
 
-**Recorded for 0.1.0, on WordPress 6.9 with WooCommerce 11.1:** 21 screens
-walked, 98 to 149 stops each, no traps, no invisible stops, every stop paints
-and announces. The deeplinked field is focused on arrival.
+**Recorded for 0.1.0, on WordPress 6.9 with WooCommerce 11.1:** 22 screens
+walked -- 98 to 149 stops on each of the 19 admin screens, and 32, 2 and 1 on
+the three public ones -- no traps, no invisible stops, every stop paints and
+announces. The deeplinked field is focused on arrival.
+
+Two of the 24 screens the AA gate checks are not walked: the page after the
+unsubscribe button has been pressed, and the basket. Both are only reachable by
+pressing something, and this walk presses nothing, so they are checked against
+AA and against contrast but their tab order is not. That is a real gap and it
+is stated rather than papered over.
 
 Both detections are mutation-tested rather than trusted. Removing the focus
-outline in `admin.css` turns 19 of the 21 screens red, naming the stops;
-collapsing the tab strip to zero size reports each tab as taking focus while
-invisible. Two earlier versions of this walk reported clean passes while
-measuring almost nothing, and both are worth knowing about because they are easy
-to write again:
+outline in `admin.css` turns every admin screen red, naming the stops -- 19 of
+the 21 the walk covered when this was measured, the rest being public pages,
+which do not load `admin.css`; collapsing the tab strip to zero size reports
+each tab as taking focus while invisible. Two earlier versions of this walk
+reported clean passes while measuring almost nothing, and both are worth knowing
+about because they are easy to write again:
 
 - Cycle detection compared a description of the focused element — tag, id,
   class — and a dozen wp-admin menu links share all three, so the walk decided
