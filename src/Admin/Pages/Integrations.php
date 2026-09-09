@@ -12,6 +12,7 @@ use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\Support\Options;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -92,6 +93,33 @@ final class Integrations {
 	 * @param Recovery_Source_Interface $source The source.
 	 * @return void
 	 */
+	private function consent_note( Recovery_Source_Interface $source ): void {
+		// Only when the site actually requires a yes. In identified_contact
+		// mode the note would be advice about a rule that is not switched on,
+		// which is its own kind of wrong.
+		if ( ! Options::requires_explicit_consent() ) {
+			return;
+		}
+
+		$note = trim( $source->consent_note() );
+
+		if ( '' === $note ) {
+			return;
+		}
+
+		printf(
+			'<p class="recoveryflow-consent-note"><strong>%1$s</strong> %2$s</p>',
+			esc_html__( 'Consent:', 'kdc-wacr-recoveryflow' ),
+			esc_html( $note )
+		);
+	}
+
+	/**
+	 * One integration, as a card.
+	 *
+	 * @param Recovery_Source_Interface $source The integration.
+	 * @return void
+	 */
 	private function card( Recovery_Source_Interface $source ): void {
 		$id     = $source->get_id();
 		$status = $this->sources->status( $id );
@@ -109,6 +137,8 @@ final class Integrations {
 			esc_html__( 'Status:', 'kdc-wacr-recoveryflow' ),
 			esc_html( Source_Registry::status_message( $status ) )
 		);
+
+		$this->consent_note( $source );
 
 		$types = $source->get_event_types();
 

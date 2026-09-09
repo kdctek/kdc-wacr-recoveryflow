@@ -271,6 +271,23 @@ final class Source_Registry {
 	}
 
 	/**
+	 * What to call a source on screen.
+	 *
+	 * Falls back to the raw id, which is the honest answer for a source whose
+	 * plugin has since been removed: the journeys it produced outlive it, and
+	 * a recovery screen that printed nothing there would be hiding where the
+	 * row came from.
+	 *
+	 * @param string $id Source id.
+	 * @return string
+	 */
+	public function name_for( string $id ): string {
+		$source = $this->get( $id );
+
+		return null === $source ? $id : $source->get_name();
+	}
+
+	/**
 	 * What a status means, in a sentence somebody can act on.
 	 *
 	 * Kept beside status() rather than in the screen that first printed it. The

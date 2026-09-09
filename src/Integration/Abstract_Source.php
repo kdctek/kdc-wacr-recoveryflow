@@ -126,4 +126,16 @@ abstract class Abstract_Source implements Recovery_Source_Interface {
 	public function get_settings_fields(): array {
 		return array();
 	}
+
+	/**
+	 * What a merchant has to do for this source to have consent.
+	 *
+	 * Nothing, by default. A source that collects consent itself, or that
+	 * cannot be used without it, says so by overriding this.
+	 *
+	 * @return string
+	 */
+	public function consent_note(): string {
+		return '';
+	}
 }

@@ -13,6 +13,7 @@ use WAcr\RecoveryFlow\Customer\Customer;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Customer\Mask;
 use WAcr\RecoveryFlow\Database\Receipt_Repository;
+use WAcr\RecoveryFlow\Integration\Source_Registry;
 use WAcr\RecoveryFlow\Recovery\Attempt_Repository;
 use WAcr\RecoveryFlow\Recovery\Event_Repository;
 use WAcr\RecoveryFlow\Recovery\Journey_Repository;
@@ -79,6 +80,13 @@ final class Journey_Detail {
 	private Receipt_Repository $receipts;
 
 	/**
+	 * The integrations, for what to call the one a journey came from.
+	 *
+	 * @var Source_Registry
+	 */
+	private Source_Registry $sources;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Journey_Repository  $journeys  Journey storage.
@@ -86,19 +94,22 @@ final class Journey_Detail {
 	 * @param Customer_Repository $customers Customer storage.
 	 * @param Attempt_Repository  $attempts  Attempt ledger.
 	 * @param Receipt_Repository  $receipts  Receipt ledger.
+	 * @param Source_Registry     $sources   The integrations.
 	 */
 	public function __construct(
 		Journey_Repository $journeys,
 		Event_Repository $events,
 		Customer_Repository $customers,
 		Attempt_Repository $attempts,
-		Receipt_Repository $receipts
+		Receipt_Repository $receipts,
+		Source_Registry $sources
 	) {
 		$this->journeys  = $journeys;
 		$this->events    = $events;
 		$this->customers = $customers;
 		$this->attempts  = $attempts;
 		$this->receipts  = $receipts;
+		$this->sources   = $sources;
 	}
 
 	/**
@@ -169,7 +180,7 @@ final class Journey_Detail {
 			array( __( 'Expires', 'kdc-wacr-recoveryflow' ), $this->local_time( $journey->expires_at ) ),
 			array( __( 'Reminders sent', 'kdc-wacr-recoveryflow' ), number_format_i18n( $journey->attempts_count ) ),
 			array( __( 'Link opened', 'kdc-wacr-recoveryflow' ), number_format_i18n( $journey->clicks_count ) ),
-			array( __( 'Where it came from', 'kdc-wacr-recoveryflow' ), $journey->source_id ),
+			array( __( 'Where it came from', 'kdc-wacr-recoveryflow' ), $this->sources->name_for( $journey->source_id ) ),
 		);
 
 		if ( null !== $journey->status_reason && '' !== $journey->status_reason ) {

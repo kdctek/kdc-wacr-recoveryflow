@@ -73,10 +73,10 @@ final class Unpaid_Entry {
 	 * @param array<string,mixed> $entry    The entry.
 	 * @param array<string,mixed> $form     The form it belongs to.
 	 * @param Field_Map           $fields   Field reading.
-	 * @param string              $found_by 'hook' or 'poll', for the record.
+	 * @param string              $seen_by  'hook' or 'poll', for the record.
 	 * @return Event_Draft|null Null when this entry must not be chased.
 	 */
-	public static function draft( array $entry, array $form, Field_Map $fields, string $found_by ): ?Event_Draft {
+	public static function draft( array $entry, array $form, Field_Map $fields, string $seen_by ): ?Event_Draft {
 		$id      = (int) ( $entry['id'] ?? 0 );
 		$form_id = (int) ( $form['id'] ?? 0 );
 		$status  = (string) ( $entry['payment_status'] ?? '' );
@@ -103,6 +103,14 @@ final class Unpaid_Entry {
 			return null;
 		}
 
+		$hints = $fields->hints( $form, $entry, $pinned );
+
+		// The form asks for a contact detail and this entry came back with
+		// none. A row here is a customer nothing could ever be sent to.
+		if ( ! $fields->has_contact( $hints ) ) {
+			return null;
+		}
+
 		$draft = new Event_Draft( Source::ID, Entry_Watcher::TYPE, Entry_Watcher::KEY . $id );
 
 		$draft->external_id      = (string) $id;
@@ -124,18 +132,25 @@ final class Unpaid_Entry {
 			)
 		);
 
-		// Never personal data: a form id, a payment status, how we found it and
-		// the address of the form's own page with any query string removed --
-		// prefill parameters are exactly where somebody's name ends up.
+		// Never personal data: a form id, a payment status, how the row was
+		// last seen and the address of the form's own page with any query
+		// string removed -- prefill parameters are exactly where somebody's
+		// name ends up.
+		//
+		// seen_by is deliberately not called found_by. Ingest is an upsert, so
+		// the backfill rewrites this key on a row the live hook wrote first,
+		// and a field named for the FIRST sighting would be wrong within one
+		// pass. Last-seen is both true and the more useful diagnostic: rows
+		// that all say poll are a site whose hooks are not firing.
 		$draft->metadata = array(
 			'form_id'    => $form_id,
 			'kind'       => 'entry',
 			'status'     => $status,
-			'found_by'   => 'poll' === $found_by ? 'poll' : 'hook',
+			'seen_by'    => 'poll' === $seen_by ? 'poll' : 'hook',
 			'resume_url' => Source::resume_url( $entry, '' ),
 		);
 
-		$draft->with_identity( $fields->hints( $form, $entry, $pinned ) );
+		$draft->with_identity( $hints );
 
 		return $draft;
 	}

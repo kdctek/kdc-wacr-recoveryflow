@@ -24,6 +24,7 @@ final class Recoveryflow_Fake_Pollable extends Abstract_Source implements Pollab
 	public array $pages  = array();
 	public bool $explode = false;
 	public bool $available = true;
+	public string $note = '';
 	private string $id;
 
 	public function __construct( Event_Ingest $ingest, string $id = 'fake_pollable' ) {
@@ -33,6 +34,7 @@ final class Recoveryflow_Fake_Pollable extends Abstract_Source implements Pollab
 
 	public function get_id(): string { return $this->id; }
 	public function get_name(): string { return 'Fake pollable'; }
+	public function consent_note(): string { return $this->note; }
 	public function is_available(): bool { return $this->available; }
 	public function register(): void {}
 	public function get_event_types(): array { return array( 'booking' ); }

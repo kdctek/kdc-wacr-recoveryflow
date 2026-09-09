@@ -207,6 +207,20 @@ final class Source extends Abstract_Source {
 	}
 
 	/**
+	 * What a merchant has to do for the shop to have consent.
+	 *
+	 * Nothing: RecoveryFlow puts its own consent question on the checkout, on
+	 * both the classic and the block one. Said out loud anyway, because a card
+	 * that is silent about consent reads the same whether consent is handled
+	 * or forgotten.
+	 *
+	 * @return string
+	 */
+	public function consent_note(): string {
+		return __( 'RecoveryFlow adds its own consent question to the checkout, so nothing else is needed here. Its wording is on the Consent tab.', 'kdc-wacr-recoveryflow' );
+	}
+
+	/**
 	 * Whether the basket behind this event has since been bought.
 	 *
 	 * Answered from live WooCommerce state every time, because it is asked

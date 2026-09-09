@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Each entry opens with a plain-language statement of what changed for the person
 affected, followed by the detail.
 
+## [Unreleased]
+
+### Added
+
+- **A Gravity Forms form can now record consent, so recoveries from it can actually be sent.** RecoveryFlow adds no field to anybody's form, so on a site that only messages people who agreed to be messaged -- which is the default -- there was no way for a form to say that anybody had agreed, and every recovery from a form was identified and then refused. Gravity Forms' own Consent field is now read wherever a watched form carries one: put one on the form and nothing else is needed. The answer is kept with the form revision its wording came from, so a consent given last year can still be shown against the words that were on the screen at the time. A form with no consent question still records nothing, and that is on purpose -- never having been asked is not the same as having said no, and writing down the second would be inventing a refusal nobody made.
+- **The Integrations screen now says what an integration needs before it can message anyone.** Each card carries a line about consent on a site that requires it, in the integration's own words -- what to put on a form, or that the checkout already takes care of it. The documentation had described this as being on the screen since the integration shipped; it was not on the screen, and the cost was not cosmetic, because the one thing standing between a form and a working recovery was the thing nothing mentioned.
+
+### Fixed
+
+- **Somebody who filled in a form is no longer written down when the form kept nothing to reach them by.** Gravity Forms discards a phone number whose international form it cannot make sense of, which is what happens whenever a person types a national number into its International (formatted) field -- so a form asking for a number routinely produces an entry with no number on it, and says nothing about having dropped it. RecoveryFlow was asking whether the form had a phone or email field, never whether the entry had an answer in one, so those people became customers no message could ever reach and journeys that could never finish. Both questions are now asked, and an entry with no way to reach anybody is left alone with a line in the log saying why.
+- **A recovery now says which integration it came from by name.** The recovery screen printed the internal id -- a shop worker looking at a form submission was told "gravityforms" -- where every other screen uses the integration's proper name.
+
 ## [0.1.0] - 2026-09-09
 
 First release. RecoveryFlow detects abandoned journeys across WordPress

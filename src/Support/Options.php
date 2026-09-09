@@ -197,4 +197,18 @@ final class Options {
 			\WAcr\RecoveryFlow\Admin\Setup::PENDING_OPTION,
 		);
 	}
+	/**
+	 * Whether this site only messages people who ticked a box.
+	 *
+	 * Asked by the WooCommerce consent field, which renders only in this mode,
+	 * and by the Integrations screen, which explains what a source needs in it.
+	 * Two callers reading one option through the same sentence, because the
+	 * pair disagreeing is how a screen ends up describing a rule the engine is
+	 * not applying.
+	 *
+	 * @return bool
+	 */
+	public static function requires_explicit_consent(): bool {
+		return 'explicit_consent' === (string) self::get( 'eligibility_mode', 'explicit_consent' );
+	}
 }
