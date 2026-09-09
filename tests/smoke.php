@@ -7625,6 +7625,174 @@ ok(
 );
 
 
+// ------------------------------------------- The WordPress.org submission.
+
+/*
+ * Three things WordPress.org's own Plugin Check refuses, or would have refused,
+ * on the tree that was about to be submitted. All three are the shape this repo
+ * keeps re-learning: a rule that IS obeyed everywhere, and one place where it
+ * silently is not, with every other gate green.
+ */
+
+/*
+ * ONE. The direct-access guard has to be found, not merely present.
+ *
+ * `defined( 'ABSPATH' ) || exit;` was in all 167 source files, so a grep for it
+ * passed -- and Plugin Check still reported src/Core/Plugin.php as having no
+ * protection at all. It reads the FIRST 50 LINES of a file
+ * (Direct_File_Access_Check::has_guard(), `array_slice( $lines, 0, 50 )`), and
+ * Plugin.php imports 94 classes, which had pushed its guard to line 105.
+ *
+ * So the assertion is on the LINE NUMBER, not on presence. The convention in
+ * this codebase is to put the guard under the use block, which is correct right
+ * up until a use block grows past the window -- and nothing would have said so.
+ */
+$recoveryflow_guard_limit = 50;
+$recoveryflow_guard_walk  = new RecursiveIteratorIterator(
+	new RecursiveDirectoryIterator( dirname( __DIR__ ) . '/src', FilesystemIterator::SKIP_DOTS )
+);
+$recoveryflow_unguarded   = array();
+$recoveryflow_guard_files = 0;
+
+foreach ( $recoveryflow_guard_walk as $recoveryflow_guard_file ) {
+	if ( ! $recoveryflow_guard_file->isFile() || 'php' !== $recoveryflow_guard_file->getExtension() ) {
+		continue;
+	}
+
+	++$recoveryflow_guard_files;
+
+	$recoveryflow_guard_lines = (array) file( $recoveryflow_guard_file->getPathname(), FILE_IGNORE_NEW_LINES );
+	$recoveryflow_guard_at    = 0;
+
+	foreach ( $recoveryflow_guard_lines as $recoveryflow_guard_index => $recoveryflow_guard_line ) {
+		if ( false !== strpos( (string) $recoveryflow_guard_line, "defined( 'ABSPATH' )" ) ) {
+			$recoveryflow_guard_at = $recoveryflow_guard_index + 1;
+			break;
+		}
+	}
+
+	if ( 0 === $recoveryflow_guard_at || $recoveryflow_guard_at > $recoveryflow_guard_limit ) {
+		$recoveryflow_unguarded[] = str_replace( dirname( __DIR__ ) . '/', '', $recoveryflow_guard_file->getPathname() )
+			. ( 0 === $recoveryflow_guard_at ? ' (absent)' : " (line {$recoveryflow_guard_at})" );
+	}
+}
+
+// A walk that found nothing passes every assertion inside it and asserts nothing.
+ok( 'there are source files to check for a direct-access guard', $recoveryflow_guard_files > 100 );
+ok(
+	"every shipped file guards direct access within its first {$recoveryflow_guard_limit} lines, where Plugin Check looks: "
+		. ( array() === $recoveryflow_unguarded ? 'all of them' : 'TOO LATE OR MISSING IN ' . implode( ', ', $recoveryflow_unguarded ) ),
+	array() === $recoveryflow_unguarded
+);
+
+/*
+ * TWO. `Update URI: false` is an ERROR on WordPress.org, not a nicety.
+ *
+ * The header is how a plugin distributed anywhere else says "never update me
+ * from .org". On a plugin that IS hosted there it means merchants are never
+ * offered a single update, and Plugin Check refuses it outright
+ * (plugin_updater_detected). It had been in the header since the first commit
+ * with no decision recorded anywhere, which is how it survived to the day of
+ * the submission.
+ */
+$recoveryflow_main_file = (string) file_get_contents( dirname( __DIR__ ) . '/kdc-wacr-recoveryflow.php' );
+
+ok( 'the main plugin file was read at all', strlen( $recoveryflow_main_file ) > 1000 );
+ok(
+	'the plugin declares no Update URI, which WordPress.org refuses on a plugin it hosts',
+	false === stripos( $recoveryflow_main_file, 'Update URI' )
+);
+
+/*
+ * THREE. The plan overclaim, caught by what it MEANS rather than by how it was
+ * last worded.
+ *
+ * The existing gate above blocks three literal phrases in readme.txt. It was
+ * green while the listing carried a section HEADING reading "Works with any
+ * WA.cr plan" -- directly above its own paragraph explaining that the hand-off
+ * starts at Growth -- and while the settings screen told merchants, in a
+ * translated string, that "Handing over works on every WA.cr plan".
+ *
+ * A blocklist of sentences somebody already thought of cannot catch the next
+ * rewording. This asks the question the claim is made of instead: does any
+ * shipped text put "works" and "any/every plan" in one breath? Only Growth and
+ * above can run an Auto Flow at all, so the answer must always be no.
+ */
+/*
+ * The window between the verb and the object must cross "WA.cr" -- which holds
+ * a full stop -- while still stopping at the end of a sentence. `[^.!?]` does
+ * the second and not the first, and the four self-tests below failed on exactly
+ * that until it was fixed. A full stop only ends a sentence when whitespace
+ * follows it.
+ */
+$recoveryflow_overclaim_pattern = '/\b(works?|working|available|runs?)\b(?:(?!\.\s)[^!?\n]){0,45}\b(any|every)\b(?:(?!\.\s)[^!?\n]){0,30}\b(plan|workspace)\b/i';
+
+/*
+ * Assert the detector detects, before trusting it to say a tree is clean. These
+ * are the four claims that actually shipped, in the words they shipped in; a
+ * pattern that stopped matching would otherwise report every future tree as
+ * fine. The two controls below are sentences that are TRUE and must not trip it
+ * -- without them the rule could be tightened into uselessness and stay green.
+ */
+foreach ( array(
+	'Works with any WA.cr plan',
+	'Handing over works on every WA.cr plan and puts the timing in WA.cr.',
+	'the hand-off works on any WA.cr workspace',
+	'a "webhook received" trigger (works on any workspace with Auto Flows)',
+) as $recoveryflow_known_bad ) {
+	ok(
+		"the overclaim detector fires on the wording that shipped: \"{$recoveryflow_known_bad}\"",
+		1 === preg_match( $recoveryflow_overclaim_pattern, $recoveryflow_known_bad )
+	);
+}
+
+foreach ( array(
+	'Every plan needs an active account, and the plan decides which of the two paths you can use.',
+	'It works on any WordPress site running 6.5 or later.',
+) as $recoveryflow_known_good ) {
+	ok(
+		"and does not fire on a true sentence: \"{$recoveryflow_known_good}\"",
+		0 === preg_match( $recoveryflow_overclaim_pattern, $recoveryflow_known_good )
+	);
+}
+
+/*
+ * Now the tree. The listing AND the source, because the claim was in both and
+ * only the listing was ever checked -- and the source copy is the one a merchant
+ * reads while deciding which dispatch path to configure.
+ */
+$recoveryflow_claim_walk  = new RecursiveIteratorIterator(
+	new RecursiveDirectoryIterator( dirname( __DIR__ ) . '/src', FilesystemIterator::SKIP_DOTS )
+);
+$recoveryflow_claim_files = array( dirname( __DIR__ ) . '/readme.txt' );
+
+foreach ( $recoveryflow_claim_walk as $recoveryflow_claim_file ) {
+	if ( $recoveryflow_claim_file->isFile() && 'php' === $recoveryflow_claim_file->getExtension() ) {
+		$recoveryflow_claim_files[] = $recoveryflow_claim_file->getPathname();
+	}
+}
+
+$recoveryflow_overclaims = array();
+
+foreach ( $recoveryflow_claim_files as $recoveryflow_claim_path ) {
+	$recoveryflow_claim_body = (string) file_get_contents( $recoveryflow_claim_path );
+
+	if ( 1 !== preg_match( $recoveryflow_overclaim_pattern, $recoveryflow_claim_body, $recoveryflow_claim_hit ) ) {
+		continue;
+	}
+
+	$recoveryflow_overclaims[] = str_replace( dirname( __DIR__ ) . '/', '', $recoveryflow_claim_path )
+		. ': "' . trim( (string) $recoveryflow_claim_hit[0] ) . '"';
+}
+
+ok( 'there is shipped text to check the plan claim against', count( $recoveryflow_claim_files ) > 100 );
+ok(
+	'nothing shipped says the plugin works on any or every WA.cr plan, in the listing or on a screen: '
+		. ( array() === $recoveryflow_overclaims ? 'clean' : 'CLAIMED IN ' . implode( ' | ', $recoveryflow_overclaims ) ),
+	array() === $recoveryflow_overclaims
+);
+
+
 echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";

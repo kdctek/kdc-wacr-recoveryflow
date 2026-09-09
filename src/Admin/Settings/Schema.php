@@ -463,7 +463,7 @@ final class Schema {
 									'start_flow'    => __( 'Handing the journey to a WA.cr Auto Flow', 'kdc-wacr-recoveryflow' ),
 									'send_template' => __( 'Sending each message from WordPress', 'kdc-wacr-recoveryflow' ),
 								),
-								'help'    => __( 'Handing over works on every WA.cr plan and puts the timing and the wording in WA.cr. Sending from WordPress keeps both here and needs a workspace that can use the WA.cr developer API.', 'kdc-wacr-recoveryflow' ),
+								'help'    => __( 'Handing over needs a workspace that can run an Auto Flow, which starts at WA.cr Growth, and puts the timing and the wording in WA.cr. Sending from WordPress keeps both here and needs a workspace that can use the WA.cr developer API.', 'kdc-wacr-recoveryflow' ),
 							),
 							'wacr_hook_url'    => array(
 								'type'        => 'url',

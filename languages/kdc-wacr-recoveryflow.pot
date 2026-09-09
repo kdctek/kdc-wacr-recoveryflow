@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-09T05:17:17+00:00\n"
+"POT-Creation-Date: 2026-09-09T05:39:32+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -278,7 +278,7 @@ msgstr ""
 
 #: src/Admin/Menu.php:216
 #: src/Admin/Menu.php:217
-#: src/Admin/Setup.php:298
+#: src/Admin/Setup.php:299
 msgid "Set RecoveryFlow up"
 msgstr ""
 
@@ -945,7 +945,7 @@ msgid "Send by"
 msgstr ""
 
 #: src/Admin/Pages/Workflow_Edit.php:510
-msgid "Only handing the recovery to a WA.cr Auto Flow can be saved on this workspace's plan. It needs no API key and works on every plan."
+msgid "Only handing the recovery to a WA.cr Auto Flow can be saved on this workspace's plan. It needs no API key, but it does need a WA.cr plan that can run a flow, which is Growth and above."
 msgstr ""
 
 #: src/Admin/Pages/Workflow_Edit.php:528
@@ -1746,7 +1746,7 @@ msgid "API key"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:416
-#: src/Admin/Setup.php:424
+#: src/Admin/Setup.php:425
 msgid "WA.cr API key"
 msgstr ""
 
@@ -1815,7 +1815,7 @@ msgid "Sending each message from WordPress"
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:466
-msgid "Handing over works on every WA.cr plan and puts the timing and the wording in WA.cr. Sending from WordPress keeps both here and needs a workspace that can use the WA.cr developer API."
+msgid "Handing over needs a workspace that can run an Auto Flow, which starts at WA.cr Growth, and puts the timing and the wording in WA.cr. Sending from WordPress keeps both here and needs a workspace that can use the WA.cr developer API."
 msgstr ""
 
 #: src/Admin/Settings/Schema.php:470
@@ -2042,97 +2042,97 @@ msgstr ""
 msgid "Switching this off stops new journeys being recorded from here. Journeys already under way finish or expire on their own, and nothing already recorded is deleted."
 msgstr ""
 
-#: src/Admin/Setup.php:184
+#: src/Admin/Setup.php:185
 msgid "You are not allowed to connect a WA.cr workspace on this site."
 msgstr ""
 
-#: src/Admin/Setup.php:212
+#: src/Admin/Setup.php:213
 msgid "Enter the API key from your WA.cr workspace, then choose Connect."
 msgstr ""
 
-#: src/Admin/Setup.php:219
+#: src/Admin/Setup.php:220
 msgid "That does not look like a WA.cr API key. Copy it again from WA.cr, under Developers."
 msgstr ""
 
-#: src/Admin/Setup.php:249
+#: src/Admin/Setup.php:250
 msgid "Connected. RecoveryFlow can send reminders from this site."
 msgstr ""
 
 #. translators: %s: the name of the connected WA.cr workspace.
-#: src/Admin/Setup.php:252
+#: src/Admin/Setup.php:253
 #, php-format
 msgid "Connected to %s. RecoveryFlow can send reminders from this site."
 msgstr ""
 
-#: src/Admin/Setup.php:267
-msgid "Your key works. This workspace's plan does not include sending from WordPress, so RecoveryFlow will hand each abandoned basket to a WA.cr Auto Flow instead -- which works on every plan and needs no API key."
+#: src/Admin/Setup.php:268
+msgid "Your key works. This workspace's plan does not include sending from WordPress, so RecoveryFlow will hand each abandoned basket to a WA.cr Auto Flow instead, which needs no API key -- on a plan that can run one, which is Growth and above."
 msgstr ""
 
-#: src/Admin/Setup.php:274
+#: src/Admin/Setup.php:275
 msgid "WA.cr could not be reached, so the key could not be checked. It has been saved; check the site can make outbound requests and try again."
 msgstr ""
 
-#: src/Admin/Setup.php:286
+#: src/Admin/Setup.php:287
 msgid "You are not allowed to set RecoveryFlow up on this site."
 msgstr ""
 
-#: src/Admin/Setup.php:302
+#: src/Admin/Setup.php:303
 msgid "RecoveryFlow is already watching for abandoned baskets. Connecting a WA.cr workspace is what lets it send the reminders."
 msgstr ""
 
-#: src/Admin/Setup.php:333
+#: src/Admin/Setup.php:334
 msgid "Connected."
 msgstr ""
 
-#: src/Admin/Setup.php:334
+#: src/Admin/Setup.php:335
 msgid "Key accepted."
 msgstr ""
 
-#: src/Admin/Setup.php:335
+#: src/Admin/Setup.php:336
 msgid "Not connected."
 msgstr ""
 
-#: src/Admin/Setup.php:336
+#: src/Admin/Setup.php:337
 msgid "Nothing to connect."
 msgstr ""
 
-#: src/Admin/Setup.php:364
+#: src/Admin/Setup.php:365
 msgid "Choose how reminders are sent"
 msgstr ""
 
-#: src/Admin/Setup.php:380
+#: src/Admin/Setup.php:381
 msgid "In WA.cr, create an Auto Flow that starts from a webhook and sends your reminder."
 msgstr ""
 
-#: src/Admin/Setup.php:381
+#: src/Admin/Setup.php:382
 msgid "Copy its hook address into RecoveryFlow, and set reminders to be sent by handing the journey over."
 msgstr ""
 
-#: src/Admin/Setup.php:383
+#: src/Admin/Setup.php:384
 msgid "Set up the hand-off"
 msgstr ""
 
-#: src/Admin/Setup.php:399
+#: src/Admin/Setup.php:400
 msgid "Connect WA.cr"
 msgstr ""
 
-#: src/Admin/Setup.php:404
+#: src/Admin/Setup.php:405
 msgid "This site is connected to WA.cr. You can change the key at any time on the settings screen."
 msgstr ""
 
-#: src/Admin/Setup.php:425
+#: src/Admin/Setup.php:426
 msgid "In WA.cr, open Developers and copy an API key. RecoveryFlow stores it encrypted and never shows it again."
 msgstr ""
 
-#: src/Admin/Setup.php:426
+#: src/Admin/Setup.php:427
 msgid "Connect"
 msgstr ""
 
-#: src/Admin/Setup.php:428
+#: src/Admin/Setup.php:429
 msgid "Skip for now"
 msgstr ""
 
-#: src/Admin/Setup.php:435
+#: src/Admin/Setup.php:436
 msgid "Skipping changes nothing that is already running: abandoned baskets go on being recorded, and nothing is sent until a workspace is connected."
 msgstr ""
 
@@ -2353,7 +2353,7 @@ msgstr ""
 #. translators: %s: a sentence explaining why the WA.cr developer API is unavailable.
 #: src/Admin/Workflow_Form.php:619
 #, php-format
-msgid "This workflow was not saved, because one of its steps sends a message from WordPress and this site cannot do that yet. %s Until then, a step can hand the recovery to a WA.cr Auto Flow instead, which needs no API key and works on every plan."
+msgid "This workflow was not saved, because one of its steps sends a message from WordPress and this site cannot do that yet. %s Until then, a step can hand the recovery to a WA.cr Auto Flow instead, which needs no API key but does need a WA.cr plan that can run a flow, which is Growth and above."
 msgstr ""
 
 #: src/Core/Feature_Gate.php:122
@@ -3443,36 +3443,36 @@ msgstr ""
 msgid "a wait may be at most 30 days"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:519
+#: src/Workflow/Workflow_Definition.php:520
 msgid "an action may only have \"do\", \"with\" and \"channel\""
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:523
+#: src/Workflow/Workflow_Definition.php:524
 msgid "\"channel\" must be either whatsapp or email"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:529
+#: src/Workflow/Workflow_Definition.php:530
 msgid "\"do\" must name a registered action, such as wacr.send_template"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:537
+#: src/Workflow/Workflow_Definition.php:538
 msgid "\"with\" must be an object of settings"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:557
+#: src/Workflow/Workflow_Definition.php:558
 msgid "\"with\" may be nested one level at most"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:562
+#: src/Workflow/Workflow_Definition.php:563
 msgid "every setting name in \"with\" must be lowercase letters, digits and underscores"
 msgstr ""
 
-#: src/Workflow/Workflow_Definition.php:576
+#: src/Workflow/Workflow_Definition.php:577
 msgid "settings in \"with\" must be text, numbers or true and false"
 msgstr ""
 
 #. translators: 1: step number as shown to the user, 2: what is wrong with it.
-#: src/Workflow/Workflow_Definition.php:630
+#: src/Workflow/Workflow_Definition.php:631
 #, php-format
 msgid "Step %1$d: %2$s."
 msgstr ""

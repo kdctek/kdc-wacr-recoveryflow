@@ -43,8 +43,9 @@ defined( 'ABSPATH' ) || exit;
  * it as "connection test failed" would tell a merchant whose key is perfectly
  * good to go and find a better one. It is reported here as a working key on a
  * plan that does not include sending from WordPress, alongside the thing that
- * does work on every plan: handing each journey to a WA.cr Auto Flow, which
- * needs no API key at all. That path is the whole reason the free tier is a
+ * does work without the developer API: handing each journey to a WA.cr Auto
+ * Flow, which needs no API key at all -- on a plan that can run one, which is
+ * Growth and above. That path is the whole reason the free tier is a
  * product rather than a trial, and this is the screen where a merchant either
  * finds it or concludes the plugin is not for them.
  */
@@ -264,7 +265,7 @@ final class Setup {
 		if ( null !== $result->error && 'plan_upgrade_required' === $result->error->code ) {
 			return array(
 				'state'   => 'handoff',
-				'message' => __( 'Your key works. This workspace\'s plan does not include sending from WordPress, so RecoveryFlow will hand each abandoned basket to a WA.cr Auto Flow instead -- which works on every plan and needs no API key.', 'kdc-wacr-recoveryflow' ),
+				'message' => __( 'Your key works. This workspace\'s plan does not include sending from WordPress, so RecoveryFlow will hand each abandoned basket to a WA.cr Auto Flow instead, which needs no API key -- on a plan that can run one, which is Growth and above.', 'kdc-wacr-recoveryflow' ),
 			);
 		}
 

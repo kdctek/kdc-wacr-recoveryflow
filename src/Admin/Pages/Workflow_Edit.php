@@ -507,7 +507,7 @@ final class Workflow_Edit {
 		if ( ! Feature_Gate::is_enabled( Feature_Gate::WORKFLOW_EDITOR ) ) {
 			printf(
 				'<p class="description">%s</p>',
-				esc_html__( 'Only handing the recovery to a WA.cr Auto Flow can be saved on this workspace\'s plan. It needs no API key and works on every plan.', 'kdc-wacr-recoveryflow' )
+				esc_html__( 'Only handing the recovery to a WA.cr Auto Flow can be saved on this workspace\'s plan. It needs no API key, but it does need a WA.cr plan that can run a flow, which is Growth and above.', 'kdc-wacr-recoveryflow' )
 			);
 		}
 

@@ -45,7 +45,7 @@ RecoveryFlow owns detection, identity, consent, timing, the recovery link and at
 * **Opt-out honoured from both sides.** A STOP reply, the opt-out link, or an opt-out recorded in WA.cr ends every open journey for that number. The suppression survives a privacy erasure.
 * **Core WordPress admin, built to be accessible.** Overview, journey list and timeline, integrations, settings with shareable deeplinks, and a system status screen, all on core admin components to WCAG 2.2 AA and AAA where achievable.
 
-= Works with any WA.cr plan =
+= Two paths, and your WA.cr plan decides which =
 
 An account is required either way. The plugin pushes a signed `recovery.journey_eligible` event to your flow, and WA.cr runs the delays, follow-ups, stop-on-reply and quiet hours. No API key is required for the hand-off -- but your workspace does have to be able to run an Auto Flow, which starts at the WA.cr Growth plan. On plans below that, RecoveryFlow still records everything it finds; it just has nowhere to hand it yet.
 
@@ -128,7 +128,7 @@ RecoveryFlow keeps its data in its own tables in your WordPress database. It sto
 1. **Create a WA.cr account** at [https://wa.cr](https://wa.cr) and connect a WhatsApp Business sender to your workspace. This is required: without it the plugin can detect abandoned journeys but cannot send anything.
 2. Upload the `kdc-wacr-recoveryflow` folder to `/wp-content/plugins/`, or install it from Plugins › Add New.
 3. Activate **RecoveryFlow by WA.cr**. The plugin needs PHP 8.0 and WordPress 6.5 or later. WooCommerce 8.0 or later is needed only for the WooCommerce integration.
-4. Go to **RecoveryFlow › Settings › WA.cr** and either paste the hook URL and signing secret from a WA.cr Auto Flow with a "webhook received" trigger (works on any workspace with Auto Flows), or paste a WA.cr API key, press **Test connection**, choose a sender and an approved template, and map its variables (WA.cr Scale and above).
+4. Go to **RecoveryFlow › Settings › WA.cr** and either paste the hook URL and signing secret from a WA.cr Auto Flow with a "webhook received" trigger (WA.cr Growth and above), or paste a WA.cr API key, press **Test connection**, choose a sender and an approved template, and map its variables (WA.cr Scale and above).
 5. Go to **RecoveryFlow › Integrations** and enable WooCommerce. In the default eligibility mode the consent checkbox appears on checkout automatically.
 6. Watch **RecoveryFlow › Overview** and **Recovery Journeys** as journeys start, and **System Status** for anything that needs attention. Every warning links straight to the setting that fixes it.
 

@@ -104,7 +104,7 @@ final class Feature_Gate {
 	 * What the Auto Flow hand-off itself needs, which is not nothing.
 	 *
 	 * The hook is not gated on the developer API, and that was read for a
-	 * whole release as "so it works on any plan". It does not. Running an Auto
+	 * whole release as "so no plan gates it". It does not. Running an Auto
 	 * Flow needs a plan whose Auto Flow allowance is above zero, which starts
 	 * at Growth -- so on free, trial and starter RecoveryFlow can dispatch
 	 * nothing to WA.cr at all, by either route.
