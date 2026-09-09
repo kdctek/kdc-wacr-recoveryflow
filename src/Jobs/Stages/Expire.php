@@ -203,7 +203,7 @@ final class Expire implements Stage_Interface {
 			ORDER BY j.id ASC
 			LIMIT %d";
 
-		$rows = $wpdb->get_results(
+		$rows = $wpdb->get_results( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $sql interpolates only Table_Names::get() on class constants; a per-batch paging query has nothing to cache.
 			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQL.NotPrepared -- both table names come from class constants; every value is bound.
 			$wpdb->prepare( $sql, Journey_State::EXPIRED, Recovery_Event::OPEN, $after, max( 1, $limit ) ),
 			ARRAY_A
