@@ -297,7 +297,8 @@ final class Plugin {
 				$c->events(),
 				$c->customers(),
 				$c->attempts(),
-				$c->receipts()
+				$c->receipts(),
+				$c->sources()
 			),
 			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
 			'admin_diagnostics'   => static fn ( Plugin $c ): Diagnostics => new Diagnostics( $c->credentials(), $c->health() ),

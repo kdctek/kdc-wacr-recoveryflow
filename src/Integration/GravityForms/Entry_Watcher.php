@@ -194,7 +194,7 @@ final class Entry_Watcher {
 			// recovered?" is otherwise a question with no evidence attached.
 			$this->logger->debug(
 				'gravityforms',
-				'An entry was not recorded: paid, moderated, unwatched, or on a form nobody could be messaged from.',
+				'An entry was not recorded: paid, moderated, unwatched, on a form nobody could be messaged from, or carrying no contact detail.',
 				array(
 					'form'  => (int) ( $form['id'] ?? 0 ),
 					'entry' => (int) ( $entry['id'] ?? 0 ),

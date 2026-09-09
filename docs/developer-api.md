@@ -232,7 +232,9 @@ add_action( 'recoveryflow_register_sources', function ( \WAcr\RecoveryFlow\Integ
 | **`is_conversion_complete()` answers from live state, every time** | It is asked again immediately before every send, not only when the event was detected: the person may have paid in another tab an hour later. If you cannot tell, return `true` -- the cost of a missed reminder is a reminder; the cost of a wrong one is asking somebody to pay twice |
 | **`restore()` merges, and touches only the clicker's own session** | Somebody following a recovery link may have started again already, and replacing that with an older snapshot destroys the very conversion being recovered |
 
-`Abstract_Source` gives you `report()` and `report_completed()`, plus a `build_recovery_url()` that returns the plugin's own `/recovery/{token}` endpoint and an empty `get_settings_fields()`. Override the last two only if you need to.
+`Abstract_Source` gives you `report()` and `report_completed()`, plus a `build_recovery_url()` that returns the plugin's own `/recovery/{token}` endpoint, an empty `get_settings_fields()` and an empty `consent_note()`. Override those last three only if you need to.
+
+Override **`consent_note()`** if a merchant has to do something for your source to have consent -- put a particular field on a form, tick something in another plugin. It is shown on your card on the Integrations screen, and only on a site that requires explicit consent, so write it as an instruction rather than a caveat. Leave it empty if your source collects consent itself or needs nothing. It exists because "this source identifies people it may not message" was true of a shipped integration for a whole release while every screen it appeared on stayed silent about it.
 
 ### Settings of your own
 

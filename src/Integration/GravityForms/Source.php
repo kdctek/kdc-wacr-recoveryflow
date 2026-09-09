@@ -207,6 +207,20 @@ final class Source extends Abstract_Source implements Pollable_Source_Interface 
 	}
 
 	/**
+	 * What a merchant has to do for a form to have consent.
+	 *
+	 * Gravity Forms has no checkout and RecoveryFlow adds no field of its own
+	 * to anybody's form, so the merchant's own consent question is the only
+	 * place a yes can come from. Gravity Forms' Consent field is read wherever
+	 * a watched form carries one.
+	 *
+	 * @return string
+	 */
+	public function consent_note(): string {
+		return __( 'RecoveryFlow adds no consent question to a form. Put Gravity Forms\' own Consent field on any form you want recovered and its answer is recorded with the entry. Until a form has one, people who fill it in are identified but never messaged.', 'kdc-wacr-recoveryflow' );
+	}
+
+	/**
 	 * Whether the thing behind this event has since been finished.
 	 *
 	 * Answered from live Gravity Forms state every time, because it is asked

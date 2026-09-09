@@ -58,6 +58,7 @@ use WAcr\RecoveryFlow\Workflow\Send_Gate;
 use WAcr\RecoveryFlow\Integration\Abstract_Source;
 use WAcr\RecoveryFlow\Integration\Custom\Example_Source;
 use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
+use WAcr\RecoveryFlow\Integration\GravityForms\Draft_Watcher as Gf_Draft_Watcher;
 use WAcr\RecoveryFlow\Integration\GravityForms\Field_Map as Gf_Field_Map;
 use WAcr\RecoveryFlow\Integration\GravityForms\Settings as Gf_Settings;
 use WAcr\RecoveryFlow\Integration\GravityForms\Source as Gf_Source;
@@ -3792,6 +3793,54 @@ ok(
 	'source_statecheck_phone_field' === Source_Registry::setting_key( 'statecheck', 'phone_field' )
 );
 
+$GLOBALS['recoveryflow_extra_sources'] = true;
+
+/*
+ * ---------------------------------------------------------------------------
+ * THE CONSENT NOTE. docs/integrations.md and the Gravity Forms adapter both
+ * said the consent constraint was "stated on the Integrations screen rather
+ * than left to be discovered". It was stated nowhere, and the cost was not
+ * cosmetic: on a site in the default mode that source identified people and
+ * then never messaged one of them, with no screen anywhere saying why.
+ * ---------------------------------------------------------------------------
+ */
+// Counted as a delta, not an absolute: the built-in sources answer this too,
+// so a bare count would pass on somebody else's card. Same trap the status
+// phrases above are counted around.
+$recoveryflow_state_source->note = '';
+$recoveryflow_notes_before       = recoveryflow_integration_says( 'Consent:' );
+
+ok( 'the built-in sources already answer, so the screen is never silent about consent', $recoveryflow_notes_before > 0 );
+
+$recoveryflow_state_source->note = 'Put a consent question on the form.';
+check( 'a source that needs consent arranged says so on its card', recoveryflow_integration_says( 'Consent:' ), $recoveryflow_notes_before + 1 );
+check( 'in its own words, not a generic sentence', recoveryflow_integration_says( 'Put a consent question on the form.' ), 1 );
+
+// Advice about a rule that is switched off is its own kind of wrong.
+update_option( Options::SETTINGS, array_replace( Options::defaults(), array( 'eligibility_mode' => 'identified_contact' ) ) );
+check( 'and no source says anything when the site does not require consent at all', recoveryflow_integration_says( 'Consent:' ), 0 );
+update_option( Options::SETTINGS, Options::defaults() );
+check( 'and they say it again once consent is required', recoveryflow_integration_says( 'Consent:' ), $recoveryflow_notes_before + 1 );
+
+$recoveryflow_state_source->note = '';
+check( 'a source with nothing to say adds no note of its own', recoveryflow_integration_says( 'Consent:' ), $recoveryflow_notes_before );
+
+// The two built-in sources both answer, because a card that is silent about
+// consent reads the same whether consent is handled or forgotten.
+ok(
+	'the shop adapter says consent is already taken care of',
+	'' !== trim( $plugin->sources()->get( 'woocommerce' )->consent_note() )
+);
+
+// What a source is CALLED, asked in one place. A recovery screen printing a
+// raw source id was telling a shop worker "gravityforms".
+check( 'a registered source is named, not slugged', $plugin->sources()->name_for( 'statecheck' ), 'Fake pollable' );
+check(
+	'and one whose plugin has gone keeps its id, because the journeys outlive it',
+	$plugin->sources()->name_for( 'vanished' ),
+	'vanished'
+);
+
 $GLOBALS['recoveryflow_extra_sources'] = false;
 update_option( Options::SETTINGS, Options::defaults() );
 
@@ -4068,6 +4117,194 @@ ok( 'a form with a phone or an email field can produce somebody to message', $re
 ok( 'a form with neither cannot, and is refused before anything is written', ! $recoveryflow_fields->is_messageable( $recoveryflow_mute_form ) );
 
 /*
+ * Asking the FORM and asking the ENTRY are different questions with different
+ * answers, and the gap between them is where somebody unreachable gets written
+ * down. Gravity Forms drops a phone value whose E.164 form it cannot validate
+ * -- which is what happens every time a person types a national number into an
+ * International (formatted) field -- so a contactable form routinely produces
+ * an entry with nothing on it.
+ */
+ok(
+	'an entry that actually carries a contact detail is messageable',
+	$recoveryflow_fields->has_contact( $recoveryflow_fields->hints( $recoveryflow_form, $recoveryflow_entry ) )
+);
+ok(
+	'but a form full of contact FIELDS whose entry answered none of them is not',
+	! $recoveryflow_fields->has_contact(
+		$recoveryflow_fields->hints(
+			$recoveryflow_form,
+			array(
+				'id'      => 56,
+				'form_id' => 7,
+			)
+		)
+	)
+);
+ok(
+	'an email on its own is enough, because email is a channel',
+	$recoveryflow_fields->has_contact(
+		$recoveryflow_fields->hints(
+			$recoveryflow_form,
+			array(
+				'id'      => 56,
+				'form_id' => 7,
+				'3'       => 'ada@example.test',
+			)
+		)
+	)
+);
+ok(
+	'and so is a number on its own',
+	$recoveryflow_fields->has_contact(
+		$recoveryflow_fields->hints(
+			$recoveryflow_form,
+			array(
+				'id'      => 56,
+				'form_id' => 7,
+				'4'       => '07700 900123',
+			)
+		)
+	)
+);
+
+// The refusal has to reach the thing that writes rows, not just the helper.
+ok(
+	'an unpaid entry with no contact detail on it is not chased',
+	null === Gf_Unpaid_Entry::draft(
+		array(
+			'id'             => 58,
+			'form_id'        => 7,
+			'status'         => 'active',
+			'payment_status' => 'Failed',
+			'date_created'   => '2026-09-01 10:00:00',
+		),
+		$recoveryflow_form,
+		$recoveryflow_fields,
+		'hook'
+	)
+);
+
+/*
+ * And the save-and-continue path, which had no test of any kind -- the clearest
+ * abandonment signal the plugin gets, and nothing asserted it wrote a row.
+ * Driven through the real hook signature Gravity Forms calls it with.
+ */
+$recoveryflow_drafts_watcher = new Gf_Draft_Watcher( $plugin->ingest(), $recoveryflow_fields, $plugin->logger() );
+
+/**
+ * Whether saving a draft wrote a recovery event.
+ *
+ * Read off the recorded SQL rather than a return value, because on_saved()
+ * returns nothing: a version that quietly did nothing at all would otherwise
+ * look exactly like a version that worked. The event upsert is a raw INSERT
+ * rather than $wpdb->insert(), so it lands in queries and not in writes --
+ * looking in the wrong one reports every call as a no-op and turns all three
+ * of these assertions green while measuring nothing.
+ *
+ * @param Gf_Draft_Watcher    $watcher The watcher.
+ * @param array<string,mixed> $form    The form.
+ * @param array<string,mixed> $entry   The partial entry.
+ * @return bool
+ */
+$recoveryflow_saved_a_draft = static function ( Gf_Draft_Watcher $watcher, array $form, array $entry ): bool {
+	static $token = 0;
+
+	++$token;
+	$GLOBALS['wpdb']->queries = array();
+
+	$watcher->on_saved( array( 'partial_entry' => $entry ), 'tok' . $token, $form, $entry );
+
+	foreach ( $GLOBALS['wpdb']->queries as $sql ) {
+		if ( 0 === stripos( ltrim( (string) $sql ), 'INSERT' ) && false !== strpos( (string) $sql, 'recoveryflow_events' ) ) {
+			return true;
+		}
+	}
+
+	return false;
+};
+
+ok(
+	'saving a half-finished form records it',
+	$recoveryflow_saved_a_draft( $recoveryflow_drafts_watcher, $recoveryflow_form, $recoveryflow_entry )
+);
+ok(
+	'but one whose contact fields came back empty is not recorded, because nobody could be reached',
+	! $recoveryflow_saved_a_draft(
+		$recoveryflow_drafts_watcher,
+		$recoveryflow_form,
+		array(
+			'id'      => 59,
+			'form_id' => 7,
+		)
+	)
+);
+ok(
+	'and neither is a form that never asked for a way to reach anybody',
+	! $recoveryflow_saved_a_draft(
+		$recoveryflow_drafts_watcher,
+		$recoveryflow_mute_form,
+		array(
+			'id'      => 60,
+			'form_id' => 9,
+		)
+	)
+);
+
+/*
+ * Consent. Gravity Forms has no checkout and RecoveryFlow adds no field of its
+ * own to anybody's form, so the merchant's own consent question is the only
+ * place a yes can come from -- and for a whole release nothing read one, which
+ * meant this source could not produce a single journey on a site that requires
+ * consent.
+ */
+$recoveryflow_consent_form = array(
+	'id'     => 11,
+	'fields' => array(
+		(object) array(
+			'id'   => 3,
+			'type' => 'email',
+		),
+		(object) array(
+			'id'   => 5,
+			'type' => 'consent',
+		),
+	),
+);
+
+$recoveryflow_consent_hints = $recoveryflow_fields->hints(
+	$recoveryflow_consent_form,
+	array(
+		'id'      => 60,
+		'form_id' => 11,
+		'3'       => 'ada@example.test',
+		'5.1'     => '1',
+		'5.3'     => '4',
+	)
+);
+check( 'a ticked consent field is read as a yes', $recoveryflow_consent_hints->consent, true );
+check( 'and the form revision its wording came from is kept, so an old yes stays auditable', $recoveryflow_consent_hints->consent_text_version, '4' );
+check( 'recorded against the form rather than a checkout', $recoveryflow_consent_hints->consent_source, Gf_Field_Map::CONSENT_SOURCE );
+
+$recoveryflow_consent_hints = $recoveryflow_fields->hints(
+	$recoveryflow_consent_form,
+	array(
+		'id'      => 61,
+		'form_id' => 11,
+		'3'       => 'ada@example.test',
+		'5.1'     => '0',
+	)
+);
+check( 'an unticked one is read as a no, not as silence', $recoveryflow_consent_hints->consent, false );
+
+// The distinction the whole thing turns on: a form that never asked is not a
+// person who declined, and writing down the second would be inventing a refusal.
+check(
+	'a form with no consent question says nothing either way',
+	$recoveryflow_fields->hints( $recoveryflow_form, $recoveryflow_entry )->consent,
+	null
+);
+
+/*
  * Which payment statuses mean the money is in. Getting this wrong is expensive
  * in both directions, so it is a list rather than "anything that is not
  * Failed" -- a negative rule would call every status a future add-on invents a
@@ -4100,6 +4337,16 @@ check( 'carrying what it was worth', $recoveryflow_draft->amount . ' ' . $recove
 check( 'and a link with the query string stripped off it', $recoveryflow_draft->metadata['resume_url'], 'https://shop.test/join/' );
 ok( 'so no personal data reaches the metadata', false === stripos( (string) wp_json_encode( $recoveryflow_draft->metadata ), 'ada' ) );
 
+// Named for the LAST sighting rather than the first, because ingest is an
+// upsert: the backfill rewrites this key on a row the live hook wrote first,
+// so a field called found_by was wrong within one pass of the queue.
+check( 'the row records how it was last seen', $recoveryflow_draft->metadata['seen_by'], 'hook' );
+check(
+	'and the backfill says so when it is the one that saw it',
+	Gf_Unpaid_Entry::draft( $recoveryflow_entry, $recoveryflow_form, $recoveryflow_fields, 'poll' )->metadata['seen_by'],
+	'poll'
+);
+
 foreach ( array(
 	'a paid entry'             => array( 'payment_status' => 'Paid' ),
 	'an entry asking no money' => array( 'payment_status' => '' ),
@@ -4108,13 +4355,13 @@ foreach ( array(
 ) as $recoveryflow_label => $recoveryflow_patch ) {
 	ok(
 		"{$recoveryflow_label} is not chased",
-		null === Gf_Unpaid_Entry::draft( array_merge( $recoveryflow_entry, $recoveryflow_patch ), $recoveryflow_form, $recoveryflow_fields, 'hook' )
+		null === Gf_Unpaid_Entry::draft( array_replace( $recoveryflow_entry, $recoveryflow_patch ), $recoveryflow_form, $recoveryflow_fields, 'hook' )
 	);
 }
 
 ok(
 	'and neither is an entry on a form nobody could be messaged from',
-	null === Gf_Unpaid_Entry::draft( array_merge( $recoveryflow_entry, array( 'form_id' => 9 ) ), $recoveryflow_mute_form, $recoveryflow_fields, 'hook' )
+	null === Gf_Unpaid_Entry::draft( array_replace( $recoveryflow_entry, array( 'form_id' => 9 ) ), $recoveryflow_mute_form, $recoveryflow_fields, 'hook' )
 );
 
 // Only these forms.
@@ -4182,7 +4429,7 @@ ok( 'and one Gravity Forms has purged or consumed is', $recoveryflow_gf->is_conv
  */
 GFAPI::$entries = array(
 	55 => $recoveryflow_entry,
-	56 => array_merge(
+	56 => array_replace(
 		$recoveryflow_entry,
 		array(
 			'id'             => 56,
@@ -4190,7 +4437,7 @@ GFAPI::$entries = array(
 			'payment_status' => 'Paid',
 		)
 	),
-	57 => array_merge(
+	57 => array_replace(
 		$recoveryflow_entry,
 		array(
 			'id'           => 57,

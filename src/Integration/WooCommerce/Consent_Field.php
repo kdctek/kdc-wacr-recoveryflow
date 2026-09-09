@@ -341,7 +341,7 @@ final class Consent_Field {
 	 * @return bool
 	 */
 	public function is_asked(): bool {
-		return 'explicit_consent' === (string) Options::get( 'eligibility_mode', 'explicit_consent' );
+		return Options::requires_explicit_consent();
 	}
 
 	/**

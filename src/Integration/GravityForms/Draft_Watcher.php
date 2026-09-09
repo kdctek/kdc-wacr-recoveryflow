@@ -126,6 +126,21 @@ final class Draft_Watcher {
 			return;
 		}
 
+		$hints = $this->fields->hints( $form, $partial, $pinned );
+
+		if ( ! $this->fields->has_contact( $hints ) ) {
+			// The form asks for a contact detail and this entry came back with
+			// none -- most often a phone number Gravity Forms itself dropped.
+			// Recording it would write down somebody no message can reach.
+			$this->logger->debug(
+				'gravityforms',
+				'Skipped a saved form with no contact detail on it: the fields are there, the answers are not.',
+				array( 'form' => (int) ( $form['id'] ?? 0 ) )
+			);
+
+			return;
+		}
+
 		$draft = new Event_Draft( Source::ID, self::TYPE, self::KEY . $token );
 
 		$draft->external_id      = $token;
@@ -148,7 +163,7 @@ final class Draft_Watcher {
 			'resume_url' => Source::resume_url( $partial, $token ),
 		);
 
-		$draft->with_identity( $this->fields->hints( $form, $partial, $pinned ) );
+		$draft->with_identity( $hints );
 
 		$this->ingest->ingest( $draft );
 	}

@@ -161,13 +161,54 @@ Requires Gravity Forms 2.4 or later, and a WA.cr plan that includes integrations
 
 | Question | Gravity Forms |
 | --- | --- |
-| **1. What is recoverable?** | A **save-and-continue draft** (`source_type` `form`), from the moment it is saved until it is resumed and submitted or Gravity Forms purges it; and an **entry whose payment never arrived** (`source_type` `payment`) -- `payment_status` present and not one of `Paid`, `Active`, `Approved`, `Authorized`. Entries marked spam or trash are excluded, as are forms with neither a phone nor an email field |
+| **1. What is recoverable?** | A **save-and-continue draft** (`source_type` `form`), from the moment it is saved until it is resumed and submitted or Gravity Forms purges it; and an **entry whose payment never arrived** (`source_type` `payment`) -- `payment_status` present and not one of `Paid`, `Active`, `Approved`, `Authorized`. Entries marked spam or trash are excluded, as are forms with neither a phone nor an email field **and entries that answered neither** -- see "A field is not an answer" below |
 | **2. How is the customer identified?** | By field **type**, read off the form's own definition: the first `email`, `phone`, `name` and `address` field. Gravity Forms has no fixed key for any of them and the merchant may rename every label, so the type -- which Gravity Forms owns -- is the only stable thing to read. A logged-in submitter's `created_by` is used when there is one. Pin a specific field with `recoveryflow_gf_field_overrides`. **A phone field has two storage shapes** -- see below |
 | **3. When is it abandoned?** | A draft the moment it is saved: unlike a quiet basket, the person has said out loud that they are coming back later. An unpaid entry after the site's inactivity threshold. Maximum age defaults to **7 days**, because Gravity Forms purges drafts after 30 by default and the resume token dies with the row |
 | **4. How is completion detected?** | A draft, by the submission that consumes its resume token (`gform_post_submission`, reading `gform_resume_token` from the request -- which is how Gravity Forms finds the draft to delete). An entry, by `gform_post_payment_completed` or any `gform_post_payment_action` reporting a paid status, each claiming a receipt first so a redelivered gateway callback cannot be counted twice. Both re-checked from live state before every send |
 | **5. Where do we send the customer?** | Nothing is restored. Gravity Forms holds the half-finished form itself and hands it back on its own resume link, which is far better than this plugin rebuilding somebody's answers from a snapshot. A draft goes to its form page with `gf_token` on it; an entry goes back to the page it was submitted from |
 | **6. What value information exists?** | `payment_amount` and `currency` where the form takes money, and the form's title as the single line item. A draft usually has no amount at all, which is why the minimum-amount rule defaults to nothing here |
-| **7. What consent constraints apply?** | The same as everywhere else, with one difference that matters: **Gravity Forms has no checkout and RecoveryFlow adds no consent field to it.** In `explicit_consent` mode a form must carry the merchant's own consent question. Until it does, this source identifies people it is not allowed to message -- which is the correct failure, and is stated on the Integrations screen rather than left to be discovered |
+| **7. What consent constraints apply?** | The same as everywhere else, with one difference that matters: **Gravity Forms has no checkout and RecoveryFlow adds no consent field to it.** In `explicit_consent` mode a form must carry **Gravity Forms' own Consent field**, which RecoveryFlow reads wherever a watched form has one -- see below. Until a form has one, this source identifies people it is not allowed to message, which is the correct failure; the Integrations screen says so on the card |
+
+### Consent, and where a yes comes from
+
+Gravity Forms has no checkout, and RecoveryFlow puts no field of its own on
+anybody's form. So on a site in `explicit_consent` mode -- which is the default
+-- the merchant's own consent question is the only place a yes can come from.
+
+RecoveryFlow reads **Gravity Forms' own Consent field**, which it has had since
+2.4. Put one on any form you want recovered and nothing else is needed: the
+answer is recorded against the customer with the entry, along with the form
+revision its wording came from, so a consent given last year can still be shown
+against the words that were on the screen at the time.
+
+A form with **no** consent field records nothing either way, and that is
+deliberate. Nothing is not the same as a no: `null` means the person was never
+asked, `false` means they were asked and declined, and writing the second when
+the first is true would be inventing a refusal nobody made. Entries from a form
+with no consent question are recorded and then refused at evaluation with
+`no_consent`, which is the correct failure -- and the Integrations card now says
+so, in those words, instead of leaving it to be discovered.
+
+Pin a particular field with `recoveryflow_gf_field_overrides` using the key
+`consent`, exactly as for `phone`, `email`, `name` and `address`.
+
+### A field is not an answer
+
+A form carrying a phone field is not the same as an entry carrying a phone
+number, and the gap between the two is where somebody unreachable gets written
+down.
+
+Gravity Forms **discards** a phone value whose E.164 form it cannot validate,
+and its own International (formatted) widget produces exactly that whenever
+somebody types a national number -- `07700 900123` with the United Kingdom
+selected yields an `e164` of `07700 900123`, which fails Gravity Forms' own
+`/^\+[1-9]\d{1,14}$/`, so the field is saved empty. Nothing reports this; the
+entry simply comes back with no number on it.
+
+So RecoveryFlow asks both questions. The form is asked whether it could ever
+produce somebody to message, and the entry is asked whether it actually did. An
+entry answering neither is dropped before a row is written, with a line in the
+log saying so, rather than becoming a customer nothing can be sent to.
 
 ### The two shapes of a phone number
 

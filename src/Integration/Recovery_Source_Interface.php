@@ -128,4 +128,17 @@ interface Recovery_Source_Interface {
 	 * @return array<string,array<string,mixed>>
 	 */
 	public function get_settings_fields(): array;
+
+	/**
+	 * What a merchant has to do for this source to have consent, in a sentence.
+	 *
+	 * Only shown when the site requires explicit consent, and empty when a
+	 * source has nothing to add -- one that captures consent itself needs no
+	 * instructions. It exists because "this source identifies people it may
+	 * not message" was true of an integration for a whole release while every
+	 * screen it appeared on stayed silent about it.
+	 *
+	 * @return string
+	 */
+	public function consent_note(): string;
 }

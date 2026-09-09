@@ -55,6 +55,17 @@ final class Field_Map {
 	public const TYPE_ADDRESS = 'address';
 
 	/**
+	 * Gravity Forms' own type for a consent checkbox.
+	 */
+	public const TYPE_CONSENT = 'consent';
+
+	/**
+	 * What is written into the consent ledger's source column, so an audit can
+	 * tell a form's own consent question from a checkout's.
+	 */
+	public const CONSENT_SOURCE = 'gravityforms_field';
+
+	/**
 	 * The sub-field of a name field holding the first name.
 	 */
 	private const NAME_FIRST = '.3';
@@ -68,6 +79,18 @@ final class Field_Map {
 	 * The sub-field of an address field holding the country.
 	 */
 	private const ADDRESS_COUNTRY = '.6';
+
+	/**
+	 * The sub-field of a consent field holding the ticked box itself.
+	 */
+	private const CONSENT_TICKED = '.1';
+
+	/**
+	 * The sub-field of a consent field holding the form revision its wording
+	 * came from, which is what makes an old consent auditable after the
+	 * merchant edits the question.
+	 */
+	private const CONSENT_REVISION = '.3';
 
 	/**
 	 * Read whatever contact details a form's own fields carry.
@@ -104,6 +127,8 @@ final class Field_Map {
 			$hints->country = $telephone[1];
 		}
 
+		$this->consent( $hints, $form, $entry, $override );
+
 		// A logged-in submitter is the strongest identity there is, and it is
 		// on the entry whether or not the form asked for anything.
 		$user = isset( $entry['created_by'] ) ? (int) $entry['created_by'] : 0;
@@ -113,6 +138,60 @@ final class Field_Map {
 		}
 
 		return $hints;
+	}
+
+	/**
+	 * Read the merchant's own consent question, if the form carries one.
+	 *
+	 * Gravity Forms has no checkout and RecoveryFlow adds no field of its own
+	 * to a form, so the merchant's own consent question is the only place a
+	 * yes can come from. Gravity Forms has had a consent field type since 2.4
+	 * and it stores exactly what a consent record needs: whether the box was
+	 * ticked, and the form revision its wording came from.
+	 *
+	 * A form with no consent field leaves this null rather than false, and the
+	 * difference is the whole point: null is "was never asked", false is "was
+	 * asked and said no". Recording the second when the first is true would
+	 * write down a refusal that nobody ever made.
+	 *
+	 * @param Identity_Hints      $hints    The hints being built.
+	 * @param array<string,mixed> $form     The form object.
+	 * @param array<string,mixed> $entry    The entry, complete or partial.
+	 * @param array<string,mixed> $override Pinned field ids, by type.
+	 * @return void
+	 */
+	private function consent( Identity_Hints $hints, array $form, array $entry, array $override ): void {
+		$field = $this->field_id( $form, self::TYPE_CONSENT, $override );
+
+		if ( '' === $field ) {
+			return;
+		}
+
+		$hints->consent              = '1' === $this->value( $entry, $field . self::CONSENT_TICKED );
+		$hints->consent_source       = self::CONSENT_SOURCE;
+		$hints->consent_text_version = $this->value( $entry, $field . self::CONSENT_REVISION );
+	}
+
+	/**
+	 * Whether this ENTRY yielded somebody who could actually be messaged.
+	 *
+	 * Asking is_messageable() is asking about the FORM -- whether it carries a
+	 * phone or an email field at all -- and that is a different question with a
+	 * different answer. Gravity Forms drops a phone value whose E.164 form it cannot
+	 * validate, which is what happens every time somebody types a national
+	 * number into an International (formatted) field: the field is on the form,
+	 * the person filled it in, and the entry comes back with nothing in it.
+	 *
+	 * Asking only the form is how a customer gets written down with no way to
+	 * reach them, and a journey gets created that no message can ever complete.
+	 * A refusal that is correct is still a silent defect when the caller cannot
+	 * tell "refused" from "absent", so the entry is asked too.
+	 *
+	 * @param Identity_Hints $hints What was read off the entry.
+	 * @return bool
+	 */
+	public function has_contact( Identity_Hints $hints ): bool {
+		return '' !== trim( $hints->email ) || '' !== trim( $hints->phone_raw );
 	}
 
 	/**
