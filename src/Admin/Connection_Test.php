@@ -49,6 +49,11 @@ final class Connection_Test {
 	public const ACTION = 'recoveryflow_test_connection';
 
 	/**
+	 * Id of the form this button submits, declared outside the settings form.
+	 */
+	public const FORM_ID = 'recoveryflow-connection-test-form';
+
+	/**
 	 * How long the result of a check waits to be shown, in seconds.
 	 *
 	 * Long enough to survive the redirect, short enough that a stale answer
@@ -166,18 +171,11 @@ final class Connection_Test {
 		}
 
 		printf(
-			'<form method="post" action="%1$s" class="recoveryflow-connection-test">',
-			esc_url( admin_url( 'admin-post.php' ) )
-		);
-
-		Nonce_Field::render( self::ACTION );
-
-		printf(
-			'<input type="hidden" name="action" value="%1$s" />
-			<button type="submit" class="button">%2$s</button>
-			<span class="description">%3$s</span>
-			</form>',
-			esc_attr( self::ACTION ),
+			'<p class="recoveryflow-connection-test">
+				<button type="submit" form="%1$s" class="button">%2$s</button>
+				<span class="description">%3$s</span>
+			</p>',
+			esc_attr( Deferred_Form::need( self::FORM_ID, self::ACTION ) ),
 			esc_html__( 'Test connection', 'kdc-wacr-recoveryflow' ),
 			esc_html__( 'Asks WA.cr which workspace this key belongs to and what it may do.', 'kdc-wacr-recoveryflow' )
 		);

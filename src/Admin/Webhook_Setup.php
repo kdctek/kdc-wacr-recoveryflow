@@ -42,6 +42,11 @@ final class Webhook_Setup {
 	public const ACTION = 'recoveryflow_webhook_secret';
 
 	/**
+	 * Id of the form this button submits, declared outside the settings form.
+	 */
+	public const FORM_ID = 'recoveryflow-webhook-secret-form';
+
+	/**
 	 * How long the newly generated secret waits to be shown, in seconds.
 	 *
 	 * Short. It is the plaintext of a credential sitting in the options table
@@ -123,18 +128,11 @@ final class Webhook_Setup {
 		self::reveal();
 
 		printf(
-			'<form method="post" action="%1$s" class="recoveryflow-webhook-secret">',
-			esc_url( admin_url( 'admin-post.php' ) )
-		);
-
-		Nonce_Field::render( self::ACTION );
-
-		printf(
-			'<input type="hidden" name="action" value="%1$s" />
-			<p><button type="submit" class="button">%2$s</button></p>
+			'<div class="recoveryflow-webhook-secret">
+			<p><button type="submit" form="%1$s" class="button">%2$s</button></p>
 			<p class="description">%3$s</p>
-			</form>',
-			esc_attr( self::ACTION ),
+			</div>',
+			esc_attr( Deferred_Form::need( self::FORM_ID, self::ACTION ) ),
 			esc_html(
 				Webhook_Secret::exists()
 					? __( 'Generate a new secret', 'kdc-wacr-recoveryflow' )

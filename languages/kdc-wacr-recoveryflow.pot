@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-08T20:36:53+00:00\n"
+"POT-Creation-Date: 2026-09-09T03:04:58+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -59,43 +59,43 @@ msgstr ""
 msgid "The report could not be copied. Select the text in the box and copy it instead."
 msgstr ""
 
-#: src/Admin/Connection_Test.php:101
+#: src/Admin/Connection_Test.php:106
 msgid "You are not allowed to test the WA.cr connection on this site."
 msgstr ""
 
-#: src/Admin/Connection_Test.php:125
+#: src/Admin/Connection_Test.php:130
 msgid "There is no API key saved to test. Enter one and save, then test it."
 msgstr ""
 
-#: src/Admin/Connection_Test.php:139
+#: src/Admin/Connection_Test.php:144
 msgid "WA.cr could not be reached. Check the site can make outbound requests, then test again."
 msgstr ""
 
-#: src/Admin/Connection_Test.php:149
+#: src/Admin/Connection_Test.php:154
 #: src/REST/Status_Controller.php:150
 msgid "Connected to WA.cr."
 msgstr ""
 
 #. translators: %s: the name of the connected WA.cr workspace.
-#: src/Admin/Connection_Test.php:152
+#: src/Admin/Connection_Test.php:157
 #: src/REST/Status_Controller.php:153
 #, php-format
 msgid "Connected to %s."
 msgstr ""
 
-#: src/Admin/Connection_Test.php:181
+#: src/Admin/Connection_Test.php:179
 msgid "Test connection"
 msgstr ""
 
-#: src/Admin/Connection_Test.php:182
+#: src/Admin/Connection_Test.php:180
 msgid "Asks WA.cr which workspace this key belongs to and what it may do."
 msgstr ""
 
-#: src/Admin/Connection_Test.php:211
+#: src/Admin/Connection_Test.php:209
 msgid "Connection test passed."
 msgstr ""
 
-#: src/Admin/Connection_Test.php:212
+#: src/Admin/Connection_Test.php:210
 msgid "Connection test failed."
 msgstr ""
 
@@ -112,47 +112,47 @@ msgstr ""
 msgid "Copy the report"
 msgstr ""
 
-#: src/Admin/Hook_Test.php:103
+#: src/Admin/Hook_Test.php:108
 msgid "You are not allowed to test the Auto Flow hook on this site."
 msgstr ""
 
-#: src/Admin/Hook_Test.php:127
+#: src/Admin/Hook_Test.php:132
 msgid "There is no Auto Flow hook address saved to test. Paste one and save, then test it."
 msgstr ""
 
-#: src/Admin/Hook_Test.php:141
+#: src/Admin/Hook_Test.php:146
 msgid "The hook address could not be reached. Check the address, and that this site can make outbound requests."
 msgstr ""
 
-#: src/Admin/Hook_Test.php:149
+#: src/Admin/Hook_Test.php:154
 msgid "WA.cr accepted the push. Nothing is signing these yet, so anybody who learns the address could trigger your flow -- add a signing secret in WA.cr and paste it here."
 msgstr ""
 
-#: src/Admin/Hook_Test.php:150
+#: src/Admin/Hook_Test.php:155
 msgid "WA.cr accepted the push, and accepted its signature. The Auto Flow has now run once with a test payload."
 msgstr ""
 
-#: src/Admin/Hook_Test.php:167
+#: src/Admin/Hook_Test.php:172
 msgid "Test"
 msgstr ""
 
-#: src/Admin/Hook_Test.php:171
+#: src/Admin/Hook_Test.php:176
 msgid "A test push from RecoveryFlow"
 msgstr ""
 
-#: src/Admin/Hook_Test.php:203
+#: src/Admin/Hook_Test.php:201
 msgid "Send a test push"
 msgstr ""
 
-#: src/Admin/Hook_Test.php:204
+#: src/Admin/Hook_Test.php:202
 msgid "This really runs your Auto Flow, because a webhook trigger fires on anything that reaches it. The test carries no phone number, so a flow that goes on to send has nobody to send to."
 msgstr ""
 
-#: src/Admin/Hook_Test.php:229
+#: src/Admin/Hook_Test.php:227
 msgid "Test push delivered."
 msgstr ""
 
-#: src/Admin/Hook_Test.php:230
+#: src/Admin/Hook_Test.php:228
 msgid "Test push failed."
 msgstr ""
 
@@ -310,7 +310,7 @@ msgid "Integrations"
 msgstr ""
 
 #: src/Admin/Menu.php:253
-#: src/Admin/Settings/Page.php:182
+#: src/Admin/Settings/Page.php:183
 msgid "RecoveryFlow settings"
 msgstr ""
 
@@ -637,7 +637,7 @@ msgstr ""
 
 #: src/Admin/Pages/Overview.php:126
 #: src/Admin/Pages/System_Status.php:105
-#: src/Admin/Settings/Page.php:439
+#: src/Admin/Settings/Page.php:463
 msgid "Go to this setting"
 msgstr ""
 
@@ -1218,189 +1218,189 @@ msgstr ""
 msgid "Not available on this plan."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:172
+#: src/Admin/Settings/Page.php:173
 msgid "You do not have permission to change RecoveryFlow settings."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:237
+#: src/Admin/Settings/Page.php:248
 msgid "RecoveryFlow settings sections"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:274
+#: src/Admin/Settings/Page.php:285
 msgid "Link"
 msgstr ""
 
 #. translators: %s: the name of a settings section.
-#: src/Admin/Settings/Page.php:276
+#: src/Admin/Settings/Page.php:287
 #, php-format
 msgid "to the section \"%s\""
 msgstr ""
 
-#: src/Admin/Settings/Page.php:330
+#: src/Admin/Settings/Page.php:341
 msgid "Advanced settings"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:405
+#: src/Admin/Settings/Page.php:429
 msgid "Settled."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:406
+#: src/Admin/Settings/Page.php:430
 msgid "Email reminders are permissible from this site. Whether they are actually sent is the switch below."
 msgstr ""
 
 #. translators: %d: how many things are still to be settled.
-#: src/Admin/Settings/Page.php:417
+#: src/Admin/Settings/Page.php:441
 #, php-format
 msgid "Still to do before email reminders can be sent: %d thing."
 msgid_plural "Still to do before email reminders can be sent: %d things."
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/Admin/Settings/Page.php:460
+#: src/Admin/Settings/Page.php:484
 msgid "The saved key cannot be read."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:461
+#: src/Admin/Settings/Page.php:485
 msgid "This happens when a site's security keys are rotated. Enter the key again to fix it."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:470
+#: src/Admin/Settings/Page.php:494
 msgid "No key saved yet."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:471
+#: src/Admin/Settings/Page.php:495
 msgid "RecoveryFlow records abandoned baskets without one, but cannot send anything."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:482
+#: src/Admin/Settings/Page.php:506
 msgid "A key is saved."
 msgstr ""
 
 #. translators: %s: the last few characters of the saved API key.
-#: src/Admin/Settings/Page.php:487
+#: src/Admin/Settings/Page.php:511
 #, php-format
 msgid "Ending %s. It has not been checked against WA.cr yet."
 msgstr ""
 
 #. translators: 1: WA.cr workspace name. 2: the last few characters of the saved API key.
-#: src/Admin/Settings/Page.php:492
+#: src/Admin/Settings/Page.php:516
 #, php-format
 msgid "Connected to %1$s, ending %2$s."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:527
+#: src/Admin/Settings/Page.php:551
 msgid "What to build in WA.cr, and what this site sends it"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:539
+#: src/Admin/Settings/Page.php:563
 msgid "Every push carries the same keys, always, even when a value is empty -- a flow that refers to a variable the payload left out prints the placeholder to the customer instead of a name. WA.cr turns each one into a variable called hook_ plus the key, so \"first_name\" reaches your flow as hook_first_name."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:543
+#: src/Admin/Settings/Page.php:567
 msgid "Variable in your flow"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:544
+#: src/Admin/Settings/Page.php:568
 msgid "What it holds"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:566
+#: src/Admin/Settings/Page.php:590
 msgid "In WA.cr, create an Auto Flow and give it a Webhook trigger."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:567
+#: src/Admin/Settings/Page.php:591
 msgid "Copy the webhook address it shows you and paste it into the box above, then save."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:568
+#: src/Admin/Settings/Page.php:592
 msgid "Turn on signing in WA.cr, copy the secret it generates, and paste that in as well. Without it, the address on its own is enough for anybody who learns it to start your flow."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:569
+#: src/Admin/Settings/Page.php:593
 msgid "Add whatever the flow should do -- usually one Send Template step, then a wait, then another. The timing and the wording live in WA.cr on this path; this site only says that a basket was left behind."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:570
+#: src/Admin/Settings/Page.php:594
 msgid "Use \"Send a test push\" above to prove the address before a real basket depends on it."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:581
+#: src/Admin/Settings/Page.php:605
 msgid "Always recovery.journey_eligible, so one flow can serve more than one sender."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:582
+#: src/Admin/Settings/Page.php:606
 msgid "This recovery's own reference. Worth logging: it is what a support question will be about."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:583
+#: src/Admin/Settings/Page.php:607
 msgid "Which integration noticed, such as woocommerce."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:584
+#: src/Admin/Settings/Page.php:608
 msgid "What was left behind, such as cart or checkout."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:585
+#: src/Admin/Settings/Page.php:609
 msgid "The customer's number in full international form. Empty on a test push."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:586
+#: src/Admin/Settings/Page.php:610
 msgid "The customer's first name, if the shop has one."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:587
+#: src/Admin/Settings/Page.php:611
 msgid "The three-letter currency code."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:588
+#: src/Admin/Settings/Page.php:612
 msgid "What the basket comes to, as a plain number with two decimals and no symbol."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:589
+#: src/Admin/Settings/Page.php:613
 msgid "How many items are in it."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:590
+#: src/Admin/Settings/Page.php:614
 msgid "A short readable list of what is in it."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:591
+#: src/Admin/Settings/Page.php:615
 msgid "The link that puts the basket back. This is the one to put in your button."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:592
+#: src/Admin/Settings/Page.php:616
 msgid "The link that stops the reminders. Include it: a recovery message is marketing."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:593
+#: src/Admin/Settings/Page.php:617
 msgid "The shop's name."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:594
+#: src/Admin/Settings/Page.php:618
 msgid "The shop's address."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:595
+#: src/Admin/Settings/Page.php:619
 msgid "When the basket was last touched, as an ISO 8601 timestamp in UTC."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:609
+#: src/Admin/Settings/Page.php:633
 msgid "System status -- whether the background jobs are running and the connection works"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:613
+#: src/Admin/Settings/Page.php:637
 msgid "Journeys -- every basket being chased, and what happened to it"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:617
+#: src/Admin/Settings/Page.php:641
 msgid "Integrations -- which parts of this site RecoveryFlow watches"
 msgstr ""
 
-#: src/Admin/Settings/Page.php:633
+#: src/Admin/Settings/Page.php:657
 msgid "Email reminders are on."
 msgstr ""
 
-#: src/Admin/Settings/Page.php:634
+#: src/Admin/Settings/Page.php:658
 msgid "Email reminders are off. The Channels tab says what would need settling first."
 msgstr ""
 
@@ -2286,51 +2286,51 @@ msgstr ""
 msgid "the recovery stops"
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:70
+#: src/Admin/Webhook_Setup.php:75
 msgid "You are not allowed to change this site's WA.cr settings."
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:97
+#: src/Admin/Webhook_Setup.php:102
 msgid "A WA.cr Auto Flow can tell this site something, using a webhook step pointed back here. The one worth building is an unsubscribe: a customer who replies STOP inside your flow is then stopped here immediately, rather than whenever the next background pass happens to look."
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:102
+#: src/Admin/Webhook_Setup.php:107
 msgid "Send the request to"
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:108
+#: src/Admin/Webhook_Setup.php:113
 msgid "Put the secret in this header"
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:114
+#: src/Admin/Webhook_Setup.php:119
 msgid "It accepts these events:"
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:120
+#: src/Admin/Webhook_Setup.php:125
 msgid "Send it as JSON with an \"event\" key, the customer's \"phone\", and an \"id\" of your own that is different every time -- the id is what lets this site recognise the same event arriving twice and do nothing the second time."
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:140
+#: src/Admin/Webhook_Setup.php:138
 msgid "Generate a new secret"
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:141
+#: src/Admin/Webhook_Setup.php:139
 msgid "Generate a secret"
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:145
+#: src/Admin/Webhook_Setup.php:143
 msgid "A secret already exists. Generating another replaces it, and your flow will start being refused until you paste the new one in. Only the secret's fingerprint is stored here, so the existing one cannot be shown again."
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:146
+#: src/Admin/Webhook_Setup.php:144
 msgid "The secret is shown once, here, and never again -- only its fingerprint is stored. Copy it into your Auto Flow before leaving this page. Until one exists, this site refuses every request to the address above."
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:167
+#: src/Admin/Webhook_Setup.php:165
 msgid "Here is the secret. This is the only time it will be shown."
 msgstr ""
 
-#: src/Admin/Webhook_Setup.php:169
+#: src/Admin/Webhook_Setup.php:167
 msgid "Copy it into the webhook step of your Auto Flow now. If you lose it, generate another and update the flow."
 msgstr ""
 
@@ -2674,55 +2674,55 @@ msgstr ""
 msgid "Cart and checkout recovery"
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:122
+#: src/Privacy/Erase_By_Phone.php:128
 msgid "You are not allowed to erase customer records on this site."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:156
+#: src/Privacy/Erase_By_Phone.php:162
 msgid "Type the phone number to erase."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:167
+#: src/Privacy/Erase_By_Phone.php:173
 msgid "That is not a phone number RecoveryFlow can read. Include the country code -- for example +44 7700 900123 -- and try again."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:178
+#: src/Privacy/Erase_By_Phone.php:184
 msgid "No customer is recorded against that number, so there is nothing to erase. Check the country code: a number stored with one and searched without it will not match."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:188
+#: src/Privacy/Erase_By_Phone.php:194
 msgid "That customer had already been erased. Nothing changed, and nothing about them was readable to begin with."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:195
+#: src/Privacy/Erase_By_Phone.php:201
 msgid "That customer could not be erased. Nothing was changed. The log will say why."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:201
+#: src/Privacy/Erase_By_Phone.php:207
 msgid "That customer has been erased. Their name, number, address and basket contents are gone, every recovery link they were sent has stopped working, and their open recoveries are closed."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:218
+#: src/Privacy/Erase_By_Phone.php:224
 msgid "WordPress's own privacy tools find somebody by email address. RecoveryFlow holds customers who gave a phone number at the checkout and never an address, and those people cannot be found that way at all. Erase one here instead."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:223
+#: src/Privacy/Erase_By_Phone.php:229
 msgid "This cannot be undone."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:224
+#: src/Privacy/Erase_By_Phone.php:230
 msgid "It does exactly what an erasure through WordPress does: the name, number, address and basket contents go, every recovery link already sent stops working, and the record that this person asked not to be messaged is deliberately kept, so erasing them does not start the reminders again."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:245
+#: src/Privacy/Erase_By_Phone.php:244
 msgid "Phone number of the customer to erase"
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:246
+#: src/Privacy/Erase_By_Phone.php:245
 msgid "Include the country code where you can. A number typed the way a customer reads it off their phone is understood, using this shop's default country when no code is given."
 msgstr ""
 
-#: src/Privacy/Erase_By_Phone.php:247
+#: src/Privacy/Erase_By_Phone.php:246
 msgid "Erase this customer"
 msgstr ""
 

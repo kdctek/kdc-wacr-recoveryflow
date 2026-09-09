@@ -40,6 +40,7 @@ use WAcr\RecoveryFlow\Privacy\Eraser;
 use WAcr\RecoveryFlow\Privacy\Exporter;
 use WAcr\RecoveryFlow\Privacy\Redactor;
 use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
+use WAcr\RecoveryFlow\Admin\Deferred_Form;
 use WAcr\RecoveryFlow\Recovery\Attempt;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Eligibility;
@@ -4890,8 +4891,25 @@ ok(
 // this phone number belong to one of your customers" for anyone who can see it.
 $recoveryflow_erase_html = recoveryflow_render_screen( array( Erase_By_Phone::class, 'form' ) );
 
-ok( 'the erase form is a post', false !== strpos( $recoveryflow_erase_html, 'method="post"' ) );
-ok( 'and carries a nonce', false !== strpos( $recoveryflow_erase_html, 'name="_wpnonce"' ) );
+/*
+ * The card renders inside the settings form, so its own form is declared after
+ * that one closes and the controls name it by id. The assertions below are
+ * about the pair: rendering only the card would say nothing about the method or
+ * the nonce, because neither is in the card any more.
+ */
+$recoveryflow_erase_deferred = recoveryflow_render_screen( array( Deferred_Form::class, 'flush' ) );
+
+ok( 'the erase form is a post', false !== strpos( $recoveryflow_erase_deferred, 'method="post"' ) );
+ok( 'and carries a nonce', false !== strpos( $recoveryflow_erase_deferred, 'name="_wpnonce"' ) );
+ok(
+	'and the controls in the card point at that form rather than at whatever encloses them',
+	false !== strpos( $recoveryflow_erase_html, 'form="' . Erase_By_Phone::FORM_ID . '"' )
+		&& false !== strpos( $recoveryflow_erase_deferred, 'id="' . Erase_By_Phone::FORM_ID . '"' )
+);
+ok(
+	'and the card itself opens no form, which is what put the Save button outside one',
+	false === strpos( kdc_wacr_recoveryflow_code_only( $recoveryflow_erase_html ), '<form' )
+);
 ok( 'and says it cannot be undone before it is used', false !== strpos( $recoveryflow_erase_html, 'cannot be undone' ) );
 ok(
 	'and its box has a real label rather than a placeholder standing in for one',
@@ -6867,6 +6885,180 @@ ok(
 	'README.md does not describe a built integration as still to come',
 	'' !== $recoveryflow_status
 		&& ! preg_match( '/(then|planned|upcoming|to come)[^.]*Gravity Forms/i', $recoveryflow_status )
+);
+
+
+// ---------------------------------------------------------------------------
+// No screen puts a form inside a form.
+// ---------------------------------------------------------------------------
+
+/*
+ * The settings screen wraps every card on a tab in one form posting to
+ * options.php. Four cards carry an action of their own -- test the connection,
+ * send a test push, generate a webhook secret, erase a customer by phone -- and
+ * each wrote its own <form> where it stood, inside that one.
+ *
+ * HTML has no nested forms. The parser drops the inner start tag and lets the
+ * inner </form> close the OUTER one, so pressing "Test connection" posted the
+ * settings form to options.php, and everything after that point -- the
+ * remaining fields, every later card and the Save button -- was left outside
+ * any form at all. The WA.cr tab could not be saved and three of its settings
+ * could never be changed.
+ *
+ * Nothing caught it for a whole release line. It is valid-looking PHP, the
+ * markup reads correctly in the source, phpcs and PHPStan have no opinion about
+ * HTML, and the accessibility run never pressed the button. The one trace it
+ * left was two elements with the same id, which was read as an id collision and
+ * fixed as one -- Nonce_Field's docblock still lists the three forms it was
+ * about, having got that close without anybody noticing they were nested.
+ *
+ * So the property is asserted directly, on the rendered markup of every screen,
+ * rather than by forbidding a string in four particular files.
+ */
+
+/**
+ * The deepest a form is nested in some markup.
+ *
+ * 1 is a document with forms in it, however many, as long as each closes before
+ * the next opens. 2 or more is the defect.
+ *
+ * @param string $html Rendered markup.
+ * @return int
+ */
+function kdc_wacr_recoveryflow_form_depth( string $html ): int {
+	preg_match_all( '/<form\b|<\/form\s*>/i', $html, $recoveryflow_tags );
+
+	$depth = 0;
+	$max   = 0;
+
+	foreach ( (array) ( $recoveryflow_tags[0] ?? array() ) as $recoveryflow_tag ) {
+		if ( '/' === substr( (string) $recoveryflow_tag, 1, 1 ) ) {
+			$depth = max( 0, $depth - 1 );
+			continue;
+		}
+
+		++$depth;
+		$max = max( $max, $depth );
+	}
+
+	return $max;
+}
+
+// The helper has to be able to see a nested form, or it reports every screen
+// clean for ever. Asserted in both directions on markup written here.
+ok(
+	'the form-depth reading counts a nested form as nested',
+	2 === kdc_wacr_recoveryflow_form_depth( '<form><form></form></form>' )
+);
+ok(
+	'and counts forms that follow one another as flat',
+	1 === kdc_wacr_recoveryflow_form_depth( '<form></form><form></form><form></form>' )
+);
+
+// Earlier sections leave a restricted user in place to prove the screens refuse
+// one. These assertions are about markup, so they need the full capability set.
+$GLOBALS['recoveryflow_caps'] = null;
+
+/*
+ * And the screens have to be in the state where the controls exist at all.
+ * The card that carries "Test connection" returns early when no key is saved --
+ * it says "No key saved yet" and stops -- so a tab rendered on a blank site
+ * has no button on it, and a gate reading that markup is reading a screen the
+ * defect cannot appear on. This is the same lesson the accessibility suite
+ * learned about empty tables, arriving from a different direction: the run was
+ * checking a page that was missing the thing being checked.
+ */
+recoveryflow_save_tab( 'wacr', array( Settings_Schema::FIELD_API_KEY => 'wacr_live_secret_for_markup' ) );
+
+$recoveryflow_nested_screens = array();
+$recoveryflow_dangling       = array();
+$recoveryflow_controls_seen  = array();
+
+foreach ( array_keys( Settings_Schema::tabs() ) as $recoveryflow_tab_name ) {
+	$_GET['tab'] = $recoveryflow_tab_name;
+
+	$recoveryflow_tab_html = recoveryflow_render_screen( array( Settings_Page::class, 'render' ) );
+
+	if ( kdc_wacr_recoveryflow_form_depth( $recoveryflow_tab_html ) > 1 ) {
+		$recoveryflow_nested_screens[] = 'settings/' . $recoveryflow_tab_name;
+	}
+
+	foreach ( array(
+		'connection test' => Connection_Test::FORM_ID,
+		'hook test'       => Hook_Test::FORM_ID,
+		'webhook secret'  => Webhook_Setup::FORM_ID,
+		'erase by phone'  => Erase_By_Phone::FORM_ID,
+	) as $recoveryflow_control => $recoveryflow_control_id ) {
+		if ( false !== strpos( $recoveryflow_tab_html, 'form="' . $recoveryflow_control_id . '"' ) ) {
+			$recoveryflow_controls_seen[ $recoveryflow_control ] = true;
+		}
+	}
+
+	/*
+	 * The other half of the fix. A control may name the form it submits with,
+	 * which is what lets the button stay in its card -- but a control naming a
+	 * form that was never declared submits nothing at all, silently, which is
+	 * the same broken button with none of the evidence.
+	 */
+	preg_match_all( '/\sform="([^"]+)"/', $recoveryflow_tab_html, $recoveryflow_refs );
+
+	foreach ( array_unique( (array) ( $recoveryflow_refs[1] ?? array() ) ) as $recoveryflow_ref ) {
+		if ( false === strpos( $recoveryflow_tab_html, 'id="' . $recoveryflow_ref . '"' ) ) {
+			$recoveryflow_dangling[] = $recoveryflow_tab_name . ' -> ' . $recoveryflow_ref;
+		}
+	}
+}
+
+unset( $_GET['tab'] );
+
+foreach ( $recoveryflow_screens as $recoveryflow_name => $recoveryflow_render ) {
+	if ( kdc_wacr_recoveryflow_form_depth( recoveryflow_render_screen( $recoveryflow_render ) ) > 1 ) {
+		$recoveryflow_nested_screens[] = $recoveryflow_name;
+	}
+}
+
+ok(
+	'no admin screen puts a form inside a form: ' . ( array() === $recoveryflow_nested_screens ? 'none does' : 'NESTED ON ' . implode( ', ', $recoveryflow_nested_screens ) ),
+	array() === $recoveryflow_nested_screens
+);
+
+ok(
+	'and every control naming a form is naming one that exists: ' . ( array() === $recoveryflow_dangling ? 'all of them' : 'DANGLING ' . implode( ', ', $recoveryflow_dangling ) ),
+	array() === $recoveryflow_dangling
+);
+
+/*
+ * Without this the two assertions above are worth nothing. Each of the four
+ * controls has to actually be on a rendered tab, or "no screen nests a form" is
+ * a true statement about a screen with no forms on it to nest. Three of the
+ * four were absent until this section put a key in place and made grouped cards
+ * render, and each absence was a real defect rather than a test-setup detail.
+ */
+ok(
+	'all four action controls are on a rendered settings tab: ' . implode( ', ', array_keys( $recoveryflow_controls_seen ) ),
+	4 === count( $recoveryflow_controls_seen )
+);
+
+/*
+ * And the Save button really is inside the settings form, which is the damage
+ * the nesting actually did. Counted by position rather than by presence: the
+ * button was on the page the whole time it did nothing.
+ */
+$_GET['tab']              = 'wacr';
+$recoveryflow_wacr_html   = recoveryflow_render_screen( array( Settings_Page::class, 'render' ) );
+$recoveryflow_form_opens  = strpos( $recoveryflow_wacr_html, '<form' );
+$recoveryflow_form_closes = strpos( $recoveryflow_wacr_html, '</form>' );
+$recoveryflow_save_at     = strpos( $recoveryflow_wacr_html, 'id="submit"' );
+
+unset( $_GET['tab'] );
+
+ok(
+	'the Save button on the WA.cr tab is inside the settings form, not after it',
+	false !== $recoveryflow_form_opens
+		&& false !== $recoveryflow_form_closes
+		&& false !== $recoveryflow_save_at
+		&& $recoveryflow_save_at > $recoveryflow_form_opens
+		&& $recoveryflow_save_at < $recoveryflow_form_closes
 );
 
 

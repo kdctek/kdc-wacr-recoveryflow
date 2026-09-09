@@ -621,7 +621,14 @@ function settings_fields( $group ) {
 }
 function settings_errors( $slug = '' ) {}
 function submit_button( $text = null, $type = 'primary', $name = 'submit' ) {
-	echo '<p class="submit"><button type="submit" class="button button-primary">Save</button></p>';
+	// Core gives this button `name` and a matching `id`, and the id is how a
+	// test can ask WHERE on the page the Save button ended up. Without it the
+	// button is unfindable here, which is how a screen whose Save button had
+	// fallen outside the form went unnoticed: nothing could point at it.
+	printf(
+		'<p class="submit"><button type="submit" name="%1$s" id="%1$s" class="button button-primary">Save</button></p>',
+		htmlspecialchars( (string) $name, ENT_QUOTES )
+	);
 }
 function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
 	$GLOBALS['recoveryflow_styles'][ $handle ] = $src;

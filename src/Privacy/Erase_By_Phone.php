@@ -7,7 +7,8 @@
 
 namespace WAcr\RecoveryFlow\Privacy;
 
-use WAcr\RecoveryFlow\Admin\Nonce_Field;
+use WAcr\RecoveryFlow\Admin\Deferred_Form;
+
 use WAcr\RecoveryFlow\Admin\Screen;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
 use WAcr\RecoveryFlow\Customer\Identity;
@@ -66,6 +67,11 @@ final class Erase_By_Phone {
 	 * The admin-post action name.
 	 */
 	public const ACTION = 'recoveryflow_erase_by_phone';
+
+	/**
+	 * Id of the form these controls submit, declared outside the settings form.
+	 */
+	public const FORM_ID = 'recoveryflow-erase-by-phone-form';
 
 	/**
 	 * The field the number is typed into.
@@ -225,22 +231,15 @@ final class Erase_By_Phone {
 		);
 
 		printf(
-			'<form method="post" action="%1$s" class="recoveryflow-erase-by-phone">',
-			esc_url( admin_url( 'admin-post.php' ) )
-		);
-
-		Nonce_Field::render( self::ACTION );
-
-		printf(
-			'<input type="hidden" name="action" value="%1$s" />
+			'<div class="recoveryflow-erase-by-phone">
 			<p>
 				<label for="%2$s">%3$s</label><br />
-				<input type="tel" class="regular-text" id="%2$s" name="%2$s" value="" autocomplete="off" aria-describedby="%2$s-help" />
+				<input type="tel" form="%1$s" class="regular-text" id="%2$s" name="%2$s" value="" autocomplete="off" aria-describedby="%2$s-help" />
 			</p>
 			<p class="description" id="%2$s-help">%4$s</p>
-			<p><button type="submit" class="button">%5$s</button></p>
-			</form>',
-			esc_attr( self::ACTION ),
+			<p><button type="submit" form="%1$s" class="button">%5$s</button></p>
+			</div>',
+			esc_attr( Deferred_Form::need( self::FORM_ID, self::ACTION ) ),
 			esc_attr( self::FIELD ),
 			esc_html__( 'Phone number of the customer to erase', 'kdc-wacr-recoveryflow' ),
 			esc_html__( 'Include the country code where you can. A number typed the way a customer reads it off their phone is understood, using this shop\'s default country when no code is given.', 'kdc-wacr-recoveryflow' ),

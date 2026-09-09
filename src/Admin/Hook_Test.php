@@ -45,6 +45,11 @@ final class Hook_Test {
 	public const ACTION = 'recoveryflow_test_hook';
 
 	/**
+	 * Id of the form this button submits, declared outside the settings form.
+	 */
+	public const FORM_ID = 'recoveryflow-hook-test-form';
+
+	/**
 	 * The event a test push announces itself as.
 	 *
 	 * Deliberately NOT the real `recovery.journey_eligible`: a flow that
@@ -188,18 +193,11 @@ final class Hook_Test {
 		}
 
 		printf(
-			'<form method="post" action="%1$s" class="recoveryflow-hook-test">',
-			esc_url( admin_url( 'admin-post.php' ) )
-		);
-
-		Nonce_Field::render( self::ACTION );
-
-		printf(
-			'<input type="hidden" name="action" value="%1$s" />
-			<button type="submit" class="button">%2$s</button>
-			<span class="description">%3$s</span>
-			</form>',
-			esc_attr( self::ACTION ),
+			'<p class="recoveryflow-hook-test">
+				<button type="submit" form="%1$s" class="button">%2$s</button>
+				<span class="description">%3$s</span>
+			</p>',
+			esc_attr( Deferred_Form::need( self::FORM_ID, self::ACTION ) ),
 			esc_html__( 'Send a test push', 'kdc-wacr-recoveryflow' ),
 			esc_html__( 'This really runs your Auto Flow, because a webhook trigger fires on anything that reaches it. The test carries no phone number, so a flow that goes on to send has nobody to send to.', 'kdc-wacr-recoveryflow' )
 		);

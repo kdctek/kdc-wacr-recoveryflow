@@ -8,6 +8,7 @@
 namespace WAcr\RecoveryFlow\Admin\Settings;
 
 use WAcr\RecoveryFlow\Admin\Connection_Test;
+use WAcr\RecoveryFlow\Admin\Deferred_Form;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
 use WAcr\RecoveryFlow\Admin\Webhook_Setup;
 use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
@@ -216,6 +217,16 @@ final class Page {
 		submit_button();
 
 		echo '</form>';
+
+		/*
+		 * After the form, never inside it. A card may need to post somewhere
+		 * other than options.php -- test the connection, generate a webhook
+		 * secret, erase a customer -- and a form written inside this one is
+		 * dropped by the parser, which takes the Save button out of the form
+		 * with it. The buttons stay in their cards and name these by id.
+		 */
+		Deferred_Form::flush();
+
 		echo '</div>';
 	}
 
@@ -337,6 +348,19 @@ final class Page {
 			}
 
 			echo '</tbody></table></details>';
+		}
+
+		/*
+		 * A card may group others under it. Without this the child cards were
+		 * dropped silently: the schema declared them, the settings audit was
+		 * happy because a grouping card declares no fields of its own, and the
+		 * screen rendered the parent's title and description with nothing
+		 * underneath. That is how the webhook address, the header name and the
+		 * button that mints the secret went missing from Settings > WA.cr while
+		 * the documentation told merchants to go there and use them.
+		 */
+		foreach ( (array) ( $card['cards'] ?? array() ) as $recoveryflow_child_id => $recoveryflow_child ) {
+			self::card( (string) $recoveryflow_child_id, (array) $recoveryflow_child, $renderer, $settings );
 		}
 
 		echo '</div>';
