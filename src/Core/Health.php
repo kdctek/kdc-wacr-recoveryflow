@@ -18,6 +18,7 @@ use WAcr\RecoveryFlow\Recovery\Rule_Set;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\Support\Options;
 use WAcr\RecoveryFlow\WAcr\Credentials;
+use WAcr\RecoveryFlow\WAcr\Flow_Status;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -191,7 +192,7 @@ final class Health {
 			);
 		}
 
-		return array(
+		$checks = array(
 			$this->check(
 				'wacr_key',
 				__( 'WA.cr connection', 'kdc-wacr-recoveryflow' ),
@@ -210,6 +211,26 @@ final class Health {
 				Feature_Gate::has_developer_api() ? 'ok' : 'warning'
 			),
 		);
+
+		// The hook answers 200 to states in which it ran nothing, so this is
+		// the only place a merchant can find out that their reminders are
+		// being accepted and dropped. Only shown when it has actually
+		// happened: a permanent warning about a thing that is working is how
+		// screens stop being read.
+		$refusal = Flow_Status::refusal();
+
+		if ( array() !== $refusal ) {
+			$checks[] = $this->check(
+				'wacr_flow',
+				__( 'WA.cr Auto Flow', 'kdc-wacr-recoveryflow' ),
+				false,
+				Flow_Status::label( $refusal['reason'] ),
+				Settings_Schema::deeplink( 'wacr_hook_url' ),
+				'error'
+			);
+		}
+
+		return $checks;
 	}
 
 	/**
