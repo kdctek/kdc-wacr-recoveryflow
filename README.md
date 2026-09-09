@@ -111,7 +111,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 
 ## Status
 
-Version 0.1.0 is an initial development release. The roadmap is built in vertical slices: scaffold; domain model and WA.cr client; WooCommerce integration and background processing; admin, REST, privacy and documentation; then a form-based workflow editor, further integrations (Gravity Forms first) and WP-CLI. Where a document describes something not yet built, it says so.
+Version 0.1.0 is an initial development release, and every slice it was planned in is built: scaffold; domain model and WA.cr client; WooCommerce integration and background processing; admin, REST, privacy and documentation; the form-based workflow editor, Gravity Forms and WP-CLI; the email channel; and the pre-checkout capture points. What remains planned is listed in [`docs/architecture.md`](docs/architecture.md#where-the-roadmap-stands). Where a document describes something not yet built, it says so -- and `tests/smoke.php` refuses a build in which the listing calls an integration planned while its adapter is registered.
 
 ## Licence
 

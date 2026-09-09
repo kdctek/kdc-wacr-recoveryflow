@@ -45,7 +45,7 @@ Registries are passed by object; return the registry from your callback.
 | `recoveryflow_register_sources` | `Source_Registry $registry` | Add a Recovery Source. Applied on `init` at priority 5 |
 | `recoveryflow_register_workflow_steps` | `Step_Registry $registry` | Add a step type beyond `wait`, `condition` and `action` |
 | `recoveryflow_register_workflow_conditions` | `Step_Registry $registry` | Add a condition usable in `"if"`. Built-ins: `journey.not_completed`, `journey.not_engaged`, `customer.eligible`, `event.amount_gte`, `event.item_count_gte`, `journey.attempts_lt` |
-| `recoveryflow_register_workflow_actions` | `Step_Registry $registry` | Add an action usable in `"do"`. Built-ins: `wacr.send_template`, `wacr.start_flow`. A generic `webhook.post` is planned |
+| `recoveryflow_register_workflow_actions` | `Step_Registry $registry` | Add an action usable in `"do"`. Built-ins: `wacr.send_template`, `wacr.send_email`, `wacr.start_flow`. A generic `webhook.post` is planned |
 | `recoveryflow_normalize_phone` | `?string $e164, string $raw, ?string $country_iso2` | Override or correct the result of phone normalisation. Return `null` to mark the number invalid |
 | `recoveryflow_calling_codes` | `array $codes` | Map of ISO 3166-1 alpha-2 country code to calling code, used by the normaliser. Add or correct entries |
 | `recoveryflow_capability_map` | `array $map` | Capability name to list of roles, applied on activation and whenever the capability version changes. See [`security.md`](security.md#capabilities) |
@@ -353,7 +353,7 @@ The Auto Flow hand-off workflow has the same shape with a single step:
 
 Execution rules: the Engine runs from `current_step` until a `wait` (which sets `next_action_at` and returns the journey to `SCHEDULED`), a `stop:*`, or the end. Each step executes at most once per `(journey, step_index)`: actions create attempt rows under a UNIQUE key; waits and conditions advance `current_step` in the same optimistic update. Guards on every wait and send: quiet hours, the per-customer frequency cap, one open journey per phone, three journeys per phone per 30 days, and the maximum touches per journey.
 
-Two default workflows are seeded on activation: the direct-send variant and the hand-off variant. The form-based editor for building your own without writing JSON is planned for slice 2; until then workflows are edited as JSON by a user with `recoveryflow_manage_workflows`.
+Two default workflows are seeded on activation: the direct-send variant and the hand-off variant. A user with `recoveryflow_manage_workflows` builds their own on **Workflows &rsaquo; Edit**, a form-based editor that works with JavaScript switched off. The JSON below is the stored shape, not the way anybody has to author one.
 
 ## Variable allow-list
 

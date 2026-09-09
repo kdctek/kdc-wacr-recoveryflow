@@ -6729,6 +6729,147 @@ ok(
 );
 
 
+// ---------------------------------------------------------------------------
+// The listing describes the integrations that exist.
+// ---------------------------------------------------------------------------
+
+/*
+ * readme.txt IS the WordPress.org listing, and its "Supported integrations"
+ * list is where a merchant decides whether this plugin does what they need.
+ * It said "**Gravity Forms**: planned." for an entire release line while
+ * src/Integration/GravityForms/ held seven classes, the changelog on the same
+ * page announced the adapter, and the Integrations screen offered its settings.
+ * Nothing failed, because nothing had ever read that list.
+ *
+ * The pairing is asserted in both directions. One direction alone is worth
+ * little: checking only that a built adapter is NAMED would pass on the word
+ * "planned" beside it, and checking only that nothing is wrongly called planned
+ * would pass on a listing that had stopped mentioning the adapter at all.
+ */
+
+$recoveryflow_readme = (string) file_get_contents( $recoveryflow_root . '/readme.txt' );
+
+/*
+ * What is built is read off the filesystem rather than from a list kept here,
+ * because a list kept here is one more thing to forget to update -- which is
+ * the defect this gate exists to catch. Custom/ is excluded: Example_Source is
+ * documentation that never registers, and listing it would be a lie of the
+ * opposite kind.
+ */
+$recoveryflow_adapters = array();
+
+foreach ( (array) glob( $recoveryflow_root . '/src/Integration/*/Source.php' ) as $recoveryflow_adapter_file ) {
+	$recoveryflow_adapter_src = (string) file_get_contents( (string) $recoveryflow_adapter_file );
+
+	if ( false !== strpos( (string) $recoveryflow_adapter_file, '/Custom/' ) ) {
+		continue;
+	}
+
+	// The human name the admin screens show, which is the name the listing uses.
+	if ( preg_match( "/function get_name\(\).*?return __\( '([^']+)'/s", $recoveryflow_adapter_src, $recoveryflow_adapter_name ) ) {
+		$recoveryflow_adapters[] = $recoveryflow_adapter_name[1];
+	}
+}
+
+ok(
+	'the adapters are found by reading src/Integration, not from a list in this file: ' . implode( ', ', $recoveryflow_adapters ),
+	count( $recoveryflow_adapters ) >= 2
+);
+
+/*
+ * Only the "Supported integrations" section counts. The changelog further down
+ * the same file names every adapter too, so searching the whole document would
+ * pass on a listing whose integration list had gone stale -- which is exactly
+ * the state this gate was written to refuse.
+ */
+$recoveryflow_list_start = strpos( $recoveryflow_readme, '= Supported integrations =' );
+$recoveryflow_list_end   = false === $recoveryflow_list_start
+	? false
+	: strpos( $recoveryflow_readme, "\n=", $recoveryflow_list_start + 26 );
+$recoveryflow_list       = false === $recoveryflow_list_start
+	? ''
+	: substr( $recoveryflow_readme, $recoveryflow_list_start, ( false === $recoveryflow_list_end ? strlen( $recoveryflow_readme ) : $recoveryflow_list_end ) - $recoveryflow_list_start );
+
+ok(
+	'readme.txt has a supported-integrations section for the pairing to be checked against',
+	'' !== $recoveryflow_list && false !== strpos( $recoveryflow_list, 'WooCommerce' )
+);
+
+$recoveryflow_unlisted = array();
+$recoveryflow_miscalled = array();
+
+foreach ( $recoveryflow_adapters as $recoveryflow_adapter ) {
+	$recoveryflow_line = '';
+
+	foreach ( explode( "\n", $recoveryflow_list ) as $recoveryflow_row ) {
+		if ( false !== strpos( $recoveryflow_row, '**' . $recoveryflow_adapter . '**' ) ) {
+			$recoveryflow_line = $recoveryflow_row;
+			break;
+		}
+	}
+
+	if ( '' === $recoveryflow_line ) {
+		$recoveryflow_unlisted[] = $recoveryflow_adapter;
+		continue;
+	}
+
+	if ( false !== stripos( $recoveryflow_line, 'planned' ) ) {
+		$recoveryflow_miscalled[] = $recoveryflow_adapter;
+	}
+}
+
+ok(
+	'every integration this plugin ships is named in the listing: ' . ( array() === $recoveryflow_unlisted ? 'all of them' : 'MISSING ' . implode( ', ', $recoveryflow_unlisted ) ),
+	array() === $recoveryflow_unlisted
+);
+
+ok(
+	'and none of them is called planned: ' . ( array() === $recoveryflow_miscalled ? 'none' : 'WRONGLY PLANNED ' . implode( ', ', $recoveryflow_miscalled ) ),
+	array() === $recoveryflow_miscalled
+);
+
+/*
+ * The other direction. Anything the listing still calls planned must have no
+ * adapter behind it -- a merchant told a thing is coming, who could have had it
+ * today, is the same defect the other way round.
+ */
+$recoveryflow_planned_but_built = array();
+
+foreach ( explode( "\n", $recoveryflow_list ) as $recoveryflow_row ) {
+	if ( false === stripos( $recoveryflow_row, 'planned' ) ) {
+		continue;
+	}
+
+	foreach ( $recoveryflow_adapters as $recoveryflow_adapter ) {
+		if ( false !== strpos( $recoveryflow_row, '**' . $recoveryflow_adapter . '**' ) ) {
+			$recoveryflow_planned_but_built[] = $recoveryflow_adapter;
+		}
+	}
+}
+
+ok(
+	'nothing the listing calls planned has an adapter already shipping: ' . ( array() === $recoveryflow_planned_but_built ? 'none' : 'ALREADY BUILT ' . implode( ', ', $recoveryflow_planned_but_built ) ),
+	array() === $recoveryflow_planned_but_built
+);
+
+/*
+ * And the roadmap paragraph in README.md is held to the same rule, because it
+ * is the other place somebody reads to find out what exists. It named Gravity
+ * Forms as future work for the whole of the release line that shipped it.
+ */
+$recoveryflow_readme_md = (string) file_get_contents( $recoveryflow_root . '/README.md' );
+$recoveryflow_status_at = strpos( $recoveryflow_readme_md, '## Status' );
+$recoveryflow_status    = false === $recoveryflow_status_at
+	? ''
+	: substr( $recoveryflow_readme_md, $recoveryflow_status_at, 1200 );
+
+ok(
+	'README.md does not describe a built integration as still to come',
+	'' !== $recoveryflow_status
+		&& ! preg_match( '/(then|planned|upcoming|to come)[^.]*Gravity Forms/i', $recoveryflow_status )
+);
+
+
 echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";

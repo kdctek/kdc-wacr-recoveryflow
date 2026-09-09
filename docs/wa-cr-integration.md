@@ -55,7 +55,7 @@ WhatsApp business-initiated messages to a contact outside an open 24-hour window
 
 The allow-list of RecoveryFlow variables is in [`developer-api.md`](developer-api.md#variable-allow-list). Values rendered into template parameters are cleaned as WhatsApp requires (no newlines or tabs, no runs of four or more spaces, length-capped). For a URL button whose template URL ends in `/recovery/`, map the bare `{{recovery.token}}`; for one that takes a full URL, map `{{recovery.recovery_url}}`.
 
-The picker that fills this in from `/templates` without editing JSON is planned for slice 2.
+The workflow editor fills this in from `/templates`: pick an approved template and RecoveryFlow shows each blank in the template's own words, with the variables that may go there. A template it cannot send -- one needing an image header or a carousel -- is listed and says so at the moment it is picked.
 
 ## Auto Flow hand-off recipe
 
@@ -67,7 +67,7 @@ This is the path that works on any workspace with Auto Flows.
 4. Optionally, add a second Auto Flow (or a second trigger) for `recovery.journey_recovered` and `recovery.journey_expired`, and paste its URL as the secondary hook, so a running flow can stop the moment the customer buys.
 5. Optionally, add a **Webhook** step to the flow that posts `reply` and `opt_out` events back to `https://example.com/wp-json/kdc/v1/wacr/recoveryflow/webhooks/wacr` with the header `X-RecoveryFlow-Secret` set to the secret minted in Settings › WA.cr. This is how a hand-off journey becomes `ENGAGED` or `OPTED_OUT` in WordPress without the `messages:read` scope.
 
-A "Send test event" button for the hook is planned for slice 2.
+Settings &rsaquo; WA.cr carries a **Send test event** button beside the hook address, along with the exact payload keys the push will carry. It says plainly that this really runs your flow, and the test carries no phone number, so a flow that goes on to send has nobody to send to.
 
 ### Signature
 
@@ -165,6 +165,6 @@ One plugin; `Core\Feature_Gate` decides what it offers based on the connected wo
 | Detection, identity, consent, eligibility, recovery links, attribution, Overview, Journeys, System Status | Yes | Yes |
 | Dispatch | `wacr.start_flow` to an Auto Flow | Plus `wacr.send_template` from WordPress-authored multi-touch workflows |
 | Engagement back in WordPress | Auto Flow webhook step → webhook receiver | Plus automatic conversation polling |
-| Workflow editor | Hand-off workflow only | Full editor (form-based editor planned for slice 2) |
+| Workflow editor | Hand-off workflow only | Full editor, with the template picker |
 
 The source of truth is the cached `/v1/me` result: a successful response means the workspace holds developer API access and the Pro features are on; `403 plan_upgrade_required`, no key, or an undecryptable key means the hand-off path only. The gate re-evaluates on every `/v1/me` (test connection, hourly refresh, or any `plan_upgrade_required` seen by the client). Gated screens render the real screen with a core card explaining "included with WA.cr Scale and above" and a deeplink to Settings › WA.cr, never a disabled shell. The filter `recoveryflow_feature_enabled` and the constant `KDC_WACR_RECOVERYFLOW_UNLOCK_ALL` (for development and tests) override it, but WA.cr still enforces developer API access server-side, so an override cannot send what the workspace is not entitled to send.

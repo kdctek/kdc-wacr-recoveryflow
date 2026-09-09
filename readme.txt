@@ -63,7 +63,7 @@ All processing runs in the background, through Action Scheduler when it is avail
 = Supported integrations =
 
 * **WooCommerce** 8.0 or later: carts and checkouts, classic and block-based, HPOS compatible. Available now.
-* **Gravity Forms**: planned.
+* **Gravity Forms** 2.4 or later: save-and-continue drafts, and entries whose payment never went through. Nothing is rebuilt from a snapshot -- Gravity Forms hands the half-finished form back on its own resume link. Available now, with the WA.cr Scale plan or above.
 * **Tickera**: planned.
 * **Event Tickets**: planned.
 * **Easy Digital Downloads**: planned.
@@ -178,7 +178,7 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 2. Recovery Journeys: every journey with identified and eligible badges, status and attribution.
 3. Journey detail: a timeline of touches, clicks, replies and the conversion.
 4. Settings › WA.cr: connection, sender, templates and the "What we send" disclosure.
-5. Integrations: WooCommerce connected, planned integrations listed.
+5. Integrations: WooCommerce and Gravity Forms connected, with the planned ones listed below them.
 6. System Status: scheduler, scopes, HTTPS and the last run of every stage.
 7. The consent checkbox on the WooCommerce block checkout.
 
