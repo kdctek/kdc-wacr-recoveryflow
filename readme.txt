@@ -1,4 +1,4 @@
-=== RecoveryFlow by WA.cr ===
+=== KDC WAcr RecoveryFlow ===
 Contributors: kdctek, vachan
 Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
@@ -12,7 +12,7 @@ Turn lost conversions into conversations. RecoveryFlow recovers abandoned journe
 
 == Description ==
 
-Most sites lose more conversions than they finish. A shopper fills a cart and leaves at payment. Someone starts a booking and never confirms. A ticket order sits unpaid. RecoveryFlow by WA.cr is a recovery engine for WordPress commerce, forms, ticketing and booking systems. It notices when a journey stalls, works out whether the person may lawfully be contacted, and hands the conversation to WA.cr on WhatsApp, the channel people actually answer -- or sends a recovery email from WordPress itself, which needs no WA.cr account at all.
+Most sites lose more conversions than they finish. A shopper fills a cart and leaves at payment. Someone starts a booking and never confirms. A ticket order sits unpaid. RecoveryFlow is a recovery engine for WordPress commerce, forms, ticketing and booking systems. It notices when a journey stalls, works out whether the person may lawfully be contacted, and hands the conversation to WA.cr on WhatsApp, the channel people actually answer -- or sends a recovery email from WordPress itself, which needs no WA.cr account at all.
 
 **RecoveryFlow detects → WA.cr communicates → customer converts.**
 
@@ -75,7 +75,7 @@ RecoveryFlow is not a WooCommerce plugin. WooCommerce is a supported integration
 
 == External services ==
 
-RecoveryFlow by WA.cr **requires an active account with WA.cr**, a third-party WhatsApp Business messaging platform operated independently of this plugin and of WordPress. The plugin connects to the **WA.cr API** to send WhatsApp messages on your behalf and, optionally, to read the delivery status of those messages and any replies. Without an active WA.cr workspace and a connected sender the plugin still detects and records journeys locally, but cannot message anyone, so no recovery happens. Sign-up, plan pricing and per-conversation charges are WA.cr's, not this plugin's.
+RecoveryFlow **requires an active account with WA.cr**, a third-party WhatsApp Business messaging platform operated independently of this plugin and of WordPress. The plugin connects to the **WA.cr API** to send WhatsApp messages on your behalf and, optionally, to read the delivery status of those messages and any replies. Without an active WA.cr workspace and a connected sender the plugin still detects and records journeys locally, but cannot message anyone, so no recovery happens. Sign-up, plan pricing and per-conversation charges are WA.cr's, not this plugin's.
 
 **Where it connects**
 
@@ -127,7 +127,7 @@ RecoveryFlow keeps its data in its own tables in your WordPress database. It sto
 
 1. **Create a WA.cr account** at [https://wa.cr](https://wa.cr) and connect a WhatsApp Business sender to your workspace. This is required: without it the plugin can detect abandoned journeys but cannot send anything.
 2. Upload the `kdc-wacr-recoveryflow` folder to `/wp-content/plugins/`, or install it from Plugins › Add New.
-3. Activate **RecoveryFlow by WA.cr**. The plugin needs PHP 8.0 and WordPress 6.5 or later. WooCommerce 8.0 or later is needed only for the WooCommerce integration.
+3. Activate **KDC WAcr RecoveryFlow**. The plugin needs PHP 8.0 and WordPress 6.5 or later. WooCommerce 8.0 or later is needed only for the WooCommerce integration.
 4. Go to **RecoveryFlow › Settings › WA.cr** and either paste the hook URL and signing secret from a WA.cr Auto Flow with a "webhook received" trigger (WA.cr Growth and above), or paste a WA.cr API key, press **Test connection**, choose a sender and an approved template, and map its variables (WA.cr Scale and above).
 5. Go to **RecoveryFlow › Integrations** and enable WooCommerce. In the default eligibility mode the consent checkbox appears on checkout automatically.
 6. Watch **RecoveryFlow › Overview** and **Recovery Journeys** as journeys start, and **System Status** for anything that needs attention. Every warning links straight to the setting that fixes it.

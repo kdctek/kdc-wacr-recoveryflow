@@ -7793,6 +7793,76 @@ ok(
 );
 
 
+/*
+ * FOUR. The plugin's NAME decides the WordPress.org slug, and the slug is
+ * permanent.
+ *
+ * .org derives the slug from `Plugin Name` -- "Boaty McBoatface" becomes
+ * `boaty-mcboatface` -- and once the plugin is approved it cannot be renamed.
+ * The slug is also what .org names its language packs after, so a slug that is
+ * not the text domain means every translation from translate.wordpress.org
+ * silently fails to load, on a plugin carrying 813 msgids.
+ *
+ * "RecoveryFlow by WA.cr" derives `recoveryflow-by-wa-cr`. The text domain is
+ * `kdc-wacr-recoveryflow`. Those do not match, so the plugin is SUBMITTED under
+ * the name "KDC WAcr RecoveryFlow", which derives the domain exactly, and is
+ * renamed afterwards -- a display name can change freely once the slug is
+ * fixed. This gate is what stops somebody renaming it back a day too early and
+ * quietly buying a permanently wrong slug.
+ *
+ * ! AFTER WordPress.org APPROVES THE PLUGIN, set the flag below to true. The
+ * slug is settled by then and the name is free again; leaving it false makes
+ * this fail the moment the product name goes back.
+ */
+$recoveryflow_dot_org_approved = false;
+
+/**
+ * The slug WordPress.org derives from a plugin name.
+ *
+ * Models sanitize_title() for the names in play. Verified against a real
+ * WordPress 7.1 -- "KDC WAcr RecoveryFlow" -> kdc-wacr-recoveryflow, and
+ * "RecoveryFlow by WA.cr" -> recoveryflow-by-wa-cr, the full stop becoming a
+ * hyphen -- and both are asserted below, so a transform that stopped agreeing
+ * with WordPress says so instead of blessing whatever it produces.
+ *
+ * @param string $name The plugin name.
+ * @return string The slug.
+ */
+function recoveryflow_derived_slug( string $name ): string {
+	return trim( preg_replace( '/-+/', '-', (string) preg_replace( '/[^a-z0-9]+/', '-', strtolower( $name ) ) ), '-' );
+}
+
+check( 'the submission name derives the text domain', recoveryflow_derived_slug( 'KDC WAcr RecoveryFlow' ), 'kdc-wacr-recoveryflow' );
+check( 'and the product name would not, which is the whole reason for the rename', recoveryflow_derived_slug( 'RecoveryFlow by WA.cr' ), 'recoveryflow-by-wa-cr' );
+
+preg_match( '/^ \* Plugin Name:\s*(.+)$/m', $recoveryflow_main_file, $recoveryflow_header_name );
+$recoveryflow_plugin_name = isset( $recoveryflow_header_name[1] ) ? trim( $recoveryflow_header_name[1] ) : '';
+
+$recoveryflow_listing_text = (string) file_get_contents( dirname( __DIR__ ) . '/readme.txt' );
+preg_match( '/^===\s*(.+?)\s*===$/m', $recoveryflow_listing_text, $recoveryflow_readme_name );
+
+ok( 'the plugin header states a name', '' !== $recoveryflow_plugin_name );
+
+/*
+ * These two are the same declaration written twice, and WordPress.org reads
+ * both. They must agree whatever the name currently is -- before approval and
+ * after it.
+ */
+check(
+	'readme.txt and the plugin header call the plugin the same thing',
+	isset( $recoveryflow_readme_name[1] ) ? trim( $recoveryflow_readme_name[1] ) : '',
+	$recoveryflow_plugin_name
+);
+
+if ( ! $recoveryflow_dot_org_approved ) {
+	check(
+		'until WordPress.org approves it, the name must derive the text domain, or the slug it assigns is wrong for ever',
+		recoveryflow_derived_slug( $recoveryflow_plugin_name ),
+		'kdc-wacr-recoveryflow'
+	);
+}
+
+
 echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";
