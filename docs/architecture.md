@@ -325,4 +325,15 @@ Every processor query hits one of the stage indexes and carries a `LIMIT`. Overv
 
 Everything the first release line described is built: the scaffold, the domain model, the WA.cr client, the WooCommerce integration, background processing, the workflow engine with both dispatch actions and the email sender, the admin screens, REST, privacy tooling and this documentation. So is everything that was once listed here as planned -- the form-based workflow editor, the template-variable picker, the Auto Flow recipe with its hook test button, the diagnostics export, the Gravity Forms adapter, the documented custom-source example, WP-CLI and the 100,000-row performance pass.
 
-What is not built: the ticketing and downloads adapters listed in [`integrations.md`](integrations.md#planned-adapters), and a generic `webhook.post` workflow action. Two things are built but unverified by anything in this repository, and both need a person rather than a run: a screen-reader pass over the admin screens, and Gravity Forms against a real Gravity Forms install.
+What is not built: the ticketing and downloads adapters listed in [`integrations.md`](integrations.md#planned-adapters), and a generic `webhook.post` workflow action. Two things are built and still not fully verified here.
+
+A **screen-reader pass** over the admin screens has never been run, and needs a
+person with NVDA, JAWS or VoiceOver -- no automated check substitutes for it.
+
+**Gravity Forms** is partly verified. The storage format of a phone field was
+checked against a real Gravity Forms 3.1.1.2 install and the adapter corrected
+for it (see [`integrations.md`](integrations.md#the-two-shapes-of-a-phone-number)).
+What has still never happened is an end-to-end run: a real form submitted on a
+real site, a draft saved and an entry left unpaid, and the resulting journeys
+read back out of the queue. Until that is done, this adapter is verified against
+Gravity Forms' behaviour as read, not as observed.

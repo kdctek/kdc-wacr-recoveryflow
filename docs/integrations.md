@@ -162,12 +162,44 @@ Requires Gravity Forms 2.4 or later, and a WA.cr plan that includes integrations
 | Question | Gravity Forms |
 | --- | --- |
 | **1. What is recoverable?** | A **save-and-continue draft** (`source_type` `form`), from the moment it is saved until it is resumed and submitted or Gravity Forms purges it; and an **entry whose payment never arrived** (`source_type` `payment`) -- `payment_status` present and not one of `Paid`, `Active`, `Approved`, `Authorized`. Entries marked spam or trash are excluded, as are forms with neither a phone nor an email field |
-| **2. How is the customer identified?** | By field **type**, read off the form's own definition: the first `email`, `phone`, `name` and `address` field. Gravity Forms has no fixed key for any of them and the merchant may rename every label, so the type -- which Gravity Forms owns -- is the only stable thing to read. A logged-in submitter's `created_by` is used when there is one. Pin a specific field with `recoveryflow_gf_field_overrides` |
+| **2. How is the customer identified?** | By field **type**, read off the form's own definition: the first `email`, `phone`, `name` and `address` field. Gravity Forms has no fixed key for any of them and the merchant may rename every label, so the type -- which Gravity Forms owns -- is the only stable thing to read. A logged-in submitter's `created_by` is used when there is one. Pin a specific field with `recoveryflow_gf_field_overrides`. **A phone field has two storage shapes** -- see below |
 | **3. When is it abandoned?** | A draft the moment it is saved: unlike a quiet basket, the person has said out loud that they are coming back later. An unpaid entry after the site's inactivity threshold. Maximum age defaults to **7 days**, because Gravity Forms purges drafts after 30 by default and the resume token dies with the row |
 | **4. How is completion detected?** | A draft, by the submission that consumes its resume token (`gform_post_submission`, reading `gform_resume_token` from the request -- which is how Gravity Forms finds the draft to delete). An entry, by `gform_post_payment_completed` or any `gform_post_payment_action` reporting a paid status, each claiming a receipt first so a redelivered gateway callback cannot be counted twice. Both re-checked from live state before every send |
 | **5. Where do we send the customer?** | Nothing is restored. Gravity Forms holds the half-finished form itself and hands it back on its own resume link, which is far better than this plugin rebuilding somebody's answers from a snapshot. A draft goes to its form page with `gf_token` on it; an entry goes back to the page it was submitted from |
 | **6. What value information exists?** | `payment_amount` and `currency` where the form takes money, and the form's title as the single line item. A draft usually has no amount at all, which is why the minimum-amount rule defaults to nothing here |
 | **7. What consent constraints apply?** | The same as everywhere else, with one difference that matters: **Gravity Forms has no checkout and RecoveryFlow adds no consent field to it.** In `explicit_consent` mode a form must carry the merchant's own consent question. Until it does, this source identifies people it is not allowed to message -- which is the correct failure, and is stated on the Integrations screen rather than left to be discovered |
+
+### The two shapes of a phone number
+
+Up to Gravity Forms 2.9 a phone field stored a plain string. Gravity Forms 3.0
+added an international phone, and a field set to that format does not store a
+number at all -- it stores a JSON document:
+
+```json
+{"country":"gb","national":"07700 900123","formatted":"+44 7700 900123","e164":"+447700900123"}
+```
+
+RecoveryFlow reads both. It takes `e164` where there is one, because Gravity
+Forms has already validated it against E.164 on the way in, and otherwise falls
+back through `formatted` and `national` in the order Gravity Forms itself uses.
+The document's `country` is used as the hint for normalising -- but only when
+the form has no address field to answer that, so a form asking both behaves as
+it always did.
+
+**What this looked like before it was handled** is worth recording, because the
+failure was silent and the shape is easy to meet again in another integration.
+The whole document was handed to the phone normaliser, which refused it -- the
+right refusal, since guessing a number out of that text is how somebody else's
+reminder reaches a stranger. But a refused number is indistinguishable from a
+blank one, so every entry from an international phone field looked like an entry
+from somebody who had not given a number. The form still counts as messageable,
+because the field is there, so journeys were created for people no message could
+ever reach.
+
+The **shape** is what is recognised, never the Gravity Forms version. The format
+is chosen per field, a form can be edited to change it, and one site can hold
+entries recorded under both -- so a version test would be wrong for the entries
+on one side of the change.
 
 ### Its own settings
 

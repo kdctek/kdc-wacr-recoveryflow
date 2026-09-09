@@ -85,11 +85,24 @@ final class Field_Map {
 		$name  = $this->field_id( $form, self::TYPE_NAME, $override );
 		$where = $this->field_id( $form, self::TYPE_ADDRESS, $override );
 
+		$telephone = '' === $phone ? array( '', '' ) : self::telephone( $this->value( $entry, $phone ) );
+
 		$hints->email      = '' === $email ? '' : $this->value( $entry, $email );
-		$hints->phone_raw  = '' === $phone ? '' : $this->value( $entry, $phone );
+		$hints->phone_raw  = $telephone[0];
 		$hints->first_name = '' === $name ? '' : $this->value( $entry, $name . self::NAME_FIRST );
 		$hints->last_name  = '' === $name ? '' : $this->value( $entry, $name . self::NAME_LAST );
 		$hints->country    = '' === $where ? '' : $this->country( $this->value( $entry, $where . self::ADDRESS_COUNTRY ) );
+
+		/*
+		 * An international phone carries its own country, and it is better
+		 * evidence than the address field: it is the country of the number
+		 * itself rather than of where the person happens to live. Only used
+		 * when the address did not answer, so a form asking both keeps the
+		 * behaviour it had.
+		 */
+		if ( '' === $hints->country && '' !== $telephone[1] ) {
+			$hints->country = $telephone[1];
+		}
 
 		// A logged-in submitter is the strongest identity there is, and it is
 		// on the entry whether or not the form asked for anything.
@@ -166,6 +179,64 @@ final class Field_Map {
 		}
 
 		return trim( (string) $raw );
+	}
+
+	/**
+	 * The number out of a phone field, whichever shape this Gravity Forms uses.
+	 *
+	 * Up to Gravity Forms 2.9 a phone field held a plain string and there was
+	 * nothing to decide. Gravity Forms 3.0 added an international phone, and a
+	 * field set to that format does not store a number at all: it stores a JSON
+	 * document with `country`, `national`, `formatted` and `e164` in it.
+	 *
+	 * Handed that document, the phone normaliser did the right thing and
+	 * refused it -- so nobody was ever sent a stranger's reminder, which is the
+	 * failure worth having. What happened instead was quieter and still wrong:
+	 * every entry from an international phone field looked like an entry from
+	 * somebody who had left the number blank. The form is still messageable,
+	 * because the field exists, so journeys were created for people no message
+	 * could ever reach.
+	 *
+	 * The shape is what is recognised, not the version. Gravity Forms decides
+	 * per field which format to use, a form can be edited to change it, and a
+	 * site can hold entries recorded under both -- so a version test would be
+	 * wrong for the entries either side of the change.
+	 *
+	 * `e164` is preferred because Gravity Forms has already validated it
+	 * against E.164 on the way in. The other keys are tried in the order
+	 * Gravity Forms itself falls back through, so a document written by an
+	 * older 3.x, or repaired by hand, still yields the best number present.
+	 *
+	 * @param string $raw The stored field value.
+	 * @return array{0:string,1:string} The number, and its country if it named one.
+	 */
+	private static function telephone( string $raw ): array {
+		if ( '' === $raw || '{' !== substr( $raw, 0, 1 ) ) {
+			return array( $raw, '' );
+		}
+
+		$decoded = json_decode( $raw, true );
+
+		if ( ! is_array( $decoded ) ) {
+			return array( $raw, '' );
+		}
+
+		$country = isset( $decoded['country'] ) && is_string( $decoded['country'] )
+			? strtoupper( substr( trim( $decoded['country'] ), 0, 2 ) )
+			: '';
+
+		foreach ( array( 'e164', 'formatted', 'national' ) as $key ) {
+			if ( isset( $decoded[ $key ] ) && is_string( $decoded[ $key ] ) && '' !== trim( $decoded[ $key ] ) ) {
+				return array( trim( $decoded[ $key ] ), $country );
+			}
+		}
+
+		/*
+		 * A JSON document with none of the four keys in it is not a phone
+		 * number, and handing the raw text on would put a brace and a quote
+		 * into the normaliser. Nothing is a better answer than that.
+		 */
+		return array( '', $country );
 	}
 
 	/**
