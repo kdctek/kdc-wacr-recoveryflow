@@ -10,6 +10,14 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-09
+
+Eight fixes on top of the first release, and none of them changes what the plugin is for.
+Three were found by running it against real Gravity Forms and a real WA.cr hand-off for the
+first time; two by running WordPress.org's own checker before submitting rather than after
+being rejected; and the rest by reading what the screens actually say against what the
+platform actually does.
+
 ### Added
 
 - **RecoveryFlow now notices when WA.cr accepts a reminder and does not send it.** The Auto Flow hand-off answers "200 OK" to three situations in which it ran nothing at all: the workspace cannot run Auto Flows, the flow is paused or still a draft, or its trigger was never published. The plugin read the 200 and nothing else, so it marked every one of those reminders as sent and moved the recovery on. A shop on a plan that cannot run flows, or one whose flow was simply paused, would have shown a fortnight of reminders delivered and sent none of them. Those are now held and tried again, the reason WA.cr gave is kept, and the status screen says which of the three it was and what to do about it. Nothing is lost: the reminders wait, and the first one that gets through clears the warning.
