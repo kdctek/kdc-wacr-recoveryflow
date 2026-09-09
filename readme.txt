@@ -4,7 +4,7 @@ Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.1.0
+Stable tag: 0.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -186,6 +186,19 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 
 == Changelog ==
 
+= 0.1.1 =
+
+Eight fixes on top of the first release. Three came from running the plugin against real Gravity Forms and a real WA.cr hand-off for the first time, and nothing here changes what it is for.
+
+* **A reminder is no longer recorded as sent when WA.cr ran nothing.** The Auto Flow hand-off answers "200 OK" in three situations where nothing was sent at all: the workspace cannot run Auto Flows, the flow is paused or still a draft, or its trigger was never published. Those reminders were marked delivered. They are now held, tried again, and the reason is shown on the status screen.
+* **The plugin said the Auto Flow hand-off worked on any WA.cr plan. It does not** -- it needs a plan that can run a flow, which is WA.cr Growth and above. The listing, the setup screen, the connection screen, the dispatch setting and the refusal shown when a workflow cannot be saved all said otherwise, and a shop owner reading any of them could have chosen a plan that can never send.
+* **A Gravity Forms form can record consent**, through Gravity Forms' own Consent field, so recoveries from a form can be sent on a site that only messages people who agreed -- which is the default, and where a form recovery previously could never be sent at all.
+* **Somebody who filled in a form is no longer written down when the form kept nothing to reach them by.** Gravity Forms drops a phone number it cannot read as international, so a form asking for a number routinely produced an entry with no number on it.
+* **Each integration now says what it needs before it can message anyone**, on the Integrations screen, in its own words.
+* **A recovery says which integration it came from by name**, instead of showing a shop worker an internal id.
+* **WordPress can update the plugin.** A header left in the plugin file since the first commit told WordPress never to offer an update for it, which would have left every shop on the version it first installed.
+* **One file could be requested directly in a browser.** Every file in the plugin blocks that; this one did too, but too far down to be found.
+
 = 0.1.0 =
 First release.
 
@@ -207,6 +220,9 @@ First release.
 * Fully translatable, with the .pot shipped.
 
 == Upgrade Notice ==
+
+= 0.1.1 =
+Fixes reminders being recorded as sent when WA.cr ran nothing, corrects the WA.cr plan the WhatsApp hand-off actually needs (Growth and above), lets a Gravity Forms form record consent, and restores the plugin's ability to be updated at all.
 
 = 0.1.0 =
 First release.

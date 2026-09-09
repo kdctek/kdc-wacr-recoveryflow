@@ -3,7 +3,7 @@
  * Plugin Name:       RecoveryFlow by WA.cr
  * Plugin URI:        https://wa.cr/recoveryflow
  * Description:       Turn lost conversions into conversations that convert. RecoveryFlow detects abandoned journeys across your WordPress commerce, forms, ticketing and booking systems, and recovers them through WA.cr on WhatsApp. Requires an active WA.cr account.
- * Version:           0.1.0
+ * Version:           0.1.1
  * Requires at least: 6.5
  * Requires PHP:      8.0
  * Author:            KDC
@@ -18,7 +18,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'KDC_WACR_RECOVERYFLOW_VERSION', '0.1.0' );
+define( 'KDC_WACR_RECOVERYFLOW_VERSION', '0.1.1' );
 define( 'KDC_WACR_RECOVERYFLOW_FILE', __FILE__ );
 define( 'KDC_WACR_RECOVERYFLOW_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KDC_WACR_RECOVERYFLOW_URL', plugin_dir_url( __FILE__ ) );
