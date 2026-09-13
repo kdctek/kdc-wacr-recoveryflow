@@ -4,7 +4,7 @@ Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.1.2
+Stable tag: 0.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -188,6 +188,13 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 
 == Changelog ==
 
+= 0.1.3 =
+
+* **The three pages a shopper can be sent to load their styling as a stylesheet now, not inline.** The opt-out confirmation, the opt-out receipt and the page a dead recovery link renders each carried their own CSS. Nothing about them looks different; they just follow WordPress's own rules for loading it.
+* **The opt-out form carries a nonce as well as its one-time link.** It cannot lock anybody out of unsubscribing: if the nonce has aged out the page simply asks again rather than refusing.
+* **The plugin's description no longer contradicts this page about needing a WA.cr account.** It said an account was required, full stop. Detection and email recovery need none; only WhatsApp sending does.
+* **The listing says who makes RecoveryFlow, at the top.** RecoveryFlow and WA.cr are both KDC products, and neither is affiliated with WhatsApp or Meta.
+
 = 0.1.2 =
 
 * **Detecting an abandoned basket no longer depends on your WA.cr plan.** Any recovery source other than WooCommerce -- including the Gravity Forms integration that comes with the plugin -- used to be switched off unless your WA.cr workspace was on the Scale plan, and its hooks were never attached, so nothing from it was recorded. Spotting an abandoned form entry happens entirely on your own site and asks WA.cr for nothing, so no plan decides whether it runs. Sending still needs WA.cr.
@@ -227,6 +234,9 @@ First release.
 * Fully translatable, with the .pot shipped.
 
 == Upgrade Notice ==
+
+= 0.1.3 =
+Housekeeping for the WordPress.org directory: the customer-facing pages load their CSS the way WordPress asks, the opt-out form carries a nonce without ever being able to refuse an unsubscribe, and the description no longer claims a WA.cr account is needed for the parts that do not need one.
 
 = 0.1.2 =
 Gravity Forms and every other integration now run whatever your WA.cr plan is -- detection happens on your own site and never needed a plan. The workflow screen no longer goes read-only when it should only be refusing one kind of step.
