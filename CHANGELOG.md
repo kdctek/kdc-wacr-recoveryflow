@@ -14,6 +14,8 @@ affected, followed by the detail.
 
 ### Changed
 
+- **The plugin now points at its own product site.** `Plugin URI` declared `wa.cr/recoveryflow`, a page that was never built, so the one link WordPress shows on the plugins screen was a 404 -- which is also how WordPress.org's review found it. It points at recoveryflow.wa.cr, the product site, instead.
+
 - **The three pages a shopper can be sent to now load their CSS as a stylesheet instead of carrying it inline.** The opt-out confirmation, the opt-out receipt and the page every dead recovery link renders are standalone documents -- no theme, no `wp_head()` -- so each one carried its own `<style>` block. WordPress.org's review flagged all three, and the guideline is right: the rules are now one enqueued file, registered and enqueued through `wp_enqueue_style()`, shared across the two pages of an opt-out and cached by the browser between them. Nothing about the pages looks different.
 
 - **The opt-out form now carries a nonce as well as the token in its URL.** The token was, and remains, the real credential: 256 bits of randomness, sent to one person, for one message. The nonce is minted when the confirmation page renders and checked when the button is pressed. Crucially it cannot lock anybody out of unsubscribing -- the recipient has no WordPress session to carry a long-lived nonce, so a stale one re-renders the confirmation page with a fresh nonce rather than refusing. An unsubscribe that can answer "no" is not an unsubscribe.
