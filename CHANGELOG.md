@@ -219,4 +219,8 @@ WordPress itself, which needs no WA.cr account at all.
 
 - **Nothing personal reaches a log.** A redactor drops known fields and masks phone numbers, email addresses, credentials and recovery links inside free text, including error strings that arrive from elsewhere.
 
+[Unreleased]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/kdctek/kdc-wacr-recoveryflow/releases/tag/v0.1.0

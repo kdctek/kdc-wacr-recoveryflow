@@ -49,6 +49,22 @@ To work against a staging WA.cr workspace, choose **Staging** in Settings › WA
 
 See [`docs/testing.md`](docs/testing.md) for the suites and fixtures.
 
+## Releasing
+
+Every version gets a git tag and a GitHub release, and the release carries the zip a merchant installs.
+
+```bash
+composer dist                 # dist/kdc-wacr-recoveryflow-<version>.zip, from the committed tree
+bin/build.sh v0.1.2           # or from any tag, named for that tag's own plugin header
+bin/github-release.sh         # tag the header version, push the tag, publish the release with its zip
+bin/github-release.sh 0.1.1   # publish or refresh an earlier version's release
+```
+
+The notes are the `CHANGELOG.md` section for that version, verbatim, so a release has no second
+description to keep in step with the first. The only release marked latest on GitHub is the version
+the plugin header names. Re-running is safe: an existing release is updated in place, and a tag that
+already points at a commit is never moved.
+
 ## Repository layout
 
 ```text
