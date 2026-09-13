@@ -59,10 +59,12 @@ defined( 'ABSPATH' ) || exit;
  * its preview card, once per delivered message. If a GET on the opt-out link
  * opted somebody out, the delivery of a campaign would opt out every recipient
  * of it before a single person had read a word. The opt-out is therefore a POST
- * carrying a confirmation field, which no preview fetcher will ever send. It is
- * deliberately nonce-free: the recipient has no WordPress session and never
- * will, so the token in the URL is the credential, and it is bound to one
- * person's one message.
+ * carrying a confirmation field, which no preview fetcher will ever send. The
+ * token in the URL is the credential -- it is bound to one person's one
+ * message -- and the POST also carries a nonce minted when the confirmation
+ * page was rendered. A stale nonce re-asks rather than refuses: the recipient
+ * has no WordPress session, and an unsubscribe that can answer "no" is not an
+ * unsubscribe.
  *
  * **Nothing thrown ever reaches the shopper.** A customer who taps a link from
  * a shop they trust gets a page, never a stack trace.
@@ -83,6 +85,21 @@ final class Recovery_Controller {
 	 * Directory a theme may put overrides in.
 	 */
 	public const TEMPLATE_DIR = 'kdc-wacr-recoveryflow/';
+
+	/**
+	 * Nonce action for the opt-out confirmation form.
+	 */
+	public const OPT_OUT_NONCE = 'recoveryflow_opt_out';
+
+	/**
+	 * Field the opt-out nonce travels in.
+	 */
+	public const OPT_OUT_NONCE_FIELD = '_rf_nonce';
+
+	/**
+	 * Handle of the stylesheet the three public pages share.
+	 */
+	public const STYLE_HANDLE = 'recoveryflow-public';
 
 	/**
 	 * Attempt ledger, which owns the token hashes.
@@ -449,7 +466,17 @@ final class Recovery_Controller {
 	}
 
 	/**
-	 * Whether this request is the opt-out form being submitted.
+	 * Whether this request is the opt-out form being validly submitted.
+	 *
+	 * The request is authenticated by the token in its own URL -- 256 bits of
+	 * randomness, sent to one person, for one message -- and the nonce is a
+	 * second check on top of that, minted when the confirmation page was
+	 * rendered to this same visitor moments earlier.
+	 *
+	 * A failed nonce is therefore not treated as an attack. The caller re-asks
+	 * instead of refusing, because the only person who can reach this URL is
+	 * the person the link was sent to, and an unsubscribe that answers "no"
+	 * once its nonce has aged out is an unsubscribe that does not work.
 	 *
 	 * @return bool
 	 */
@@ -462,14 +489,16 @@ final class Recovery_Controller {
 			return false;
 		}
 
-		/*
-		 * No nonce, on purpose. The recipient is not logged in and has no
-		 * WordPress session to carry one, so a nonce would only ever fail. The
-		 * token in the URL is the credential: it is 256 bits of randomness, it
-		 * was sent to exactly one person, and no preview fetcher submits forms.
-		 */
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- see above; the request is authenticated by the token in its own URL.
-		return isset( $_POST['rf_confirm'] );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- the nonce itself is read and verified immediately below.
+		if ( ! isset( $_POST['rf_confirm'] ) ) {
+			return false;
+		}
+
+		$nonce = isset( $_POST[ self::OPT_OUT_NONCE_FIELD ] )
+			? sanitize_text_field( wp_unslash( (string) $_POST[ self::OPT_OUT_NONCE_FIELD ] ) )
+			: '';
+
+		return false !== wp_verify_nonce( $nonce, self::OPT_OUT_NONCE );
 	}
 
 	/**
@@ -551,9 +580,11 @@ final class Recovery_Controller {
 		$this->include_template(
 			'opt-out-confirm.php',
 			array(
-				'recoveryflow_site_name'   => $recoveryflow_site_name,
-				'recoveryflow_home_url'    => $recoveryflow_home_url,
-				'recoveryflow_form_action' => $recoveryflow_form_action,
+				'recoveryflow_site_name'    => $recoveryflow_site_name,
+				'recoveryflow_home_url'     => $recoveryflow_home_url,
+				'recoveryflow_form_action'  => $recoveryflow_form_action,
+				'recoveryflow_nonce_action' => self::OPT_OUT_NONCE,
+				'recoveryflow_nonce_field'  => self::OPT_OUT_NONCE_FIELD,
 			)
 		);
 
@@ -630,15 +661,42 @@ final class Recovery_Controller {
 			return;
 		}
 
+		self::enqueue_style();
+
 		// Named locals rather than extract(), so a template can only ever see
 		// the variables listed at the call site.
-		$recoveryflow_site_name   = $vars['recoveryflow_site_name'] ?? '';
-		$recoveryflow_home_url    = $vars['recoveryflow_home_url'] ?? '';
-		$recoveryflow_heading     = $vars['recoveryflow_heading'] ?? '';
-		$recoveryflow_message     = $vars['recoveryflow_message'] ?? '';
-		$recoveryflow_form_action = $vars['recoveryflow_form_action'] ?? '';
+		$recoveryflow_site_name    = $vars['recoveryflow_site_name'] ?? '';
+		$recoveryflow_home_url     = $vars['recoveryflow_home_url'] ?? '';
+		$recoveryflow_heading      = $vars['recoveryflow_heading'] ?? '';
+		$recoveryflow_message      = $vars['recoveryflow_message'] ?? '';
+		$recoveryflow_form_action  = $vars['recoveryflow_form_action'] ?? '';
+		$recoveryflow_nonce_action = $vars['recoveryflow_nonce_action'] ?? self::OPT_OUT_NONCE;
+		$recoveryflow_nonce_field  = $vars['recoveryflow_nonce_field'] ?? self::OPT_OUT_NONCE_FIELD;
 
 		include $path;
+	}
+
+	/**
+	 * Register and enqueue the one stylesheet the public pages share.
+	 *
+	 * These pages are standalone documents, so nothing else has run an
+	 * enqueue for them and wp_head() is never called; the template prints this
+	 * one handle itself. It still goes through the enqueue API rather than
+	 * being written inline, so a site can dequeue or replace it, and so the
+	 * browser reuses it across the two pages of an opt-out.
+	 *
+	 * @return void
+	 */
+	private static function enqueue_style(): void {
+		if ( ! function_exists( 'wp_enqueue_style' ) ) {
+			return;
+		}
+
+		$base    = defined( 'KDC_WACR_RECOVERYFLOW_URL' ) ? (string) constant( 'KDC_WACR_RECOVERYFLOW_URL' ) : plugins_url( '/', dirname( __DIR__, 2 ) . '/kdc-wacr-recoveryflow.php' );
+		$version = defined( 'KDC_WACR_RECOVERYFLOW_VERSION' ) ? (string) constant( 'KDC_WACR_RECOVERYFLOW_VERSION' ) : false;
+
+		wp_register_style( self::STYLE_HANDLE, $base . 'assets/css/public.css', array(), $version );
+		wp_enqueue_style( self::STYLE_HANDLE );
 	}
 
 	/**

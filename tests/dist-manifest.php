@@ -122,6 +122,7 @@ $required = array(
 	'assets/js/checkout-capture.js',
 	'assets/js/admin.js',
 	'assets/css/admin.css',
+	'assets/css/public.css',
 	'languages/kdc-wacr-recoveryflow.pot',
 	'templates/opt-out-confirm.php',
 	'templates/opt-out-done.php',

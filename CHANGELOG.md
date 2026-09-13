@@ -10,6 +10,24 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+### Changed
+
+- **The three pages a shopper can be sent to now load their CSS as a stylesheet instead of carrying it inline.** The opt-out confirmation, the opt-out receipt and the page every dead recovery link renders are standalone documents -- no theme, no `wp_head()` -- so each one carried its own `<style>` block. WordPress.org's review flagged all three, and the guideline is right: the rules are now one enqueued file, registered and enqueued through `wp_enqueue_style()`, shared across the two pages of an opt-out and cached by the browser between them. Nothing about the pages looks different.
+
+- **The opt-out form now carries a nonce as well as the token in its URL.** The token was, and remains, the real credential: 256 bits of randomness, sent to one person, for one message. The nonce is minted when the confirmation page renders and checked when the button is pressed. Crucially it cannot lock anybody out of unsubscribing -- the recipient has no WordPress session to carry a long-lived nonce, so a stale one re-renders the confirmation page with a fresh nonce rather than refusing. An unsubscribe that can answer "no" is not an unsubscribe.
+
+### Added
+
+- **The listing now says who makes this, at the top.** RecoveryFlow and WA.cr are both KDC products and "WA.cr" is our registered trade name in India, but the listing only said so in passing, a long way down, while the non-affiliation notice sat further down still. WordPress.org's review asked whether we were the rightful owner of the name; a reader of the listing could not have told either. Both statements are now one short note directly under the opening.
+
+### Fixed
+
+- **The plugin's own description contradicted its listing about needing a WA.cr account.** The header said an active WA.cr account was required, full stop; the readme said -- correctly -- that detection and email recovery need no account at all. Somebody reading the plugins screen would have concluded the plugin was useless to them without signing up for a service they may not need. The header now says which half needs what.
+
+### Removed
+
+- **`load_plugin_textdomain()` is gone.** WordPress has loaded a plugin's translations by itself since 4.6, and since 6.7 does it only at the moment a string is first asked for. Calling it explicitly only moved that work earlier into every request and risked running it before `init`. The `.pot` translators work from is unchanged.
+
 ## [0.1.2] - 2026-09-09
 
 ### Fixed
