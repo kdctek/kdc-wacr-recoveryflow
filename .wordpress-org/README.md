@@ -48,8 +48,9 @@ name and needs no undoing.
 
 | File | Size | Status |
 | --- | --- | --- |
-| `icon-128x128.png` | 128 × 128 | Brand artwork, downscaled from the 512 master |
-| `icon-256x256.png` | 256 × 256 | Brand artwork, downscaled from the 512 master |
+| `icon.svg` | square, any units | Brand artwork. **WordPress.org prefers this over both PNGs** |
+| `icon-128x128.png` | 128 × 128 | Brand artwork, fallback where SVG is not used |
+| `icon-256x256.png` | 256 × 256 | Brand artwork, fallback where SVG is not used |
 | `icon-512x512.png` | 512 × 512 | **Master artwork. WordPress.org never reads this file** — see below |
 | `banner-1544x500.png` | 1544 × 500 | **PLACEHOLDER — replace before submission** |
 | `banner-772x250.png` | 772 × 250 | **PLACEHOLDER — replace before submission** |
@@ -60,6 +61,11 @@ name and needs no undoing.
 WordPress.org reads exactly three icon filenames: `icon-128x128`, `icon-256x256` and `icon.svg`.
 **Any other size is ignored in silence.** There is no warning, no upload error and nothing in the
 listing to notice: the plugin simply has no icon.
+
+`icon.svg` outranks both PNGs wherever it is present, which makes a broken one worse than no SVG
+at all -- working PNGs get passed over for a file that renders nothing. An empty `icon.svg` sat
+here once and every check passed, because they all looked only at the PNGs. `dist:check` now
+requires that if `icon.svg` exists it is a real, square, viewBox-carrying SVG.
 
 So `icon-512x512.png` is kept here as the master to regenerate from, and is never the only icon
 present. `tests/dist-manifest.php` now asserts both read sizes exist at exactly their stated

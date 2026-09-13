@@ -294,6 +294,40 @@ foreach ( $listing_assets as $asset => $expected ) {
 	);
 }
 
+/*
+ * icon.svg, which is the one that outranks everything above.
+ *
+ * WordPress.org prefers icon.svg over both PNGs when it is present, so a broken
+ * one is strictly worse than no SVG at all: the working PNGs are passed over in
+ * favour of a file that renders nothing. An empty icon.svg once sat here and
+ * every check above stayed green, because they only ever looked at the PNGs.
+ *
+ * The file is optional. If it is absent nothing is asserted. If it is present
+ * it has to be a scalable, square SVG, because that is the only reason to ship
+ * one in preference to a 256.
+ */
+$svg_path = $root . '/.wordpress-org/icon.svg';
+
+if ( is_readable( $svg_path ) ) {
+	$svg = (string) file_get_contents( $svg_path );
+
+	dist_ok( '.wordpress-org/icon.svg is not empty, and .org prefers it over both PNGs', '' !== trim( $svg ) );
+	dist_ok( '.wordpress-org/icon.svg is an SVG document', false !== stripos( $svg, '<svg' ) && false !== stripos( $svg, '</svg>' ) );
+
+	$has_viewbox = (bool) preg_match( '/viewBox\s*=\s*"([^"]+)"/i', $svg, $box );
+
+	dist_ok( '.wordpress-org/icon.svg carries a viewBox, or it cannot scale', $has_viewbox );
+
+	if ( $has_viewbox ) {
+		$nums = preg_split( '/[\s,]+/', trim( $box[1] ) );
+
+		dist_ok(
+			'.wordpress-org/icon.svg is square, like every icon slot it fills',
+			4 === count( $nums ) && abs( (float) $nums[2] - (float) $nums[3] ) < 0.01
+		);
+	}
+}
+
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";
 echo "{$passed} passed, {$failed} failed\n";

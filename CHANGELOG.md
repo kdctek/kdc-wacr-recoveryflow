@@ -14,7 +14,7 @@ affected, followed by the detail.
 
 ### Changed
 
-- **The listing has real icon artwork, at the sizes WordPress.org actually reads.** The placeholder icon is replaced by the plugin's own mark. The new artwork arrived as a single 512x512 master, which the directory ignores in silence -- it reads `icon-128x128`, `icon-256x256` and `icon.svg` and nothing else -- so the listing would have shipped with no icon at all, with no warning anywhere to say so. Both read sizes are generated from the master, and `dist:check` now asserts the icons and banners exist at exactly the dimensions the directory expects, since this directory is excluded from the zip and no other gate can see it.
+- **The listing has real icon artwork, including a vector.** `icon.svg` is what WordPress.org shows wherever it can, with the two PNGs as fallbacks. The placeholder icon is replaced by the plugin's own mark, and the directory reads `icon-128x128`, `icon-256x256` and `icon.svg` and nothing else -- a 512x512 master alone means a listing with no icon at all, and nothing anywhere says so. `dist:check` now asserts the icons and banners exist at the exact dimensions the directory expects, and that an `icon.svg`, if present, is a real square scalable one: it outranks both PNGs, so a broken SVG is worse than none. This directory is excluded from the zip, so no other gate can see any of it.
 
 - **The plugin now points at its own product site.** `Plugin URI` declared `wa.cr/recoveryflow`, a page that was never built, so the one link WordPress shows on the plugins screen was a 404 -- which is also how WordPress.org's review found it. It points at recoveryflow.wa.cr, the product site, instead.
 
