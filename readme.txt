@@ -16,7 +16,7 @@ Most sites lose more conversions than they finish. A shopper fills a cart and le
 
 **RecoveryFlow detects → WA.cr communicates → customer converts.**
 
-> **Who makes this.** RecoveryFlow and WA.cr are both products of KDC. WA.cr is our own WhatsApp Business messaging platform, and "WA.cr" is a registered trade name of ours in India. WhatsApp is a trademark of Meta Platforms, Inc. Neither RecoveryFlow nor WA.cr is affiliated with, endorsed by or sponsored by WhatsApp or Meta.
+> **Who makes this.** RecoveryFlow and WA.cr are both products of KDC Tek Private Limited. WA.cr is our own WhatsApp Business messaging platform, built on the official WhatsApp Cloud API as an authorised Meta Tech Provider, and "WA.cr" is a registered trade name of ours in India. Neither RecoveryFlow nor WA.cr is affiliated with, endorsed by or sponsored by Meta, Automattic, Rocketgenius or the WordPress Foundation. Full attributions are in the Trademarks section.
 
 = An active WA.cr account is required, for WhatsApp =
 
@@ -246,3 +246,11 @@ Fixes reminders being recorded as sent when WA.cr ran nothing, corrects the WA.c
 
 = 0.1.0 =
 First release.
+
+== Trademarks ==
+
+RecoveryFlow and WA.cr are products of KDC Tek Private Limited. "WA.cr" is a registered trade name of ours in India, and the "WAcr" in this plugin's name is that mark -- it is not an abbreviation of anyone else's.
+
+All third-party trademarks, service marks (™) and registered marks (®) are the property of their respective owners and are used here for identification only -- including, but not limited to, WhatsApp®, Facebook® and Meta® (Meta Platforms, Inc.), WordPress® (WordPress Foundation), WooCommerce® (Automattic Inc.) and Gravity Forms (Rocketgenius Inc.). The same applies to the trademarks of any system a future integration names.
+
+Their use does not imply any affiliation with, endorsement by or sponsorship from their owners. WA.cr is an independent service built on the official WhatsApp Cloud API as an authorised Meta Tech Provider; no endorsement beyond what is expressly disclosed is implied.

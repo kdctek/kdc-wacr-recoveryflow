@@ -22,6 +22,8 @@ affected, followed by the detail.
 
 ### Added
 
+- **The listing carries a Trademarks section, and it covers every mark the plugin names rather than only Meta's.** The plugin talks about WordPress, WooCommerce and Gravity Forms on nearly every screen and throughout the listing, and acknowledged none of them; the one attribution it did carry named WhatsApp and Meta. Each is now attributed to its owner -- WhatsApp, Facebook and Meta to Meta Platforms, Inc., WordPress to the WordPress Foundation, WooCommerce to Automattic Inc. and Gravity Forms to Rocketgenius Inc. -- with a statement that naming them implies no affiliation, endorsement or sponsorship. The clause is open-ended, so an integration added later is covered before anybody remembers to edit this.
+
 - **The listing now says who makes this, at the top.** RecoveryFlow and WA.cr are both KDC products and "WA.cr" is our registered trade name in India, but the listing only said so in passing, a long way down, while the non-affiliation notice sat further down still. WordPress.org's review asked whether we were the rightful owner of the name; a reader of the listing could not have told either. Both statements are now one short note directly under the opening.
 
 ### Fixed
