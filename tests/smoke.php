@@ -1525,6 +1525,79 @@ foreach ( array( 'opt-out-confirm.php', 'opt-out-done.php' ) as $recoveryflow_pa
 	ok( "{$recoveryflow_page} names no single channel, because the opt-out stops them all", ! $recoveryflow_named );
 }
 
+/*
+ * The public pages are standalone documents: no theme, no wp_head(), nothing
+ * else on the page. That is why their CSS used to be a <style> block inline in
+ * each template -- and why WordPress.org's review flagged all three. The rules
+ * now live in one enqueued file, so what has to be checked is that the pages
+ * still arrive dressed: a template that prints no stylesheet at all is not a
+ * violation any linter would catch, it is just an unstyled page on a phone.
+ */
+$recoveryflow_public_render = static function ( string $template, array $vars ): string {
+	$GLOBALS['recoveryflow_styles']            = array();
+	$GLOBALS['recoveryflow_registered_styles'] = array();
+
+	// Built without its constructor: the render path reads no collaborator,
+	// and going through the container here would tie this check to wherever
+	// in this file the container happens to be built.
+	$class      = new ReflectionClass( \WAcr\RecoveryFlow\Recovery\Recovery_Controller::class );
+	$controller = $class->newInstanceWithoutConstructor();
+	$method     = $class->getMethod( 'include_template' );
+	$method->setAccessible( true );
+
+	ob_start();
+	$method->invoke( $controller, $template, $vars );
+
+	return (string) ob_get_clean();
+};
+
+foreach ( array( 'opt-out-confirm.php', 'opt-out-done.php', 'recovery-invalid.php' ) as $recoveryflow_page ) {
+	$recoveryflow_html = $recoveryflow_public_render(
+		$recoveryflow_page,
+		array(
+			'recoveryflow_site_name'   => 'Example Shop',
+			'recoveryflow_home_url'    => 'https://example.test/',
+			'recoveryflow_heading'     => 'That link has expired',
+			'recoveryflow_message'     => 'Ask for a new one.',
+			'recoveryflow_form_action' => 'https://example.test/recovery/x/opt-out',
+		)
+	);
+
+	ok( "{$recoveryflow_page} carries no inline <style>, which is what the directory refuses", false === stripos( $recoveryflow_html, '<style' ) );
+	ok( "{$recoveryflow_page} still links the enqueued stylesheet, or it renders naked", false !== strpos( $recoveryflow_html, 'assets/css/public.css' ) );
+	ok( "{$recoveryflow_page} links it through the enqueue API's handle", false !== strpos( $recoveryflow_html, 'recoveryflow-public-css' ) );
+}
+
+/*
+ * The opt-out POST now carries a nonce as well as the token in its URL. Both
+ * halves matter, and in opposite directions: a POST without a good nonce must
+ * not act, and a POST whose nonce has merely aged out must not be refused --
+ * the recipient has no WordPress session, so the page simply asks again.
+ */
+$recoveryflow_confirmed = new ReflectionMethod( \WAcr\RecoveryFlow\Recovery\Recovery_Controller::class, 'is_confirmed_post' );
+$recoveryflow_confirmed->setAccessible( true );
+
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST                     = array( 'rf_confirm' => '1' );
+ok( 'a POST with no nonce at all does not opt anybody out', ! $recoveryflow_confirmed->invoke( null ) );
+
+$_POST = array( 'rf_confirm' => '1', '_rf_nonce' => 'not-the-nonce' );
+ok( 'nor does a POST carrying a wrong one', ! $recoveryflow_confirmed->invoke( null ) );
+
+$_POST = array( 'rf_confirm' => '1', '_rf_nonce' => wp_create_nonce( \WAcr\RecoveryFlow\Recovery\Recovery_Controller::OPT_OUT_NONCE ) );
+ok( 'a POST from the confirmation page does', (bool) $recoveryflow_confirmed->invoke( null ) );
+
+$_SERVER['REQUEST_METHOD'] = 'GET';
+ok( 'and a GET never does, whatever it carries -- every preview fetcher sends one', ! $recoveryflow_confirmed->invoke( null ) );
+
+// A stale nonce has to reach the same branch as no POST at all: render the
+// confirmation again. Refusing there would make the unsubscribe unreachable.
+$recoveryflow_opt_out_src = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Recovery/Recovery_Controller.php', 'opt_out' );
+ok( 'a failed nonce re-asks rather than refusing', false !== strpos( $recoveryflow_opt_out_src, 'render_confirm(' ) );
+
+$_POST                     = array();
+$_SERVER['REQUEST_METHOD'] = 'GET';
+
 
 // --------------------------------------------------- Admin: settings schema.
 

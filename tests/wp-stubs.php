@@ -630,8 +630,31 @@ function submit_button( $text = null, $type = 'primary', $name = 'submit' ) {
 		htmlspecialchars( (string) $name, ENT_QUOTES )
 	);
 }
+function wp_verify_nonce( $nonce, $action = -1 ) {
+	return hash_equals( wp_create_nonce( $action ), (string) $nonce ) ? 1 : false;
+}
+function wp_register_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
+	$GLOBALS['recoveryflow_registered_styles'][ $handle ] = $src;
+}
 function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
-	$GLOBALS['recoveryflow_styles'][ $handle ] = $src;
+	$GLOBALS['recoveryflow_styles'][ $handle ] = '' !== $src
+		? $src
+		: ( $GLOBALS['recoveryflow_registered_styles'][ $handle ] ?? '' );
+}
+// Prints only the handles asked for, which is what the public templates do:
+// they are standalone documents with no wp_head() to print a whole queue.
+function wp_print_styles( $handles = false ) {
+	foreach ( (array) $handles as $handle ) {
+		if ( ! isset( $GLOBALS['recoveryflow_styles'][ $handle ] ) ) {
+			continue;
+		}
+
+		printf(
+			'<link rel="stylesheet" id="%s-css" href="%s" media="all" />',
+			htmlspecialchars( (string) $handle, ENT_QUOTES ),
+			htmlspecialchars( (string) $GLOBALS['recoveryflow_styles'][ $handle ], ENT_QUOTES )
+		);
+	}
 }
 function wp_add_inline_script( $handle, $data, $position = 'after' ) {
 	$GLOBALS['recoveryflow_inline_scripts'][ $handle ][] = $data;

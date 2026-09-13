@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-09T16:11:17+00:00\n"
+"POT-Creation-Date: 2026-09-13T01:41:05+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -26,7 +26,7 @@ msgstr ""
 
 #. Description of the plugin
 #: kdc-wacr-recoveryflow.php
-msgid "Turn lost conversions into conversations that convert. RecoveryFlow detects abandoned journeys across your WordPress commerce, forms, ticketing and booking systems, and recovers them through WA.cr on WhatsApp. Requires an active WA.cr account."
+msgid "Turn lost conversions into conversations that convert. RecoveryFlow detects abandoned journeys across your WordPress commerce, forms, ticketing and booking systems, then recovers them by email from WordPress itself, or over WhatsApp through WA.cr. Detection and email recovery need no WA.cr account; WhatsApp recovery does."
 msgstr ""
 
 #. Author of the plugin
@@ -3029,19 +3029,19 @@ msgctxt "recovery journey state"
 msgid "Failed"
 msgstr ""
 
-#: src/Recovery/Recovery_Controller.php:514
+#: src/Recovery/Recovery_Controller.php:543
 msgid "This link is no longer available"
 msgstr ""
 
-#: src/Recovery/Recovery_Controller.php:515
+#: src/Recovery/Recovery_Controller.php:544
 msgid "The link you followed has expired or has already been used. Your basket may still be waiting for you on the shop."
 msgstr ""
 
-#: src/Recovery/Recovery_Controller.php:532
+#: src/Recovery/Recovery_Controller.php:561
 msgid "Too many requests"
 msgstr ""
 
-#: src/Recovery/Recovery_Controller.php:533
+#: src/Recovery/Recovery_Controller.php:562
 msgid "This link has been opened a great many times in a short period. Please wait a few minutes and try again."
 msgstr ""
 
@@ -3477,35 +3477,35 @@ msgstr ""
 msgid "Hand off to WA.cr Auto Flow"
 msgstr ""
 
-#: templates/opt-out-confirm.php:46
+#: templates/opt-out-confirm.php:53
 msgid "Stop these reminders?"
 msgstr ""
 
 #. translators: %s: the shop's name.
-#: templates/opt-out-confirm.php:48
+#: templates/opt-out-confirm.php:55
 #, php-format
 msgid "Stop reminders from %s?"
 msgstr ""
 
-#: templates/opt-out-confirm.php:107
+#: templates/opt-out-confirm.php:74
 msgid "These are the reminders you receive when you leave something behind in your basket."
 msgstr ""
 
 #. translators: %s: the shop's name.
-#: templates/opt-out-confirm.php:110
+#: templates/opt-out-confirm.php:77
 #, php-format
 msgid "These are the reminders %s sends you when you leave something behind in your basket."
 msgstr ""
 
-#: templates/opt-out-confirm.php:116
+#: templates/opt-out-confirm.php:83
 msgid "Nothing has changed yet. Confirm below and the reminders will stop."
 msgstr ""
 
-#: templates/opt-out-confirm.php:120
+#: templates/opt-out-confirm.php:88
 msgid "Yes, stop sending me these reminders"
 msgstr ""
 
-#: templates/opt-out-confirm.php:126
+#: templates/opt-out-confirm.php:94
 msgid "No, keep sending them and take me back to the shop"
 msgstr ""
 
@@ -3513,28 +3513,28 @@ msgstr ""
 msgid "You have been unsubscribed"
 msgstr ""
 
-#: templates/opt-out-done.php:74
+#: templates/opt-out-done.php:50
 msgid "You will not receive any more reminders about items left in your basket."
 msgstr ""
 
 #. translators: %s: the shop's name.
-#: templates/opt-out-done.php:77
+#: templates/opt-out-done.php:53
 #, php-format
 msgid "You will not receive any more reminders from %s about items left in your basket."
 msgstr ""
 
-#: templates/opt-out-done.php:83
+#: templates/opt-out-done.php:59
 msgid "You can still shop as usual, and this does not affect order confirmations or replies to messages you send yourself."
 msgstr ""
 
-#: templates/opt-out-done.php:90
-#: templates/recovery-invalid.php:75
+#: templates/opt-out-done.php:66
+#: templates/recovery-invalid.php:51
 msgid "Go to the shop"
 msgstr ""
 
 #. translators: %s: the shop's name.
-#: templates/opt-out-done.php:92
-#: templates/recovery-invalid.php:77
+#: templates/opt-out-done.php:68
+#: templates/recovery-invalid.php:53
 #, php-format
 msgid "Go to %s"
 msgstr ""

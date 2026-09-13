@@ -17,9 +17,12 @@
  * so naming WhatsApp would have promised less than the button actually does --
  * and would have been simply wrong on an email.
  *
- * The form carries no nonce on purpose: the recipient is not logged in and has
- * no WordPress session to carry one. The token already in the URL is the
- * credential -- 256 bits of randomness, sent to one person, for one message.
+ * The credential is the token already in the URL -- 256 bits of randomness,
+ * sent to one person, for one message. The form adds a nonce on top of it,
+ * minted here and checked on submission. If that nonce has aged out the
+ * controller renders this page again with a fresh one rather than refusing:
+ * the recipient has no WordPress session to carry a longer-lived one, and an
+ * unsubscribe that can answer "no" is not an unsubscribe.
  *
  * Nothing on this page identifies anybody. The shop's name is the only thing
  * named, because the page is read on a phone that may be handed around and its
@@ -29,18 +32,22 @@
  * in a theme, or by filtering recoveryflow_template.
  *
  * Variables in scope:
- * - string $recoveryflow_site_name   The shop's name.
- * - string $recoveryflow_form_action Where the form posts: this same link.
- * - string $recoveryflow_home_url    The shop's front page.
+ * - string $recoveryflow_site_name    The shop's name.
+ * - string $recoveryflow_form_action  Where the form posts: this same link.
+ * - string $recoveryflow_home_url     The shop's front page.
+ * - string $recoveryflow_nonce_action Nonce action for the confirmation.
+ * - string $recoveryflow_nonce_field  Field name the nonce travels in.
  *
  * @package WAcr\RecoveryFlow
  */
 
 defined( 'ABSPATH' ) || exit;
 
-$recoveryflow_site_name   = isset( $recoveryflow_site_name ) ? (string) $recoveryflow_site_name : '';
-$recoveryflow_form_action = isset( $recoveryflow_form_action ) ? (string) $recoveryflow_form_action : '';
-$recoveryflow_home_url    = isset( $recoveryflow_home_url ) ? (string) $recoveryflow_home_url : '';
+$recoveryflow_site_name    = isset( $recoveryflow_site_name ) ? (string) $recoveryflow_site_name : '';
+$recoveryflow_form_action  = isset( $recoveryflow_form_action ) ? (string) $recoveryflow_form_action : '';
+$recoveryflow_home_url     = isset( $recoveryflow_home_url ) ? (string) $recoveryflow_home_url : '';
+$recoveryflow_nonce_action = isset( $recoveryflow_nonce_action ) ? (string) $recoveryflow_nonce_action : 'recoveryflow_opt_out';
+$recoveryflow_nonce_field  = isset( $recoveryflow_nonce_field ) ? (string) $recoveryflow_nonce_field : '_rf_nonce';
 
 $recoveryflow_title = '' === $recoveryflow_site_name
 	? __( 'Stop these reminders?', 'kdc-wacr-recoveryflow' )
@@ -55,49 +62,9 @@ $recoveryflow_title = '' === $recoveryflow_site_name
 	<meta name="robots" content="noindex, nofollow">
 	<meta name="referrer" content="no-referrer">
 	<title><?php echo esc_html( $recoveryflow_title ); ?></title>
-	<style>
-		:root { color-scheme: light dark; }
-		body {
-			margin: 0;
-			padding: 3rem 1.25rem;
-			background: #ffffff;
-			color: #16202c;
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-			font-size: 1.0625rem;
-			line-height: 1.65;
-		}
-		main { max-width: 34rem; margin: 0 auto; }
-		h1 { font-size: 1.5rem; line-height: 1.3; margin: 0 0 1rem; }
-		p { margin: 0 0 1rem; }
-		a { color: inherit; text-decoration: underline; text-underline-offset: 0.2em; }
-		a:hover { text-decoration-thickness: 0.16em; }
-		form { margin: 1.75rem 0 0; }
-		.rf-button {
-			display: inline-block;
-			min-height: 2.75rem;
-			padding: 0.7rem 1.35rem;
-			border: 2px solid #16202c;
-			border-radius: 4px;
-			background: #16202c;
-			color: #ffffff;
-			font: inherit;
-			font-weight: 600;
-			cursor: pointer;
-		}
-		.rf-button:hover { background: #2b3a4d; border-color: #2b3a4d; }
-		:focus { outline: 3px solid #16202c; outline-offset: 3px; }
-		:focus:not(:focus-visible) { outline: none; }
-		:focus-visible { outline: 3px solid #16202c; outline-offset: 3px; }
-		.rf-back { font-size: 0.9375rem; margin: 1.5rem 0 0; }
-		@media (prefers-color-scheme: dark) {
-			body { background: #0f151c; color: #eef2f6; }
-			.rf-button { background: #eef2f6; border-color: #eef2f6; color: #0f151c; }
-			.rf-button:hover { background: #c9d4de; border-color: #c9d4de; }
-			:focus, :focus-visible { outline-color: #eef2f6; }
-		}
-	</style>
+	<?php wp_print_styles( 'recoveryflow-public' ); ?>
 </head>
-<body>
+<body class="rf-page rf-page--confirm">
 	<main>
 		<h1><?php echo esc_html( $recoveryflow_title ); ?></h1>
 		<p>
@@ -115,6 +82,7 @@ $recoveryflow_title = '' === $recoveryflow_site_name
 		</p>
 		<p><?php esc_html_e( 'Nothing has changed yet. Confirm below and the reminders will stop.', 'kdc-wacr-recoveryflow' ); ?></p>
 		<form method="post" action="<?php echo esc_url( $recoveryflow_form_action ); ?>">
+			<?php wp_nonce_field( $recoveryflow_nonce_action, $recoveryflow_nonce_field, false, true ); ?>
 			<input type="hidden" name="rf_confirm" value="1">
 			<button type="submit" class="rf-button">
 				<?php esc_html_e( 'Yes, stop sending me these reminders', 'kdc-wacr-recoveryflow' ); ?>

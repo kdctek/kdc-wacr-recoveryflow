@@ -1149,7 +1149,6 @@ final class Plugin {
 
 		$this->booted = true;
 
-		add_action( 'init', array( $this, 'load_textdomain' ), 1 );
 		add_filter( 'map_meta_cap', array( Capabilities::class, 'map_meta_cap' ), 10, 4 );
 
 		// A role can appear after RecoveryFlow is installed -- WooCommerce
@@ -1228,18 +1227,13 @@ final class Plugin {
 		do_action( Hooks::BOOTED, $this );
 	}
 
-	/**
-	 * Load translations.
-	 *
-	 * @return void
+	/*
+	 * There is deliberately no load_plugin_textdomain() call. WordPress has
+	 * loaded a plugin's translations by itself since 4.6, and does it at the
+	 * first moment a string is actually asked for rather than on every request;
+	 * calling it here would only move that work earlier and risk running it
+	 * before init. The .pot in /languages is what translators work from.
 	 */
-	public function load_textdomain(): void {
-		load_plugin_textdomain(
-			'kdc-wacr-recoveryflow',
-			false,
-			dirname( KDC_WACR_RECOVERYFLOW_BASENAME ) . '/languages'
-		);
-	}
 
 	/**
 	 * Whether the plugin has booted.

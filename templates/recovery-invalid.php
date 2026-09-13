@@ -36,33 +36,9 @@ $recoveryflow_home_url  = isset( $recoveryflow_home_url ) ? (string) $recoveryfl
 	<meta name="robots" content="noindex, nofollow">
 	<meta name="referrer" content="no-referrer">
 	<title><?php echo esc_html( $recoveryflow_heading ); ?></title>
-	<style>
-		:root { color-scheme: light dark; }
-		body {
-			margin: 0;
-			padding: 3rem 1.25rem;
-			background: #ffffff;
-			color: #16202c;
-			font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-			font-size: 1.0625rem;
-			line-height: 1.65;
-		}
-		main { max-width: 34rem; margin: 0 auto; }
-		h1 { font-size: 1.5rem; line-height: 1.3; margin: 0 0 1rem; }
-		p { margin: 0 0 1rem; }
-		a { color: inherit; text-decoration: underline; text-underline-offset: 0.2em; }
-		a:hover { text-decoration-thickness: 0.16em; }
-		:focus { outline: 3px solid #16202c; outline-offset: 3px; }
-		:focus:not(:focus-visible) { outline: none; }
-		:focus-visible { outline: 3px solid #16202c; outline-offset: 3px; }
-		.rf-site { font-size: 0.9375rem; margin: 2rem 0 0; }
-		@media (prefers-color-scheme: dark) {
-			body { background: #0f151c; color: #eef2f6; }
-			:focus, :focus-visible { outline-color: #eef2f6; }
-		}
-	</style>
+	<?php wp_print_styles( 'recoveryflow-public' ); ?>
 </head>
-<body>
+<body class="rf-page rf-page--invalid">
 	<main>
 		<h1><?php echo esc_html( $recoveryflow_heading ); ?></h1>
 		<p><?php echo esc_html( $recoveryflow_message ); ?></p>
