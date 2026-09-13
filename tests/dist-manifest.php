@@ -257,6 +257,43 @@ dist_ok(
 	false !== strpos( $pot, 'KDC WAcr RecoveryFlow ' . $version )
 );
 
+/*
+ * The listing assets, at the sizes WordPress.org actually reads.
+ *
+ * The directory recognises icon-128x128, icon-256x256 and icon.svg, and nothing
+ * else. A master at any other size is ignored in silence: the listing simply
+ * shows no icon, the upload succeeds, and nothing anywhere reports it. That is
+ * not hypothetical -- a 512x512 master once replaced the 256 here and the whole
+ * suite stayed green, because no gate had ever looked at this directory.
+ *
+ * These files are excluded from the zip (asserted above), so this is the only
+ * place that can check them at all.
+ */
+$listing_assets = array(
+	'.wordpress-org/icon-128x128.png'  => array( 128, 128 ),
+	'.wordpress-org/icon-256x256.png'  => array( 256, 256 ),
+	'.wordpress-org/banner-772x250.png'  => array( 772, 250 ),
+	'.wordpress-org/banner-1544x500.png' => array( 1544, 500 ),
+);
+
+foreach ( $listing_assets as $asset => $expected ) {
+	$path = $root . '/' . $asset;
+
+	if ( ! is_readable( $path ) ) {
+		dist_ok( "{$asset} is present, or the listing has no artwork there", false );
+
+		continue;
+	}
+
+	$size = getimagesize( $path );
+
+	dist_is(
+		"{$asset} is the size WordPress.org reads",
+		is_array( $size ) ? $size[0] . 'x' . $size[1] : 'unreadable',
+		$expected[0] . 'x' . $expected[1]
+	);
+}
+
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";
 echo "{$passed} passed, {$failed} failed\n";

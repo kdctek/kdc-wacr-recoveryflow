@@ -48,10 +48,30 @@ name and needs no undoing.
 
 | File | Size | Status |
 | --- | --- | --- |
-| `icon-256x256.png` | 256 × 256 | **PLACEHOLDER — replace before submission** |
+| `icon-128x128.png` | 128 × 128 | Brand artwork, downscaled from the 512 master |
+| `icon-256x256.png` | 256 × 256 | Brand artwork, downscaled from the 512 master |
+| `icon-512x512.png` | 512 × 512 | **Master artwork. WordPress.org never reads this file** — see below |
 | `banner-1544x500.png` | 1544 × 500 | **PLACEHOLDER — replace before submission** |
 | `banner-772x250.png` | 772 × 250 | **PLACEHOLDER — replace before submission** |
 | `screenshot-1.png` … `screenshot-7.png` | see below | Real captures from a running install |
+
+## The icon sizes are not a matter of taste
+
+WordPress.org reads exactly three icon filenames: `icon-128x128`, `icon-256x256` and `icon.svg`.
+**Any other size is ignored in silence.** There is no warning, no upload error and nothing in the
+listing to notice: the plugin simply has no icon.
+
+So `icon-512x512.png` is kept here as the master to regenerate from, and is never the only icon
+present. `tests/dist-manifest.php` now asserts both read sizes exist at exactly their stated
+dimensions, because this directory is excluded from the zip and no other gate can see it.
+
+To regenerate after changing the master:
+
+```bash
+cd .wordpress-org
+sips -Z 256 icon-512x512.png --out icon-256x256.png
+sips -Z 128 icon-512x512.png --out icon-128x128.png
+```
 
 ## The placeholders
 

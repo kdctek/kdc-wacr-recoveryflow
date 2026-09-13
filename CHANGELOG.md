@@ -14,6 +14,8 @@ affected, followed by the detail.
 
 ### Changed
 
+- **The listing has real icon artwork, at the sizes WordPress.org actually reads.** The placeholder icon is replaced by the plugin's own mark. The new artwork arrived as a single 512x512 master, which the directory ignores in silence -- it reads `icon-128x128`, `icon-256x256` and `icon.svg` and nothing else -- so the listing would have shipped with no icon at all, with no warning anywhere to say so. Both read sizes are generated from the master, and `dist:check` now asserts the icons and banners exist at exactly the dimensions the directory expects, since this directory is excluded from the zip and no other gate can see it.
+
 - **The plugin now points at its own product site.** `Plugin URI` declared `wa.cr/recoveryflow`, a page that was never built, so the one link WordPress shows on the plugins screen was a 404 -- which is also how WordPress.org's review found it. It points at recoveryflow.wa.cr, the product site, instead.
 
 - **The three pages a shopper can be sent to now load their CSS as a stylesheet instead of carrying it inline.** The opt-out confirmation, the opt-out receipt and the page every dead recovery link renders are standalone documents -- no theme, no `wp_head()` -- so each one carried its own `<style>` block. WordPress.org's review flagged all three, and the guideline is right: the rules are now one enqueued file, registered and enqueued through `wp_enqueue_style()`, shared across the two pages of an opt-out and cached by the browser between them. Nothing about the pages looks different.
