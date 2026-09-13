@@ -1581,10 +1581,16 @@ $_SERVER['REQUEST_METHOD'] = 'POST';
 $_POST                     = array( 'rf_confirm' => '1' );
 ok( 'a POST with no nonce at all does not opt anybody out', ! $recoveryflow_confirmed->invoke( null ) );
 
-$_POST = array( 'rf_confirm' => '1', '_rf_nonce' => 'not-the-nonce' );
+$_POST = array(
+	'rf_confirm' => '1',
+	'_rf_nonce'  => 'not-the-nonce',
+);
 ok( 'nor does a POST carrying a wrong one', ! $recoveryflow_confirmed->invoke( null ) );
 
-$_POST = array( 'rf_confirm' => '1', '_rf_nonce' => wp_create_nonce( \WAcr\RecoveryFlow\Recovery\Recovery_Controller::OPT_OUT_NONCE ) );
+$_POST = array(
+	'rf_confirm' => '1',
+	'_rf_nonce'  => wp_create_nonce( \WAcr\RecoveryFlow\Recovery\Recovery_Controller::OPT_OUT_NONCE ),
+);
 ok( 'a POST from the confirmation page does', (bool) $recoveryflow_confirmed->invoke( null ) );
 
 $_SERVER['REQUEST_METHOD'] = 'GET';

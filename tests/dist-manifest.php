@@ -270,8 +270,8 @@ dist_ok(
  * place that can check them at all.
  */
 $listing_assets = array(
-	'.wordpress-org/icon-128x128.png'  => array( 128, 128 ),
-	'.wordpress-org/icon-256x256.png'  => array( 256, 256 ),
+	'.wordpress-org/icon-128x128.png'    => array( 128, 128 ),
+	'.wordpress-org/icon-256x256.png'    => array( 256, 256 ),
 	'.wordpress-org/banner-772x250.png'  => array( 772, 250 ),
 	'.wordpress-org/banner-1544x500.png' => array( 1544, 500 ),
 );
