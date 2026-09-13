@@ -16,6 +16,8 @@ Most sites lose more conversions than they finish. A shopper fills a cart and le
 
 **RecoveryFlow detects → WA.cr communicates → customer converts.**
 
+> **Who makes this.** RecoveryFlow and WA.cr are both products of KDC. WA.cr is our own WhatsApp Business messaging platform, and "WA.cr" is a registered trade name of ours in India. WhatsApp is a trademark of Meta Platforms, Inc. Neither RecoveryFlow nor WA.cr is affiliated with, endorsed by or sponsored by WhatsApp or Meta.
+
 = An active WA.cr account is required, for WhatsApp =
 
 RecoveryFlow is one half of a pair. It is the detection, consent and orchestration half; the WhatsApp half is [WA.cr](https://wa.cr), a separate third-party WhatsApp Business messaging platform with its own sign-up, terms and pricing. **The plugin cannot send a WhatsApp message on its own.**
