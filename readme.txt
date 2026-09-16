@@ -4,7 +4,7 @@ Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.1.3
+Stable tag: 0.1.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -188,61 +188,45 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 
 == Changelog ==
 
+= 0.1.4 =
+
+* **Security:** The WooCommerce add-to-cart early-capture path now verifies a dedicated RecoveryFlow nonce before accepting contact details or consent. Invalid or missing nonces are ignored by RecoveryFlow and do not block the normal WooCommerce add-to-cart action.
+* Bumps the plugin version to 0.1.4 in response to the WordPress.org review finding.
+
 = 0.1.3 =
 
-* **The three pages a shopper can be sent to load their styling as a stylesheet now, not inline.** The opt-out confirmation, the opt-out receipt and the page a dead recovery link renders each carried their own CSS. Nothing about them looks different; they just follow WordPress's own rules for loading it.
-* **The opt-out form carries a nonce as well as its one-time link.** It cannot lock anybody out of unsubscribing: if the nonce has aged out the page simply asks again rather than refusing.
-* **The plugin's description no longer contradicts this page about needing a WA.cr account.** It said an account was required, full stop. Detection and email recovery need none; only WhatsApp sending does.
-* **The listing says who makes RecoveryFlow, at the top.** RecoveryFlow and WA.cr are both KDC products, and neither is affiliated with WhatsApp or Meta.
+* The WordPress.org listing now has real icon artwork and points to the RecoveryFlow product site.
+* Customer-facing opt-out and recovery-link pages load their CSS as an enqueued stylesheet rather than inline styles.
+* The opt-out form carries a nonce without preventing an unsubscribe when a stale nonce is encountered.
+* The listing includes ownership and trademark attributions and clarifies which features need a WA.cr account.
+* `load_plugin_textdomain()` was removed because WordPress handles plugin translations itself.
 
 = 0.1.2 =
 
-* **Detecting an abandoned basket no longer depends on your WA.cr plan.** Any recovery source other than WooCommerce -- including the Gravity Forms integration that comes with the plugin -- used to be switched off unless your WA.cr workspace was on the Scale plan, and its hooks were never attached, so nothing from it was recorded. Spotting an abandoned form entry happens entirely on your own site and asks WA.cr for nothing, so no plan decides whether it runs. Sending still needs WA.cr.
-* **The workflow screen offered fewer kinds of workflow than the plugin would accept.** It went read-only without a WA.cr developer API, so a shop could not start an email-only workflow it was perfectly entitled to build. Only a step that sends a template from WordPress is refused now, and the notice says so.
+* Detection for Gravity Forms and other local integrations no longer depends on the WA.cr plan.
+* The workflow screen no longer becomes read-only when only a direct WhatsApp sending step is unavailable.
 
 = 0.1.1 =
 
-Eight fixes on top of the first release. Three came from running the plugin against real Gravity Forms and a real WA.cr hand-off for the first time, and nothing here changes what it is for.
-
-* **A reminder is no longer recorded as sent when WA.cr ran nothing.** The Auto Flow hand-off answers "200 OK" in three situations where nothing was sent at all: the workspace cannot run Auto Flows, the flow is paused or still a draft, or its trigger was never published. Those reminders were marked delivered. They are now held, tried again, and the reason is shown on the status screen.
-* **The plugin said the Auto Flow hand-off worked on any WA.cr plan. It does not** -- it needs a plan that can run a flow, which is WA.cr Growth and above. The listing, the setup screen, the connection screen, the dispatch setting and the refusal shown when a workflow cannot be saved all said otherwise, and a shop owner reading any of them could have chosen a plan that can never send.
-* **A Gravity Forms form can record consent**, through Gravity Forms' own Consent field, so recoveries from a form can be sent on a site that only messages people who agreed -- which is the default, and where a form recovery previously could never be sent at all.
-* **Somebody who filled in a form is no longer written down when the form kept nothing to reach them by.** Gravity Forms drops a phone number it cannot read as international, so a form asking for a number routinely produced an entry with no number on it.
-* **Each integration now says what it needs before it can message anyone**, on the Integrations screen, in its own words.
-* **A recovery says which integration it came from by name**, instead of showing a shop worker an internal id.
-* **WordPress can update the plugin.** A header left in the plugin file since the first commit told WordPress never to offer an update for it, which would have left every shop on the version it first installed.
-* **One file could be requested directly in a browser.** Every file in the plugin blocks that; this one did too, but too far down to be found.
+* Fixes reminders being recorded as sent when WA.cr ran nothing, corrects the WA.cr plan required for Auto Flow hand-off, adds Gravity Forms consent support, corrects international phone handling and restores normal WordPress update behaviour.
 
 = 0.1.0 =
-First release.
 
-* Detects abandoned WooCommerce carts and checkouts, on both the classic and the block checkout, and records one recovery per shopping session.
-* Picks up a phone number and email address as they are typed at the checkout, and records whether the shopper agreed to be messaged. Explicit consent is the default.
-* Can also ask before the checkout -- a short form below the basket, a field beside the "add to basket" button -- and can make the checkout's phone number compulsory. All three are off until you turn them on, each says what it costs, and all three work with scripts blocked and on block-based pages.
-* Recovers through WA.cr: either by handing the journey to an Auto Flow, which needs no API key and a plan that can run one (Growth and above), or by sending approved WhatsApp templates on a schedule this plugin decides. The second is included with WA.cr Scale and above.
-* Recovery email sent by WordPress itself, through the site's own mail configuration -- no WA.cr account, no API key and no plan. Every message carries the sender's postal address and an unsubscribe link that keeps working for thirty days, and the channel stays off until those are set.
-* Recovery links that rebuild the basket without wiping what the shopper has now, and stop working the moment the order is placed.
-* A form-based workflow editor that works with JavaScript switched off, a template picker that shows each blank in the template's own words, and quiet hours and frequency caps.
-* Admin screens built from core WordPress components: an overview, the recovery queue, one screen per recovery, integrations, six tabs of settings with linkable addresses, and a system status screen with a diagnostic report safe to paste into a support thread.
-* Acting on a recovery: stop it, try a failed one again, stop its links working, or record that a customer asked by telephone never to be messaged again -- one at a time, or on a page of the queue at once. A bulk action runs the same code and gives the same refusals, named by reference.
-* Opt-out honoured from every direction -- the unsubscribe link, an opt-out recorded in WA.cr, a STOP reported by an Auto Flow, or a shopkeeper acting on a phone call -- and the suppression survives a privacy erasure.
-* WordPress privacy export and erasure, plus erasure by phone number for the customers core's tools cannot find, and a scheduled clear-out of data nobody has a reason to keep.
-* A REST API under `/wp-json/kdc/v1/wacr/recoveryflow/`, capability-gated, with customer contact details masked unless revealing them is both permitted and asked for, and every reveal recorded.
-* WP-CLI: `wp recoveryflow status`, `tick`, `journeys` and `sources`. Contact details are always masked.
-* A Gravity Forms integration for save-and-continue drafts and entries whose payment never went through, and a documented interface for building your own.
-* Every screen checked against WCAG 2.2 AA on every build -- all the admin screens, every settings tab and the pages a customer sees -- plus a keyboard pass over the same screens.
-* Fully translatable, with the .pot shipped.
+* First release.
 
 == Upgrade Notice ==
 
+= 0.1.4 =
+Security update: the WooCommerce add-to-cart early-capture path now verifies a RecoveryFlow nonce before accepting its submitted contact data or consent. Normal WooCommerce add-to-cart behaviour is unchanged.
+
 = 0.1.3 =
-Housekeeping for the WordPress.org directory: the customer-facing pages load their CSS the way WordPress asks, the opt-out form carries a nonce without ever being able to refuse an unsubscribe, and the description no longer claims a WA.cr account is needed for the parts that do not need one.
+Housekeeping for the WordPress.org directory: customer-facing pages load their CSS as stylesheets, the opt-out form carries a nonce, and the description distinguishes WhatsApp requirements from local detection and email recovery.
 
 = 0.1.2 =
-Gravity Forms and every other integration now run whatever your WA.cr plan is -- detection happens on your own site and never needed a plan. The workflow screen no longer goes read-only when it should only be refusing one kind of step.
+Gravity Forms and other local integrations now run regardless of the WA.cr plan. The workflow editor only refuses steps that actually require unavailable direct sending.
 
 = 0.1.1 =
-Fixes reminders being recorded as sent when WA.cr ran nothing, corrects the WA.cr plan the WhatsApp hand-off actually needs (Growth and above), lets a Gravity Forms form record consent, and restores the plugin's ability to be updated at all.
+Fixes reminders being recorded as sent when WA.cr ran nothing, corrects the WhatsApp plan requirement, adds Gravity Forms consent and restores update support.
 
 = 0.1.0 =
 First release.
