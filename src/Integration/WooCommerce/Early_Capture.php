@@ -70,6 +70,11 @@ final class Early_Capture {
 	public const NONCE = 'recoveryflow_capture';
 
 	/**
+	 * The nonce action for the add-to-cart capture fields.
+	 */
+	public const ADD_TO_CART_NONCE = 'recoveryflow_add_to_cart';
+
+	/**
 	 * The phone field's name, on both points.
 	 */
 	public const FIELD_PHONE = 'recoveryflow_phone';
@@ -195,21 +200,32 @@ final class Early_Capture {
 	 */
 	public function render_product_field(): void {
 		echo $this->fields_markup( 'recoveryflow-atc' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- assembled and escaped in fields_markup().
+		wp_nonce_field( self::ADD_TO_CART_NONCE, '_recoveryflow_nonce' );
 	}
 
 	/**
-	 * Read the field out of WooCommerce's own add-to-cart request.
+	 * Read the RecoveryFlow fields out of WooCommerce's add-to-cart request.
 	 *
-	 * No nonce of ours: this is WooCommerce's form, WooCommerce's request and
-	 * WooCommerce's own protection, and the only thing being written is the
-	 * shopper's own session. Adding a second nonce here would refuse every
-	 * add-to-cart made from a theme that renders its own button.
+	 * The fields are rendered inside WooCommerce's existing form, so the
+	 * RecoveryFlow nonce travels with that form. A missing or invalid nonce only
+	 * prevents RecoveryFlow from accepting its own additional fields; it does
+	 * not block WooCommerce from adding the product.
 	 *
 	 * @return void
 	 */
 	public function capture_add_to_cart(): void {
 		try {
-			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WooCommerce's own add-to-cart request; see above.
+			if ( ! isset( $_POST['_recoveryflow_nonce'] ) ) {
+				return;
+			}
+
+			$nonce = sanitize_text_field( wp_unslash( $_POST['_recoveryflow_nonce'] ) );
+
+			if ( ! wp_verify_nonce( $nonce, self::ADD_TO_CART_NONCE ) ) {
+				return;
+			}
+
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing -- RecoveryFlow nonce verified above.
 			$this->take( $_POST );
 		} catch ( \Throwable $e ) {
 			$this->logger->error( 'wc_capture', 'Could not read the add-to-cart contact field.' );
