@@ -84,6 +84,7 @@ jobs:
             --exclude-from=.distignore \
             --exclude='.wordpress-org/' \
             --exclude='.git/' \
+            --exclude='svn/' \
             ./ svn/trunk/
 
       - name: Sync WordPress.org assets
