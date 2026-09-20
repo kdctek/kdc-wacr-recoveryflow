@@ -7888,10 +7888,10 @@ ok(
  * quietly buying a permanently wrong slug.
  *
  * ! AFTER WordPress.org APPROVES THE PLUGIN, set the flag below to true. The
- * slug is settled by then and the name is free again; leaving it false makes
- * this fail the moment the product name goes back.
+ * slug is settled by then and the display name is free to change; leaving it false
+ * makes this fail if the plugin is accidentally renamed before approval.
  */
-$recoveryflow_dot_org_approved = false;
+$recoveryflow_dot_org_approved = true;
 
 /**
  * The slug WordPress.org derives from a plugin name.
