@@ -1,0 +1,169 @@
+name: Deploy to WordPress.org
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Plugin version to deploy (for example 0.1.5)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy plugin and assets
+    runs-on: ubuntu-latest
+    env:
+      SVN_URL: https://plugins.svn.wordpress.org/kdc-wacr-recoveryflow
+      PLUGIN_SLUG: kdc-wacr-recoveryflow
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version: $VERSION"
+            exit 1
+          fi
+
+          HEADER_VERSION="$(awk -F': ' '/^ \* Version:/{print $2; exit}' kdc-wacr-recoveryflow.php | tr -d '\r')"
+          README_VERSION="$(awk -F': ' '/^Stable tag:/{print $2; exit}' readme.txt | tr -d '\r')"
+
+          if [ "$HEADER_VERSION" != "$VERSION" ]; then
+            echo "Plugin header version is $HEADER_VERSION, expected $VERSION"
+            exit 1
+          fi
+
+          if [ "$README_VERSION" != "$VERSION" ]; then
+            echo "Stable tag is $README_VERSION, expected $VERSION"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Install Subversion
+        run: sudo apt-get update && sudo apt-get install -y subversion
+
+      - name: Check out WordPress.org SVN
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          svn checkout "$SVN_URL" svn --username "$SVN_USERNAME" --password "$SVN_PASSWORD" --non-interactive --trust-server-cert
+
+      - name: Build trunk from the Git release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          rm -rf svn/trunk
+          mkdir -p svn/trunk
+
+          rsync -a --delete \
+            --exclude-from=.distignore \
+            --exclude='.wordpress-org/' \
+            --exclude='.git/' \
+            ./ svn/trunk/
+
+      - name: Sync WordPress.org assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p svn/assets
+
+          find svn/assets -type f -delete
+
+          cp .wordpress-org/banner-1544x500.png svn/assets/
+          cp .wordpress-org/banner-772x250.png svn/assets/
+          cp .wordpress-org/icon-128x128.png svn/assets/
+          cp .wordpress-org/icon-256x256.png svn/assets/
+          cp .wordpress-org/icon-512x512.png svn/assets/
+
+          find .wordpress-org -maxdepth 1 -type f -name 'screenshot-*.png' -exec cp {} svn/assets/ \;
+
+      - name: Show SVN changes
+        run: |
+          cd svn
+          svn status
+
+      - name: Commit trunk and assets
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          cd svn
+
+          svn add --force trunk assets >/dev/null
+
+          svn status
+
+          if svn status | grep -q '^[AMDR?]'; then
+            svn commit trunk assets \
+              -m "Release ${VERSION}" \
+              --username "$SVN_USERNAME" \
+              --password "$SVN_PASSWORD" \
+              --non-interactive \
+              --trust-server-cert
+          else
+            echo "No SVN changes to commit."
+          fi
+
+      - name: Create WordPress.org SVN tag
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          cd svn
+
+          if svn list "tags/${VERSION}" >/dev/null 2>&1; then
+            echo "SVN tag ${VERSION} already exists; leaving it unchanged."
+            exit 0
+          fi
+
+          svn mkdir "tags/${VERSION}" \
+            -m "Create ${VERSION} tag" \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            --non-interactive \
+            --trust-server-cert
+
+          svn copy trunk "tags/${VERSION}" \
+            -m "Tag ${VERSION}" \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            --non-interactive \
+            --trust-server-cert
+
+      - name: Deployment summary
+        run: |
+          echo "Deployed RecoveryFlow by WA.cr ${{ steps.version.outputs.version }}"
+          echo "SVN: https://plugins.svn.wordpress.org/kdc-wacr-recoveryflow"
+          echo "Plugin: https://wordpress.org/plugins/kdc-wacr-recoveryflow/"
