@@ -153,7 +153,7 @@ jobs:
             exit 0
           fi
 
-          svn copy trunk "tags/${VERSION}" \
+          svn copy trunk "${SVN_URL}/tags/${VERSION}" \
             -m "Tag ${VERSION}" \
             --username "$SVN_USERNAME" \
             --password "$SVN_PASSWORD" \
