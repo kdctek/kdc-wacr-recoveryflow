@@ -1,10 +1,10 @@
-=== KDC WAcr RecoveryFlow ===
+=== RecoveryFlow by WA.cr ===
 Contributors: kdctek, vachan
 Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.1.4
+Stable tag: 0.1.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -129,7 +129,7 @@ RecoveryFlow keeps its data in its own tables in your WordPress database. It sto
 
 1. **Create a WA.cr account** at [https://wa.cr](https://wa.cr) and connect a WhatsApp Business sender to your workspace. This is required: without it the plugin can detect abandoned journeys but cannot send anything.
 2. Upload the `kdc-wacr-recoveryflow` folder to `/wp-content/plugins/`, or install it from Plugins › Add New.
-3. Activate **KDC WAcr RecoveryFlow**. The plugin needs PHP 8.0 and WordPress 6.5 or later. WooCommerce 8.0 or later is needed only for the WooCommerce integration.
+3. Activate **RecoveryFlow by WA.cr**. The plugin needs PHP 8.0 and WordPress 6.5 or later. WooCommerce 8.0 or later is needed only for the WooCommerce integration.
 4. Go to **RecoveryFlow › Settings › WA.cr** and either paste the hook URL and signing secret from a WA.cr Auto Flow with a "webhook received" trigger (WA.cr Growth and above), or paste a WA.cr API key, press **Test connection**, choose a sender and an approved template, and map its variables (WA.cr Scale and above).
 5. Go to **RecoveryFlow › Integrations** and enable WooCommerce. In the default eligibility mode the consent checkbox appears on checkout automatically.
 6. Watch **RecoveryFlow › Overview** and **Recovery Journeys** as journeys start, and **System Status** for anything that needs attention. Every warning links straight to the setting that fixes it.
@@ -187,6 +187,11 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 7. The consent checkbox on the WooCommerce block checkout.
 
 == Changelog ==
+
+= 0.1.5 =
+
+* **Published to the WordPress.org Plugin Repository.**
+
 
 = 0.1.4 =
 
