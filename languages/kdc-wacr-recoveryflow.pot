@@ -2621,23 +2621,23 @@ msgstr ""
 msgid "Yes, %s may send me a WhatsApp message about my order if I do not finish checking out."
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:276
+#: src/Integration/WooCommerce/Early_Capture.php:292
 msgid "Save this basket"
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:277
+#: src/Integration/WooCommerce/Early_Capture.php:293
 msgid "Leave a way to reach you and we can send you a link back to this basket if you do not finish. You can stop the reminders at any time."
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:282
+#: src/Integration/WooCommerce/Early_Capture.php:298
 msgid "Save my basket"
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:391
+#: src/Integration/WooCommerce/Early_Capture.php:407
 msgid "Mobile number"
 msgstr ""
 
-#: src/Integration/WooCommerce/Early_Capture.php:399
+#: src/Integration/WooCommerce/Early_Capture.php:415
 msgid "Email address"
 msgstr ""
 
