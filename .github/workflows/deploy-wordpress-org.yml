@@ -148,13 +148,6 @@ jobs:
             exit 0
           fi
 
-          svn mkdir "tags/${VERSION}" \
-            -m "Create ${VERSION} tag" \
-            --username "$SVN_USERNAME" \
-            --password "$SVN_PASSWORD" \
-            --non-interactive \
-            --trust-server-cert
-
           svn copy trunk "tags/${VERSION}" \
             -m "Tag ${VERSION}" \
             --username "$SVN_USERNAME" \
