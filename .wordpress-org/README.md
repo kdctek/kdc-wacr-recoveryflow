@@ -6,9 +6,9 @@ asserts that nothing under `.wordpress-org/` reaches the zip. On WordPress.org
 they live in the `/assets` directory of the plugin's SVN repository, alongside
 `/trunk` and `/tags`, not inside the plugin itself.
 
-## ! The plugin is submitted under a different name from the one it ships under
+## The plugin display name and permanent slug
 
-**Submission name: `KDC WAcr RecoveryFlow`. Product name: `RecoveryFlow by WA.cr`.**
+**Plugin name: `RecoveryFlow by WA.cr`. Permanent slug: `kdc-wacr-recoveryflow`.**
 
 WordPress.org derives the plugin's permanent slug from `Plugin Name`, and **the slug cannot be
 changed once the plugin is approved**. It is also what .org names its language packs after, so a
@@ -26,7 +26,7 @@ So the plugin is submitted under the first name and renamed to the second afterw
 name** can be changed freely once the slug is fixed; the slug cannot be changed at all. Doing it
 the other way round would buy a permanently wrong slug in exchange for a nicer name for a week.
 
-### After WordPress.org approves the plugin
+### After WordPress.org approval
 
 Three declarations carry the submission name, and nothing else does -- `src/` never displays the
 full name, so no translated string is affected:
