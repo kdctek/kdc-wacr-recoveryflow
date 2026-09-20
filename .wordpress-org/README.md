@@ -10,39 +10,29 @@ they live in the `/assets` directory of the plugin's SVN repository, alongside
 
 **Plugin name: `RecoveryFlow by WA.cr`. Permanent slug: `kdc-wacr-recoveryflow`.**
 
-WordPress.org derives the plugin's permanent slug from `Plugin Name`, and **the slug cannot be
-changed once the plugin is approved**. It is also what .org names its language packs after, so a
-slug that is not the text domain means every translation from translate.wordpress.org silently
-fails to load.
+The plugin has been approved under the permanent slug `kdc-wacr-recoveryflow`. The display name can
+therefore be `RecoveryFlow by WA.cr` without changing the slug or text domain.
 
 `sanitize_title()` on a real WordPress gives:
 
 | Name | Derived slug | |
 | --- | --- | --- |
-| `KDC WAcr RecoveryFlow` | `kdc-wacr-recoveryflow` | matches the text domain |
-| `RecoveryFlow by WA.cr` | `recoveryflow-by-wa-cr` | does **not** |
+| `KDC WAcr RecoveryFlow` | `kdc-wacr-recoveryflow` | original submission name |
+| `RecoveryFlow by WA.cr` | `recoveryflow-by-wa-cr` | would not match the permanent slug |
 
-So the plugin is submitted under the first name and renamed to the second afterwards. A **display
-name** can be changed freely once the slug is fixed; the slug cannot be changed at all. Doing it
-the other way round would buy a permanently wrong slug in exchange for a nicer name for a week.
+The permanent slug and text domain must remain `kdc-wacr-recoveryflow`. The original submission name
+is retained only as historical context for the slug-safety test.
 
-### After WordPress.org approval
+### Current declarations
 
-Three declarations carry the submission name, and nothing else does -- `src/` never displays the
-full name, so no translated string is affected:
+The live display name is carried in these listing declarations:
 
 1. `kdc-wacr-recoveryflow.php` -- the `Plugin Name:` header.
 2. `readme.txt` -- the `=== ... ===` title line.
-3. `readme.txt` -- "Activate **KDC WAcr RecoveryFlow**" in Installation, which names the entry a
-   merchant clicks in their plugins list.
+3. `readme.txt` -- "Activate **RecoveryFlow by WA.cr**" in Installation.
 
-Then set `$recoveryflow_dot_org_approved = true` in `tests/smoke.php` (it is commented with why),
-and regenerate the `.pot` in the same commit -- its `Project-Id-Version` carries the name.
-**Until that flag is flipped the suite refuses any name that does not derive `kdc-wacr-recoveryflow`**,
-which is deliberate: renaming a day early is the one mistake here that cannot be undone.
-
-The readme's prose deliberately says plain "RecoveryFlow" throughout, which is true under either
-name and needs no undoing.
+The smoke test keeps the original submission name only as a historical slug-safety assertion, while
+`$recoveryflow_dot_org_approved` is true because the plugin has been approved.
 
 ## What is here
 
