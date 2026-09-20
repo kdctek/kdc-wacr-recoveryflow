@@ -45,8 +45,8 @@ jobs:
             exit 1
           fi
 
-          HEADER_VERSION="$(awk -F': ' '/^ \* Version:/{print $2; exit}' kdc-wacr-recoveryflow.php | tr -d '\r')"
-          README_VERSION="$(awk -F': ' '/^Stable tag:/{print $2; exit}' readme.txt | tr -d '\r')"
+          HEADER_VERSION="$(sed -n 's/^ *\\* Version:[[:space:]]*//p' kdc-wacr-recoveryflow.php | head -n1 | tr -d '\\r')"
+          README_VERSION="$(sed -n 's/^Stable tag:[[:space:]]*//p' readme.txt | head -n1 | tr -d '\\r')"
 
           if [ "$HEADER_VERSION" != "$VERSION" ]; then
             echo "Plugin header version is $HEADER_VERSION, expected $VERSION"
