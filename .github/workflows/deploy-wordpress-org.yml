@@ -40,13 +40,13 @@ jobs:
             VERSION="${GITHUB_REF_NAME#v}"
           fi
 
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! "$VERSION" =~ ^[0-9]+.[0-9]+.[0-9]+$ ]]; then
             echo "Invalid version: $VERSION"
             exit 1
           fi
 
-          HEADER_VERSION="$(sed -n 's/^ *\\* Version:[[:space:]]*//p' kdc-wacr-recoveryflow.php | head -n1 | tr -d '\\r')"
-          README_VERSION="$(sed -n 's/^Stable tag:[[:space:]]*//p' readme.txt | head -n1 | tr -d '\\r')"
+          HEADER_VERSION="$(sed -n 's/^ *\* Version:[[:space:]]*//p' kdc-wacr-recoveryflow.php | head -n1 | tr -d '\r')"
+          README_VERSION="$(sed -n 's/^Stable tag:[[:space:]]*//p' readme.txt | head -n1 | tr -d '\r')"
 
           if [ "$HEADER_VERSION" != "$VERSION" ]; then
             echo "Plugin header version is $HEADER_VERSION, expected $VERSION"
