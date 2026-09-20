@@ -254,7 +254,7 @@ $pot = (string) file_get_contents( $root . '/languages/kdc-wacr-recoveryflow.pot
 
 dist_ok(
 	'the .pot names this version',
-	false !== strpos( $pot, 'KDC WAcr RecoveryFlow ' . $version )
+	false !== strpos( $pot, 'RecoveryFlow by WA.cr ' . $version )
 );
 
 /*
