@@ -144,7 +144,11 @@ jobs:
 
           cd svn
 
-          if svn list "tags/${VERSION}" >/dev/null 2>&1; then
+          if svn list "${SVN_URL}/tags/${VERSION}" \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            --non-interactive \
+            --trust-server-cert >/dev/null 2>&1; then
             echo "SVN tag ${VERSION} already exists; leaving it unchanged."
             exit 0
           fi
