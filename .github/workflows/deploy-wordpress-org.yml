@@ -106,6 +106,7 @@ jobs:
           cp .wordpress-org/icon-128x128.png svn/assets/
           cp .wordpress-org/icon-256x256.png svn/assets/
           cp .wordpress-org/icon-512x512.png svn/assets/
+          cp .wordpress-org/icon.svg svn/assets/
 
           find .wordpress-org -maxdepth 1 -type f -name 'screenshot-*.png' -exec cp {} svn/assets/ \;
 
@@ -127,7 +128,7 @@ jobs:
           echo "SVN trunk status:"
           svn status trunk
 
-          if svn status trunk | grep -qE '^[AMDR?]'; then
+          if [ -n "$(svn status --quiet trunk)" ]; then
             svn commit trunk \
               -m "Release ${VERSION}" \
               --username "$SVN_USERNAME" \
@@ -155,7 +156,7 @@ jobs:
           echo "SVN asset status:"
           svn status assets
 
-          if svn status assets | grep -qE '^[AMDR?]'; then
+          if [ -n "$(svn status --quiet assets)" ]; then
             svn commit assets \
               -m "Sync WordPress.org assets for ${VERSION}" \
               --username "$SVN_USERNAME" \
@@ -187,6 +188,7 @@ jobs:
             "icon-128x128.png"
             "icon-256x256.png"
             "icon-512x512.png"
+            "icon.svg"
           )
 
           for asset in "${expected_assets[@]}"; do
@@ -215,6 +217,31 @@ jobs:
           done
 
           echo "All expected WordPress.org assets are present remotely."
+
+      - name: Verify WordPress.org trunk
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          echo "Remote WordPress.org trunk:"
+          svn list "$SVN_URL/trunk/" \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            --non-interactive \
+            --trust-server-cert
+
+          if ! svn list "$SVN_URL/trunk/kdc-wacr-recoveryflow.php" \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            --non-interactive \
+            --trust-server-cert >/dev/null 2>&1; then
+            echo "ERROR: Plugin main file is missing from remote WordPress.org trunk."
+            exit 1
+          fi
+
+          echo "WordPress.org trunk is populated."
 
       - name: Create WordPress.org SVN tag
         env:
