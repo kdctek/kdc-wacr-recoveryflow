@@ -151,10 +151,12 @@ jobs:
 
           # Explicitly add the asset files. This is intentionally separate from
           # trunk so an empty /assets repository cannot be hidden by trunk status.
-          svn add --force assets >/dev/null
+          svn add --force assets
 
           echo "SVN asset status:"
           svn status assets
+          echo "SVN asset status (porcelain):"
+          svn status --porcelain assets
 
           if [ -n "$(svn status --quiet assets)" ]; then
             svn commit assets \
@@ -166,6 +168,22 @@ jobs:
           else
             echo "No asset changes to commit."
           fi
+
+      - name: Ensure WordPress.org assets are versioned
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cd svn
+
+          echo "Checking for unversioned asset files..."
+          if [ -n "$(svn status --unversioned assets)" ]; then
+            echo "ERROR: Unversioned files remain in SVN assets working copy:"
+            svn status assets
+            exit 1
+          fi
+
+          echo "All local WordPress.org assets are versioned."
 
       - name: Verify WordPress.org assets
         env:
