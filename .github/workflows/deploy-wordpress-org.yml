@@ -151,7 +151,7 @@ jobs:
 
           # Explicitly add the asset files. This is intentionally separate from
           # trunk so an empty /assets repository cannot be hidden by trunk status.
-          svn add --force assets/*.png >/dev/null
+          svn add --force assets >/dev/null
 
           echo "SVN asset status:"
           svn status assets
