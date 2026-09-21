@@ -70,7 +70,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          svn checkout "$SVN_URL" svn --username "$SVN_USERNAME" --password "$SVN_PASSWORD" --non-interactive --trust-server-cert
+          svn checkout "$SVN_URL" svn \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            --non-interactive \
+            --trust-server-cert
 
       - name: Build trunk from the Git release
         shell: bash
@@ -94,6 +98,7 @@ jobs:
 
           mkdir -p svn/assets
 
+          # Remove the old local asset files but keep the SVN working-copy metadata.
           find svn/assets -type f -delete
 
           cp .wordpress-org/banner-1544x500.png svn/assets/
@@ -104,12 +109,10 @@ jobs:
 
           find .wordpress-org -maxdepth 1 -type f -name 'screenshot-*.png' -exec cp {} svn/assets/ \;
 
-      - name: Show SVN changes
-        run: |
-          cd svn
-          svn status
+          echo "Assets prepared locally:"
+          find svn/assets -maxdepth 1 -type f -printf '%f %s bytes\n' | sort
 
-      - name: Commit trunk and assets
+      - name: Commit trunk
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
@@ -119,20 +122,99 @@ jobs:
 
           cd svn
 
-          svn add --force trunk assets >/dev/null
+          svn add --force trunk >/dev/null
 
-          svn status
+          echo "SVN trunk status:"
+          svn status trunk
 
-          if svn status | grep -q '^[AMDR?]'; then
-            svn commit trunk assets \
+          if svn status trunk | grep -qE '^[AMDR?]'; then
+            svn commit trunk \
               -m "Release ${VERSION}" \
               --username "$SVN_USERNAME" \
               --password "$SVN_PASSWORD" \
               --non-interactive \
               --trust-server-cert
           else
-            echo "No SVN changes to commit."
+            echo "No trunk changes to commit."
           fi
+
+      - name: Commit WordPress.org assets
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          cd svn
+
+          # Explicitly add the asset files. This is intentionally separate from
+          # trunk so an empty /assets repository cannot be hidden by trunk status.
+          svn add --force assets/*.png >/dev/null
+
+          echo "SVN asset status:"
+          svn status assets
+
+          if svn status assets | grep -qE '^[AMDR?]'; then
+            svn commit assets \
+              -m "Sync WordPress.org assets for ${VERSION}" \
+              --username "$SVN_USERNAME" \
+              --password "$SVN_PASSWORD" \
+              --non-interactive \
+              --trust-server-cert
+          else
+            echo "No asset changes to commit."
+          fi
+
+      - name: Verify WordPress.org assets
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          echo "Remote WordPress.org assets:"
+          svn list "$SVN_URL/assets/" \
+            --username "$SVN_USERNAME" \
+            --password "$SVN_PASSWORD" \
+            --non-interactive \
+            --trust-server-cert
+
+          expected_assets=(
+            "banner-1544x500.png"
+            "banner-772x250.png"
+            "icon-128x128.png"
+            "icon-256x256.png"
+            "icon-512x512.png"
+          )
+
+          for asset in "${expected_assets[@]}"; do
+            if ! svn list "$SVN_URL/assets/$asset" \
+              --username "$SVN_USERNAME" \
+              --password "$SVN_PASSWORD" \
+              --non-interactive \
+              --trust-server-cert >/dev/null 2>&1; then
+              echo "ERROR: Missing remote WordPress.org asset: $asset"
+              exit 1
+            fi
+          done
+
+          for asset in .wordpress-org/screenshot-*.png; do
+            [ -e "$asset" ] || continue
+            filename="${asset##*/}"
+
+            if ! svn list "$SVN_URL/assets/$filename" \
+              --username "$SVN_USERNAME" \
+              --password "$SVN_PASSWORD" \
+              --non-interactive \
+              --trust-server-cert >/dev/null 2>&1; then
+              echo "ERROR: Missing remote WordPress.org screenshot: $filename"
+              exit 1
+            fi
+          done
+
+          echo "All expected WordPress.org assets are present remotely."
 
       - name: Create WordPress.org SVN tag
         env:
@@ -144,7 +226,7 @@ jobs:
 
           cd svn
 
-          if svn list "${SVN_URL}/tags/${VERSION}" \
+          if svn list "$SVN_URL/tags/${VERSION}" \
             --username "$SVN_USERNAME" \
             --password "$SVN_PASSWORD" \
             --non-interactive \
@@ -153,7 +235,7 @@ jobs:
             exit 0
           fi
 
-          svn copy trunk "${SVN_URL}/tags/${VERSION}" \
+          svn copy trunk "$SVN_URL/tags/${VERSION}" \
             -m "Tag ${VERSION}" \
             --username "$SVN_USERNAME" \
             --password "$SVN_PASSWORD" \
