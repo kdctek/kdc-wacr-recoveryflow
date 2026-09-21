@@ -98,7 +98,6 @@ jobs:
 
           mkdir -p svn/assets
 
-          # Remove the old local asset files but keep the SVN working-copy metadata.
           find svn/assets -type f -delete
 
           cp .wordpress-org/banner-1544x500.png svn/assets/
@@ -123,12 +122,12 @@ jobs:
 
           cd svn
 
-          svn add --force trunk >/dev/null
+          svn add --force --no-ignore trunk
 
           echo "SVN trunk status:"
-          svn status trunk
+          svn status --no-ignore trunk
 
-          if [ -n "$(svn status --quiet trunk)" ]; then
+          if svn status --no-ignore trunk | grep -qE '^[?AMDR~!]'; then
             svn commit trunk \
               -m "Release ${VERSION}" \
               --username "$SVN_USERNAME" \
@@ -149,16 +148,13 @@ jobs:
 
           cd svn
 
-          # Explicitly add the asset files. This is intentionally separate from
-          # trunk so an empty /assets repository cannot be hidden by trunk status.
-          svn add --force assets
+          # --no-ignore is important because some SVN environments ignore SVG files.
+          svn add --force --no-ignore assets
 
           echo "SVN asset status:"
-          svn status assets
-          echo "SVN asset status (porcelain):"
-          svn status --porcelain assets
+          svn status --no-ignore assets
 
-          if [ -n "$(svn status --quiet assets)" ]; then
+          if svn status --no-ignore assets | grep -qE '^[?AMDR~!]'; then
             svn commit assets \
               -m "Sync WordPress.org assets for ${VERSION}" \
               --username "$SVN_USERNAME" \
@@ -177,9 +173,9 @@ jobs:
           cd svn
 
           echo "Checking for unversioned asset files..."
-          if [ -n "$(svn status --unversioned assets)" ]; then
+          if svn status --no-ignore assets | grep -q '^?'; then
             echo "ERROR: Unversioned files remain in SVN assets working copy:"
-            svn status assets
+            svn status --no-ignore assets
             exit 1
           fi
 
@@ -189,7 +185,6 @@ jobs:
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
-          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
