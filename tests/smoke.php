@@ -4819,14 +4819,33 @@ ok( 'and one Gravity Forms has purged or consumed is', $recoveryflow_gf->is_conv
  * The backfill, which is the reason this adapter is pollable at all. A merchant
  * installing RecoveryFlow onto a site with four hundred unpaid entries gets
  * nothing from any of them: the submissions happened and nothing was listening.
+ *
+ * Every date here is relative to now. The first poll looks back thirty days from
+ * the real clock, so a fixture dated on a calendar ages out of its own window: this
+ * block was written with September dates and went red on 6 October without a line
+ * of code changing. A cursor dated in the future goes off the same way, later.
  */
+$recoveryflow_days_ago = static fn ( int $days, string $time = '10:00:00' ): string => gmdate( 'Y-m-d', time() - ( $days * DAY_IN_SECONDS ) ) . ' ' . $time;
+
 GFAPI::$entries = array(
-	55 => $recoveryflow_entry,
+	54 => array_replace(
+		$recoveryflow_entry,
+		array(
+			'id'           => 54,
+			'date_created' => $recoveryflow_days_ago( 31 ),
+		)
+	),
+	55 => array_replace(
+		$recoveryflow_entry,
+		array(
+			'date_created' => $recoveryflow_days_ago( 3 ),
+		)
+	),
 	56 => array_replace(
 		$recoveryflow_entry,
 		array(
 			'id'             => 56,
-			'date_created'   => '2026-09-02 10:00:00',
+			'date_created'   => $recoveryflow_days_ago( 2 ),
 			'payment_status' => 'Paid',
 		)
 	),
@@ -4834,17 +4853,19 @@ GFAPI::$entries = array(
 		$recoveryflow_entry,
 		array(
 			'id'           => 57,
-			'date_created' => '2026-09-03 10:00:00',
+			'date_created' => $recoveryflow_days_ago( 1 ),
 		)
 	),
 );
 GFAPI::$asked = array();
 
 $recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, null );
+$recoveryflow_keys  = array_map( static fn ( Event_Draft $d ): string => $d->dedupe_key, $recoveryflow_batch->drafts );
 
 check( 'the backfill finds the unpaid entries', count( $recoveryflow_batch->drafts ), 2 );
-check( 'and skips the paid one, exactly as the live path would', array_map( static fn ( Event_Draft $d ): string => $d->dedupe_key, $recoveryflow_batch->drafts ), array( 'entry:55', 'entry:57' ) );
-check( 'and stops at the newest row it read', $recoveryflow_batch->cursor, '2026-09-03 10:00:00' );
+check( 'and skips the paid one, exactly as the live path would', $recoveryflow_keys, array( 'entry:55', 'entry:57' ) );
+ok( 'and the first look stops thirty days back, so an install does not chase last year', ! in_array( 'entry:54', $recoveryflow_keys, true ) );
+check( 'and stops at the newest row it read', $recoveryflow_batch->cursor, $recoveryflow_days_ago( 1 ) );
 ok( 'and does not claim there is more when it read a short page', ! $recoveryflow_batch->has_more );
 check( 'and it asked only for active entries', GFAPI::$asked[0]['search']['status'], 'active' );
 check( 'oldest first, or a cursor would step over rows for ever', GFAPI::$asked[0]['sort']['direction'], 'ASC' );
@@ -4852,16 +4873,17 @@ check( 'oldest first, or a cursor would step over rows for ever', GFAPI::$asked[
 $recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 1, null );
 ok( 'a full page says there is more to read', $recoveryflow_batch->has_more );
 
-$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, '2026-09-03 00:00:00' );
+$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, $recoveryflow_days_ago( 1, '00:00:00' ) );
 check( 'and a cursor resumes rather than starting again', count( $recoveryflow_batch->drafts ), 1 );
 
 // Nothing new must not clear the cursor, or the next run reads the whole window
 // a second time, for ever.
-$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, '2027-01-01 00:00:00' );
-check( 'an empty page keeps its place', $recoveryflow_batch->cursor, '2027-01-01 00:00:00' );
+$recoveryflow_tomorrow = $recoveryflow_days_ago( -1, '00:00:00' );
+$recoveryflow_batch    = $recoveryflow_gf->detect_recovery_events( 10, $recoveryflow_tomorrow );
+check( 'an empty page keeps its place', $recoveryflow_batch->cursor, $recoveryflow_tomorrow );
 
 GFAPI::$fail        = true;
-$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, '2026-09-01 00:00:00' );
+$recoveryflow_batch = $recoveryflow_gf->detect_recovery_events( 10, $recoveryflow_days_ago( 3, '00:00:00' ) );
 check( 'and Gravity Forms refusing to answer costs nothing but the run', count( $recoveryflow_batch->drafts ), 0 );
 GFAPI::$fail = false;
 
