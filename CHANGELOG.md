@@ -10,6 +10,8 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-06
+
 ### Added
 
 - **A workflow can now skip shoppers who keep ignoring recoveries.** The new check, "the customer has ignored fewer than a set number of earlier recoveries" (`customer.ignored_fewer_than`, 2 unless you set another number from 1 to 20), stops a journey for somebody who let that many earlier recoveries end without opening the link, replying or buying. A recovery counts only if it sent at least one message. Opt-outs, failures and unreachable shoppers never count, and neither does a journey the check itself stopped before sending, so the rule cannot talk somebody into silence. Only the last 180 days count; the `recoveryflow_ignored_lookback_days` filter changes that. Placed in front of a last touch that carries a discount, it stops that discount going to the people least likely to use it. It saves billed WhatsApp conversations and discount margin; it does not recover more baskets. It uses only the shop's own recovery history, so it works on every plan with no Google or WA.cr dependency. It is not added to the default workflows, so nobody's messages change until they add it. Email link scanners record clicks, so an email-only recovery is less likely to count as ignored: every mistake it can make is towards sending one more message.
@@ -122,7 +124,8 @@ First release. RecoveryFlow detects abandoned journeys across WordPress commerce
 - Personal data is removed or masked from logs.
 
 [0.1.5]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.4...v0.1.5
-[Unreleased]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.5...v0.2.0
 [0.1.4]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.2...v0.1.3

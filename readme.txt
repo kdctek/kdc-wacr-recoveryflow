@@ -4,7 +4,7 @@ Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.2.0
+Stable tag: 0.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -202,6 +202,13 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 
 == Changelog ==
 
+= 0.2.1 =
+
+* **A workflow can now skip shoppers who keep ignoring recoveries.** The new check "the customer has ignored fewer than a set number of earlier recoveries" (2 unless you set a number from 1 to 20) stops a journey for somebody who let that many earlier recoveries end without opening the link, replying or buying. Only the last 180 days count, and it is not added to the default workflows, so nothing changes until you add it.
+* **Fixed: a shopper who comes back after the retention period is recovered again.** Anyone whose last recovery finished more than the retention period ago (90 days by default) was silently never messaged again. Opt-outs, and erasures somebody asked for, still hold.
+* **Fixed: a STOP reported by a WA.cr flow for a number RecoveryFlow does not hold is now recorded**, so the first basket that number leaves is not messaged.
+* **Fixed: a check's number can be set in the workflow editor.** Re-saving a workflow no longer turns a basket-amount threshold into the shop's minimum.
+
 = 0.2.0 =
 
 * **Recovered visits now show in Google Analytics as RecoveryFlow traffic, not as "direct".** A recovery link redirects to the shop with `utm_source=recoveryflow`, `utm_medium` set to the channel, `utm_campaign` set to the workflow and `utm_content` set to the step. On by default; it sends nothing anywhere.
@@ -241,6 +248,9 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 * First release.
 
 == Upgrade Notice ==
+
+= 0.2.1 =
+Shoppers who come back after the retention period are recovered again instead of being silently skipped, and workflows gain an optional check that skips shoppers who keep ignoring recoveries.
 
 = 0.2.0 =
 Recovery links now carry UTM tags so recovered visits show in Google Analytics, and journeys can optionally be reported to your own GA4 property (off until you set it up). Includes a database update that runs on its own after updating.
