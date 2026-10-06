@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Recovery;
 
+use WAcr\RecoveryFlow\Analytics\Utm_Tagger;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Core\Rewrites;
@@ -158,6 +159,13 @@ final class Recovery_Controller {
 	private Clock $clock;
 
 	/**
+	 * Adds campaign tags to the restore redirect.
+	 *
+	 * @var Utm_Tagger
+	 */
+	private Utm_Tagger $utm;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Attempt_Repository $attempts  Attempt ledger.
@@ -168,6 +176,7 @@ final class Recovery_Controller {
 	 * @param Logger             $logger    Logger.
 	 * @param Clock              $clock     Clock.
 	 * @param Suppressor         $suppressor The one implementation of "stop messaging me".
+	 * @param Utm_Tagger         $utm        Adds campaign tags to the restore redirect.
 	 */
 	public function __construct(
 		Attempt_Repository $attempts,
@@ -177,7 +186,8 @@ final class Recovery_Controller {
 		Rate_Limiter $limiter,
 		Logger $logger,
 		Clock $clock,
-		Suppressor $suppressor
+		Suppressor $suppressor,
+		Utm_Tagger $utm
 	) {
 		$this->attempts   = $attempts;
 		$this->journeys   = $journeys;
@@ -187,6 +197,7 @@ final class Recovery_Controller {
 		$this->logger     = $logger;
 		$this->clock      = $clock;
 		$this->suppressor = $suppressor;
+		$this->utm        = $utm;
 	}
 
 	/**
@@ -321,7 +332,7 @@ final class Recovery_Controller {
 			return;
 		}
 
-		$this->restore( $journey );
+		$this->restore( $journey, $attempt );
 	}
 
 	/**
@@ -351,9 +362,10 @@ final class Recovery_Controller {
 	 * Put the customer back where they left off and send them there.
 	 *
 	 * @param Recovery_Journey $journey The journey the token belongs to.
+	 * @param Attempt          $attempt The message whose link was tapped.
 	 * @return void
 	 */
-	private function restore( Recovery_Journey $journey ): void {
+	private function restore( Recovery_Journey $journey, Attempt $attempt ): void {
 		// Counted only for a real browser. WhatsApp fetches this URL once per
 		// delivered message to build its preview card, so counting the fetch
 		// would record a click for every recipient at the moment of delivery
@@ -421,6 +433,10 @@ final class Recovery_Controller {
 
 			return;
 		}
+
+		// Tagged after validation, so the check above judged the adapter's
+		// own address; the tags change only the query string, never the host.
+		$safe = $this->utm->tag( $safe, $journey, $attempt );
 
 		$this->send_headers();
 

@@ -33,7 +33,7 @@ defined( 'ABSPATH' ) || exit;
  * WP-Cron calls and what `wp recoveryflow tick` calls.
  *
  * **It can send real reminders, and it says so before it is pressed.** The
- * dispatch pass is one of the five, so this spends money and reaches real
+ * dispatch pass is one of them, so this spends money and reaches real
  * people. That is stated next to the button rather than discovered afterwards,
  * the same way the Auto Flow test push states that it really runs your flow.
  * There is no confirmation dialog. A dialog that only appears when a script
@@ -297,13 +297,13 @@ final class Run_Now {
 
 		printf(
 			'<p class="description">%s</p>',
-			esc_html__( 'Runs all five passes once, in the foreground, using exactly the code the scheduler uses. This is the way to answer "has it stopped working" without waiting for the next scheduled run.', 'kdc-wacr-recoveryflow' )
+			esc_html__( 'Runs every pass once, in the foreground, using exactly the code the scheduler uses. This is the way to answer "has it stopped working" without waiting for the next scheduled run.', 'kdc-wacr-recoveryflow' )
 		);
 
 		printf(
 			'<p class="description"><strong>%s</strong> %s</p>',
 			esc_html__( 'This really sends.', 'kdc-wacr-recoveryflow' ),
-			esc_html__( 'The dispatch pass is one of the five, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward.', 'kdc-wacr-recoveryflow' )
+			esc_html__( 'The dispatch pass is one of them, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward.', 'kdc-wacr-recoveryflow' )
 		);
 
 		printf(

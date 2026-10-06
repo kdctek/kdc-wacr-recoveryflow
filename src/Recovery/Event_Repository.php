@@ -40,6 +40,15 @@ final class Event_Repository extends Repository {
 	/**
 	 * Record what an adapter saw, creating or updating the open row.
 	 *
+	 * The analytics client id is the one column a later write may not blank.
+	 * It is bound through NULLIF so an adapter that saw no cookie writes NULL,
+	 * and COALESCE keeps whatever an earlier request stored: a shopper whose
+	 * consent banner set the cookie on the cart page and who then checks out
+	 * from a request that did not carry it is still the same browser. The
+	 * marketing refusal travels with it and is only overwritten by a request
+	 * that also saw the cookie: a request without one knows nothing about the
+	 * banner either.
+	 *
 	 * @param Event_Draft $draft What the adapter reported.
 	 * @return int The event row id, or 0 if the write failed.
 	 */
@@ -54,8 +63,8 @@ final class Event_Repository extends Repository {
 		$sql = "INSERT INTO `{$table}`
 			(event_uid, source_id, source_type, dedupe_key, session_key, external_id,
 			 currency, amount, item_count, status, items_json, metadata_json,
-			 last_activity_at, created_at, updated_at)
-			VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %d, %s, %s, %s, %s, %s, %s)
+			 ga_client_id, ga_ads_denied, last_activity_at, created_at, updated_at)
+			VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %d, %s, %s, %s, NULLIF(%s, ''), %d, %s, %s, %s)
 			ON DUPLICATE KEY UPDATE
 				session_key = VALUES(session_key),
 				external_id = VALUES(external_id),
@@ -64,6 +73,8 @@ final class Event_Repository extends Repository {
 				item_count = VALUES(item_count),
 				items_json = VALUES(items_json),
 				metadata_json = VALUES(metadata_json),
+				ga_ads_denied = IF(VALUES(ga_client_id) IS NULL, ga_ads_denied, VALUES(ga_ads_denied)),
+				ga_client_id = COALESCE(VALUES(ga_client_id), ga_client_id),
 				last_activity_at = VALUES(last_activity_at),
 				updated_at = VALUES(updated_at),
 				id = LAST_INSERT_ID(id)";
@@ -84,6 +95,8 @@ final class Event_Repository extends Repository {
 				Recovery_Event::OPEN,
 				$items,
 				$metadata,
+				substr( $draft->ga_client_id, 0, 64 ),
+				$draft->ga_ads_denied ? 1 : 0,
 				$activity,
 				$now,
 				$now
@@ -423,7 +436,8 @@ final class Event_Repository extends Repository {
 	 * Empty the item snapshot on an event, keeping the totals.
 	 *
 	 * Used by erasure and retention: what somebody bought is personal, what it
-	 * was worth is a business record.
+	 * was worth is a business record. The analytics client id goes with the
+	 * items, so a queued GA4 report for an erased person finds nothing to send.
 	 *
 	 * @param int $event_id Event id.
 	 * @return bool
@@ -434,9 +448,29 @@ final class Event_Repository extends Repository {
 				'items_json'    => null,
 				'metadata_json' => null,
 				'session_key'   => null,
+				'ga_client_id'  => null,
 				'updated_at'    => $this->clock->now(),
 			),
 			array( 'id' => $event_id )
+		);
+	}
+
+	/**
+	 * Forget the analytics client id on one event.
+	 *
+	 * For journeys that ended without a single message: only messaged journeys
+	 * are ever reported, so keeping the id on any other is holding an
+	 * identifier for nothing.
+	 *
+	 * @param int $event_id Event id.
+	 * @return bool Whether a stored id was removed.
+	 */
+	public function forget_ga_client_id( int $event_id ): bool {
+		$table = $this->table();
+
+		return 0 !== $this->execute(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant.
+			$this->db()->prepare( "UPDATE `{$table}` SET ga_client_id = NULL WHERE id = %d AND ga_client_id IS NOT NULL", $event_id )
 		);
 	}
 }

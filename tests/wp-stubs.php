@@ -12,7 +12,7 @@
 
 defined( 'ABSPATH' ) || define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 
-define( 'KDC_WACR_RECOVERYFLOW_VERSION', '0.1.5' );
+define( 'KDC_WACR_RECOVERYFLOW_VERSION', '0.2.0' );
 define( 'KDC_WACR_RECOVERYFLOW_FILE', dirname( __DIR__ ) . '/kdc-wacr-recoveryflow.php' );
 define( 'KDC_WACR_RECOVERYFLOW_DIR', dirname( __DIR__ ) . '/' );
 define( 'KDC_WACR_RECOVERYFLOW_URL', 'https://example.test/wp-content/plugins/kdc-wacr-recoveryflow/' );
@@ -322,6 +322,17 @@ function delete_transient( $key ) {
 function wp_remote_request( $url, $args = array() ) {
 	return $GLOBALS['__http_response'] ?? array( 'response' => array( 'code' => 200 ), 'body' => '{}', 'headers' => array() );
 }
+/**
+ * Records every POST, so a test can read exactly what would have left the site.
+ */
+function wp_safe_remote_post( $url, $args = array() ) {
+	$GLOBALS['__http_posts'][] = array(
+		'url'  => $url,
+		'args' => $args,
+	);
+
+	return $GLOBALS['__http_response'] ?? array( 'response' => array( 'code' => 204 ), 'body' => '', 'headers' => array() );
+}
 function is_wp_error( $thing ) {
 	return $thing instanceof WP_Error;
 }
@@ -593,6 +604,9 @@ function check_admin_referer( $action = -1, $name = '_wpnonce' ) {
 function wp_doing_ajax() {
 	return ! empty( $GLOBALS['__doing_ajax'] );
 }
+function wp_doing_cron() {
+	return ! empty( $GLOBALS['__doing_cron'] );
+}
 function is_network_admin() {
 	return ! empty( $GLOBALS['__network_admin'] );
 }
@@ -619,7 +633,18 @@ function register_setting( $group, $option, $args = array() ) {
 function settings_fields( $group ) {
 	echo '<input type="hidden" name="option_page" value="' . esc_attr( $group ) . '" />';
 }
+function wp_rand( $min = 0, $max = 0 ) {
+	return random_int( (int) $min, $max > $min ? (int) $max : PHP_INT_MAX );
+}
 function settings_errors( $slug = '' ) {}
+function add_settings_error( $setting, $code, $message, $type = 'error' ) {
+	$GLOBALS['__settings_errors'][] = array(
+		'setting' => $setting,
+		'code'    => $code,
+		'message' => $message,
+		'type'    => $type,
+	);
+}
 function submit_button( $text = null, $type = 'primary', $name = 'submit' ) {
 	// Core gives this button `name` and a matching `id`, and the id is how a
 	// test can ask WHERE on the page the Save button ended up. Without it the

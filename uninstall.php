@@ -44,6 +44,7 @@ function kdc_wacr_recoveryflow_uninstall_site() {
 	delete_option( \WAcr\RecoveryFlow\Support\Options::HOOK_SECRET );
 	delete_option( \WAcr\RecoveryFlow\Support\Options::WEBHOOK_SECRET );
 	delete_option( \WAcr\RecoveryFlow\Support\Options::ME_SNAPSHOT );
+	delete_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION );
 
 	if ( ! $purge ) {
 		return;

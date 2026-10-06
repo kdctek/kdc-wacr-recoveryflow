@@ -296,6 +296,10 @@ final class Exporter {
 			if ( null !== $event ) {
 				$data[] = $this->pair( __( 'Basket value', 'kdc-wacr-recoveryflow' ), $event->amount . ' ' . $event->currency );
 				$data[] = $this->pair( __( 'Items', 'kdc-wacr-recoveryflow' ), $event->items_summary( 20 ) );
+
+				if ( null !== $event->ga_client_id ) {
+					$data[] = $this->pair( __( 'Google Analytics client ID', 'kdc-wacr-recoveryflow' ), $event->ga_client_id );
+				}
 			}
 
 			foreach ( $this->attempts->for_journey( $journey->id ) as $attempt ) {

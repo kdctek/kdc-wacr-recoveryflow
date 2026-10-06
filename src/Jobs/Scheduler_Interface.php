@@ -35,18 +35,22 @@ interface Scheduler_Interface {
 	public const GROUP = 'recoveryflow';
 
 	/**
-	 * The five stages, in the order a single tick runs them.
+	 * The six stages, in the order a single tick runs them.
+	 *
+	 * Report follows Expire so that a journey which expires in a tick is
+	 * reported to GA4 in the same tick.
 	 */
 	public const EVALUATE  = 'evaluate';
 	public const DISPATCH  = 'dispatch';
 	public const POLL      = 'poll';
 	public const EXPIRE    = 'expire';
+	public const REPORT    = 'report';
 	public const RETENTION = 'retention';
 
 	/**
 	 * Every stage key, in run order.
 	 */
-	public const STAGES = array( self::EVALUATE, self::DISPATCH, self::POLL, self::EXPIRE, self::RETENTION );
+	public const STAGES = array( self::EVALUATE, self::DISPATCH, self::POLL, self::EXPIRE, self::REPORT, self::RETENTION );
 
 	/**
 	 * Hook name prefixes.

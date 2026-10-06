@@ -8,6 +8,7 @@
 namespace WAcr\RecoveryFlow\Admin\Pages;
 
 use WAcr\RecoveryFlow\Admin\Screen;
+use WAcr\RecoveryFlow\Analytics\Ga4_Settings;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
 use WAcr\RecoveryFlow\Integration\Source_Registry;
@@ -83,6 +84,55 @@ final class Integrations {
 		foreach ( $sources as $source ) {
 			$this->card( $source );
 		}
+
+		$this->reports_to();
+
+		echo '</div>';
+	}
+
+	/**
+	 * Where RecoveryFlow sends what it learns: the merchant's own GA4 property.
+	 *
+	 * A different kind of integration from the sources above -- nothing is
+	 * watched here, something is reported -- so it gets its own heading rather
+	 * than a card in the same row that would read as one more place baskets
+	 * come from. Its status sentence is Ga4_Settings::status_message(), the
+	 * answer every part of the reporting path asks, for the reason the class
+	 * docblock gives.
+	 *
+	 * @return void
+	 */
+	private function reports_to(): void {
+		printf( '<h2 class="recoveryflow-integrations__group">%s</h2>', esc_html__( 'Reports to', 'kdc-wacr-recoveryflow' ) );
+
+		echo '<div class="card recoveryflow-card recoveryflow-integration recoveryflow-integration--' . esc_attr( Ga4_Settings::status() ) . '">';
+		printf( '<h3>%s</h3>', esc_html__( 'Google Analytics 4', 'kdc-wacr-recoveryflow' ) );
+		printf(
+			'<p>%s</p>',
+			esc_html__( 'Your own GA4 property. Recovery links are tagged so analytics can credit them, and recoveries that sent a message can be reported so Google Ads can retarget the baskets reminders did not win.', 'kdc-wacr-recoveryflow' )
+		);
+
+		printf(
+			'<p><strong>%1$s</strong> %2$s</p>',
+			esc_html__( 'Links:', 'kdc-wacr-recoveryflow' ),
+			esc_html(
+				Ga4_Settings::utm_enabled()
+					? __( 'Tagged. Recovered visits carry utm_source=recoveryflow.', 'kdc-wacr-recoveryflow' )
+					: __( 'Not tagged. Recovered visits are counted as direct traffic.', 'kdc-wacr-recoveryflow' )
+			)
+		);
+
+		printf(
+			'<p><strong>%1$s</strong> %2$s</p>',
+			esc_html__( 'Reporting:', 'kdc-wacr-recoveryflow' ),
+			esc_html( Ga4_Settings::status_message( Ga4_Settings::status() ) )
+		);
+
+		printf(
+			'<p><a href="%1$s">%2$s</a></p>',
+			esc_url( Screen::settings_url( 'analytics', 'ga4', 'ga4_events_enabled' ) ),
+			esc_html__( 'Settings for Google Analytics 4', 'kdc-wacr-recoveryflow' )
+		);
 
 		echo '</div>';
 	}

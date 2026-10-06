@@ -105,7 +105,7 @@ final class Event_Ingest {
 		 * Filters a recovery event before it is recorded.
 		 *
 		 * Return null to drop it. The draft carries no personal data except in
-		 * its identity hints.
+		 * its identity hints and its analytics client id.
 		 *
 		 * @param Event_Draft|null $draft The draft.
 		 */

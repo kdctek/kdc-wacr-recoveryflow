@@ -59,6 +59,7 @@ final class Redactor {
 			'address_1',
 			'address_2',
 			'items',
+			'client_id',
 		);
 	}
 
@@ -135,6 +136,10 @@ final class Redactor {
 		// Bearer credentials, ours and anybody else's.
 		$value = (string) preg_replace( '/\b(?:wacr|waht)_(?:live|test)_[A-Za-z0-9_-]+/', '[api-key]', $value );
 		$value = (string) preg_replace( '/\bBearer\s+\S+/i', 'Bearer [redacted]', $value );
+
+		// A GA4 API secret in a collection URL, and a GA client id cookie.
+		$value = (string) preg_replace( '/([?&]api_secret=)[^&\s#]+/i', '$1[redacted]', $value );
+		$value = (string) preg_replace( '/\bGA1\.\d+\.\d+\.\d+\b/', '[ga-client-id]', $value );
 
 		// Recovery links and bare tokens.
 		$value = (string) preg_replace( '#/recovery/[A-Za-z0-9_-]{43}#', '/recovery/[token]', $value );

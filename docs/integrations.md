@@ -269,6 +269,85 @@ The first poll of a site looks back 30 days (`recoveryflow_gf_first_look_days`).
 
 A **refund does not restart a recovery**. `gform_post_payment_refunded` is not handled: a journey that reached `RECOVERED` is finished, and reopening it would message somebody who has just been given their money back.
 
+## Google Analytics 4
+
+RecoveryFlow does not read from Google Analytics; it writes two things into the merchant's own
+property so that recovery shows up there. Neither needs a Google login, and nothing here stores a
+Google credential beyond what is described below.
+
+### Tagged recovery links
+
+Every tap on a recovery link ends in a redirect to the shop's checkout or form. That redirect
+carries four campaign tags:
+
+| Tag | Value |
+| --- | --- |
+| `utm_source` | `recoveryflow` |
+| `utm_medium` | the channel of the message that was tapped: `whatsapp` or `email` |
+| `utm_campaign` | the workflow's slug |
+| `utm_content` | the workflow step that sent it: `step-1`, `step-2` ... |
+
+**Why on the redirect.** A WhatsApp template's button is a fixed address plus the token, and the
+template is approved by Meta, so there is nowhere per-message to put a tag. The redirect is built per
+tap from the exact message that was tapped.
+
+**Why it matters.** The recovery endpoint sends `Referrer-Policy: no-referrer` so the token in its
+URL cannot leak to the shop's scripts. Without tags every recovered visit therefore arrives with no
+referrer and is counted as "direct".
+
+**Where the sessions land in GA4.** Email-tagged sessions fall into GA4's **Email** channel group.
+WhatsApp-tagged sessions match no default rule and fall into **Unassigned**: GA4 has no messaging
+channel, and tagging WhatsApp as `sms` or `social` to get a tidier bucket would be wrong in every
+report built on it. To see them as their own channel, add a custom channel group in GA4 (Admin ›
+Data display › Channel groups) with a channel whose condition is *Medium exactly matches
+`whatsapp`*, placed above "Unassigned".
+
+The shop's own tags win: a tag the destination already carries is never overwritten. Tagging is on
+by default because it sends nothing anywhere; it is switched off in Settings › Analytics, and
+`recoveryflow_restore_utm_params` changes or removes individual tags.
+
+### Reporting recoveries to GA4
+
+Off until the merchant switches it on in Settings › Analytics and saves a **Measurement ID** (Admin ›
+Data streams › the web stream, starting `G-`) and a **Measurement Protocol API secret** (the same
+stream, under *Measurement Protocol API secrets*). The secret is stored encrypted.
+
+| Event | Sent when | Params |
+| --- | --- | --- |
+| `recoveryflow_messaged` | the first message of a journey goes out | `journey_ref`, `workflow`, `source` |
+| `recoveryflow_recovered` | the order that recovered it is paid | the same, plus `value` and `currency` |
+| `recoveryflow_expired` | it ran out of time unrecovered | the same, plus `basket_value` and `currency` |
+| `recoveryflow_opted_out` | the shopper stopped the reminders | `journey_ref`, `workflow`, `source` |
+
+Only journeys that sent at least one message are reported, and only shoppers whose GA cookie could
+be read under the site's own cookie consent. See [`privacy.md`](privacy.md#what-is-sent-to-google-analytics-and-when).
+
+**Using it in Google Ads.**
+
+1. In GA4, build an audience from `recoveryflow_expired` events: the baskets WhatsApp and email did
+   not win. Link GA4 to Google Ads, turn on Google Signals, and use the audience for remarketing.
+2. Build a second audience from `recoveryflow_recovered` and exclude it from that remarketing, so
+   you stop paying for clicks a reminder already won. `recoveryflow_messaged` without either
+   outcome is the set still being worked; exclude it too if you would rather not show ads while a
+   reminder is in flight.
+3. Do not mark `recoveryflow_recovered` as a key event with a value if your shop already reports
+   `purchase`: the same order would be counted twice.
+
+**What Google documents, and what that means here** (GA4 Measurement Protocol docs, read
+6 October 2026):
+
+- Events reach GA4 audiences only for a browser seen by the web tag within the previous 30 days, and
+  reach Google Ads exports within 63 days. Recovery journeys are measured in days, so this holds.
+- Remarketing needs `ad_personalization` granted for that browser and Google Signals on in the
+  property. A refusal recorded by the WP Consent API is passed on as `DENIED`.
+- GA4 does not de-duplicate these events. RecoveryFlow queues each milestone once per journey and
+  never resends a request that may have arrived.
+- Events older than 72 hours are re-stamped by Google, so RecoveryFlow drops anything older than
+  71 hours instead.
+- The live endpoint accepts anything, and the validation endpoint does not check the ID or the
+  secret. **Send a test event** therefore sends one `recoveryflow_test` event and tells you to look
+  for it in GA4's DebugView. That is the only proof available.
+
 ## Planned adapters
 
 Nothing below exists yet. Each will be built on the interface above with zero changes to the core, which is the test Gravity Forms has already passed: nothing outside `src/Integration/` mentions Gravity Forms, and the test suite asserts it.

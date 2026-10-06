@@ -9,10 +9,12 @@ namespace WAcr\RecoveryFlow\Admin\Settings;
 
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Deferred_Form;
+use WAcr\RecoveryFlow\Admin\Ga4_Test;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
 use WAcr\RecoveryFlow\Admin\Webhook_Setup;
 use WAcr\RecoveryFlow\Privacy\Erase_By_Phone;
 use WAcr\RecoveryFlow\Admin\Screen;
+use WAcr\RecoveryFlow\Analytics\Ga4_Settings;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Recovery\Channel;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
@@ -116,6 +118,10 @@ final class Page {
 			self::store_api_key( is_array( $value ) ? $value : array() );
 		}
 
+		if ( 'analytics' === $tab ) {
+			self::store_ga4_secret( is_array( $value ) ? $value : array() );
+		}
+
 		return Sanitizer::sanitize( $value, $tab );
 	}
 
@@ -137,6 +143,24 @@ final class Page {
 		}
 
 		( new Credentials() )->set_api_key( $key );
+	}
+
+	/**
+	 * Put a newly entered GA4 API secret into its own encrypted option.
+	 *
+	 * The same rule as the WA.cr key: an empty box keeps what is saved.
+	 *
+	 * @param array<string,mixed> $posted Posted settings.
+	 * @return void
+	 */
+	private static function store_ga4_secret( array $posted ): void {
+		$secret = isset( $posted[ Ga4_Settings::FIELD_API_SECRET ] ) ? trim( (string) $posted[ Ga4_Settings::FIELD_API_SECRET ] ) : '';
+
+		if ( '' === $secret ) {
+			return;
+		}
+
+		Ga4_Settings::set_api_secret( $secret );
 	}
 
 	/**
@@ -184,6 +208,7 @@ final class Page {
 
 		settings_errors();
 		Connection_Test::notice();
+		Ga4_Test::notice();
 		Hook_Test::notice();
 		Erase_By_Phone::notice();
 
@@ -398,7 +423,35 @@ final class Page {
 			case 'webhook_setup':
 				Webhook_Setup::render();
 				break;
+
+			case 'ga4_reporting':
+				self::ga4_reporting();
+				break;
 		}//end switch
+	}
+
+	/**
+	 * Where GA4 reporting stands, in words, and the test button once it can work.
+	 *
+	 * The sentence comes from Ga4_Settings::status(), the same answer the cookie
+	 * reader, the queue and the sender each ask, so this card cannot say
+	 * "reporting" about a site that is not.
+	 *
+	 * @return void
+	 */
+	private static function ga4_reporting(): void {
+		$status = Ga4_Settings::status();
+
+		printf(
+			'<p class="recoveryflow-connection recoveryflow-connection--%1$s"><strong>%2$s</strong> %3$s</p>',
+			esc_attr( $status ),
+			esc_html__( 'Status:', 'kdc-wacr-recoveryflow' ),
+			esc_html( Ga4_Settings::status_message( $status ) )
+		);
+
+		if ( '' !== Ga4_Settings::measurement_id() && '' !== Ga4_Settings::api_secret() ) {
+			Ga4_Test::button();
+		}
 	}
 
 	/**

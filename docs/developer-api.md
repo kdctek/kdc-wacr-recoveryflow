@@ -57,6 +57,9 @@ Registries are passed by object; return the registry from your callback.
 | `recoveryflow_gf_field_overrides` | `array $overrides, array $form` | Pins which Gravity Forms field holds a contact detail, keyed by field type (`email`, `phone`, `name`, `address`). Default: the first field of each type |
 | `recoveryflow_gf_first_look_days` | `int $days` | How far back the first Gravity Forms backfill reads. Default 30 |
 | `recoveryflow_wc_restore_cart_item_data` | `string[] $allowed_keys, array $line, Recovery_Journey $journey` | Keys of WooCommerce `cart_item_data` that the restorer may copy back from the snapshot. Default none, because that array is where other plugins keep arbitrary data |
+| `recoveryflow_restore_utm_params` | `array $params, Recovery_Journey $journey, Attempt $attempt` | The campaign tags added to a recovery link's destination: `utm_source` (`recoveryflow`), `utm_medium` (the channel), `utm_campaign` (the workflow slug), `utm_content` (`step-N`). Return `array()` to add none. Only `utm_*` keys are used, values are cut to 100 characters, and a tag the destination already carries is never overwritten. Not applied when "Tag recovery links" is off |
+| `recoveryflow_ga_cookie_name` | `string $name` | The cookie the GA client id is read from. Default `_ga`. Change it when the site's tag sets `cookie_prefix` |
+| `recoveryflow_ga4_event` | `?array $params, string $name, Recovery_Journey $journey` | The parameters of one GA4 Measurement Protocol event, just before it is sent. `$name` is `recoveryflow_messaged`, `recoveryflow_recovered`, `recoveryflow_expired` or `recoveryflow_opted_out`. Return `null` to send nothing. Add nothing personal: Google's terms forbid it, and the plugin sends a journey reference, a workflow slug, a source and money only |
 
 Example: allow a gift-message key to survive a restore.
 

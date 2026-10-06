@@ -65,4 +65,9 @@ final class Hooks {
 	// Presentation.
 	public const FILTER_TEMPLATE                = 'recoveryflow_template';
 	public const FILTER_BLOCKS_CONSENT_LOCATION = 'recoveryflow_wc_blocks_consent_location';
+
+	// Google Analytics 4.
+	public const FILTER_RESTORE_UTM = 'recoveryflow_restore_utm_params';
+	public const FILTER_GA_COOKIE   = 'recoveryflow_ga_cookie_name';
+	public const FILTER_GA4_EVENT   = 'recoveryflow_ga4_event';
 }

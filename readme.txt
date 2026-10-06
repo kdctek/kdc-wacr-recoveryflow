@@ -4,7 +4,7 @@ Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.1.5
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -109,21 +109,14 @@ Nothing is sent when the integration is disabled, when eligibility mode is set t
 
 WA.cr: [https://wa.cr](https://wa.cr). Terms of service: [https://wa.cr/terms](https://wa.cr/terms). Privacy policy: [https://wa.cr/privacy](https://wa.cr/privacy).
 
-== Privacy ==
+**Google Analytics 4 (optional, off by default)**
 
-RecoveryFlow keeps its data in its own tables in your WordPress database. It stores:
+Only after you save your own Measurement ID and API secret and switch on "Report recoveries to Google Analytics 4" in Settings › Analytics does RecoveryFlow send recovery outcomes to **your own** GA4 property, from a background task, at `https://www.google-analytics.com/mp/collect` (or `https://region1.google-analytics.com/mp/collect` if you choose the EU endpoint).
 
-* **Identity**: first and last name, email address, phone number as entered and in E.164 form, country, and the linked WordPress user ID when there is one. Phone and email are also stored as keyed one-way hashes for matching.
-* **A cart snapshot per journey**: product names, SKUs, quantities and amounts. Never addresses.
-* **A consent record**: granted, denied or withdrawn; where it came from (classic checkout, block checkout, account, opt-out link, STOP keyword, WA.cr, admin); the wording version; the time; and the IP address as a keyed hash only.
-* **Journey and message history**: states, timestamps, template names, delivery status, message IDs returned by WA.cr, link clicks and attribution. Message text is never stored.
-* **An opt-out record.** After a privacy erasure this is kept only as a one-way hash of the phone number so that the opt-out continues to be honoured.
+* What: one event when a messaged journey is recovered, expires or is opted out of, or sends its first message, plus one when you press "Send a test event". Journey events carry the shopper's `_ga` cookie value, a random journey reference, the workflow, the source and any order or basket value. No name, phone number, email, address, cart item or recovery link.
+* When: only for journeys that sent a message, and only where the shopper's `_ga` cookie exists and the WP Consent API, if installed, allows statistics cookies. A marketing refusal is passed on so Google does not use the event for ads.
 
-**Retention.** Finished journeys are anonymised after 90 days by default; you can change the period or set it to manual. Carts that never identified a customer are deleted after 7 days. Logs are kept for 14 days and never contain phone numbers, emails, names, message text or recovery links.
-
-**Privacy tools.** Tools › Export Personal Data includes RecoveryFlow data for the email address and the phone numbers linked to it. Tools › Erase Personal Data anonymises it: names, email, phone and cart items are removed, totals are kept for reporting, and the eraser reports that a one-way hash is retained to keep honouring the opt-out.
-
-**Uninstall.** Deleting the plugin always removes your API key, the hash key, capabilities and scheduled tasks. Tables and settings are removed only if you enable "Delete all data on uninstall" in Settings › Privacy.
+Google Analytics terms: [https://marketingplatform.google.com/about/analytics/terms/us/](https://marketingplatform.google.com/about/analytics/terms/us/). Privacy policy: [https://policies.google.com/privacy](https://policies.google.com/privacy).
 
 == Installation ==
 
@@ -151,6 +144,23 @@ No. RecoveryFlow is a recovery engine; WooCommerce is its first supported integr
 = Does it send messages without consent? =
 
 No. Explicit consent is the default: an unchecked checkbox at checkout that names your site and WhatsApp. The plugin records what was agreed, where and when. A merchant can switch to "identified contact" mode only after reading a warning and typing an acknowledgement, which is stored with their user ID and the wording version. Opt-outs are honoured in every mode.
+
+= What does RecoveryFlow store, and for how long? =
+
+RecoveryFlow keeps its data in its own tables in your WordPress database. It stores:
+
+* **Identity**: first and last name, email address, phone number as entered and in E.164 form, country, and the linked WordPress user ID when there is one. Phone and email are also stored as keyed one-way hashes for matching.
+* **A cart snapshot per journey**: product names, SKUs, quantities and amounts. Never addresses.
+* **A consent record**: granted, denied or withdrawn; where it came from (classic checkout, block checkout, account, opt-out link, STOP keyword, WA.cr, admin); the wording version; the time; and the IP address as a keyed hash only.
+* **Journey and message history**: states, timestamps, template names, delivery status, message IDs returned by WA.cr, link clicks and attribution. Message text is never stored.
+* **An opt-out record.** After a privacy erasure this is kept only as a one-way hash of the phone number so that the opt-out continues to be honoured.
+* **A Google Analytics client ID**, only with GA4 reporting on: the shopper's `_ga` cookie value and whether marketing consent was refused. It is exported, erased and anonymised with the rest, and dropped when a journey ends without a message.
+
+**Retention.** Finished journeys are anonymised after 90 days by default; you can change the period or set it to manual. Carts that never identified a customer are deleted after 7 days. Logs are kept for 14 days and never contain phone numbers, emails, names, message text or recovery links.
+
+**Privacy tools.** Tools › Export Personal Data includes RecoveryFlow data for the email address and the phone numbers linked to it. Tools › Erase Personal Data anonymises it: names, email, phone and cart items are removed, totals are kept for reporting, and the eraser reports that a one-way hash is retained to keep honouring the opt-out.
+
+**Uninstall.** Deleting the plugin always removes your API key, the hash key, capabilities and scheduled tasks. Tables and settings are removed only if you enable "Delete all data on uninstall" in Settings › Privacy.
 
 = Which WA.cr plan do I need? =
 
@@ -188,6 +198,13 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 
 == Changelog ==
 
+= 0.2.0 =
+
+* **Recovered visits now show in Google Analytics as RecoveryFlow traffic, not as "direct".** A recovery link redirects to the shop with `utm_source=recoveryflow`, `utm_medium` set to the channel, `utm_campaign` set to the workflow and `utm_content` set to the step. On by default; it sends nothing anywhere.
+* **Optional reporting to the merchant's own Google Analytics 4 property.** Once a Measurement ID and a Measurement Protocol API secret are saved and reporting is switched on, journeys that sent a message are reported as `recoveryflow_messaged`, `recoveryflow_recovered`, `recoveryflow_expired` and `recoveryflow_opted_out`, so Google Ads can retarget the baskets WhatsApp did not win. Off by default. The visitor's GA cookie is read only where the site's consent tool allows statistics, and a marketing refusal is passed on to Google.
+* A new Settings › Analytics tab with a test event, and a "Reports to" card on the Integrations screen.
+* Database schema 3 adds a column for the GA client id, which personal-data export, erasure and the retention anonymiser all cover, and a queue table for reports that holds nothing personal.
+
 = 0.1.5 =
 
 * **Published to the WordPress.org Plugin Repository.**
@@ -220,6 +237,9 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 * First release.
 
 == Upgrade Notice ==
+
+= 0.2.0 =
+Recovery links now carry UTM tags so recovered visits show in Google Analytics, and journeys can optionally be reported to your own GA4 property (off until you set it up). Includes a database update that runs on its own after updating.
 
 = 0.1.4 =
 Security update: the WooCommerce add-to-cart early-capture path now verifies a RecoveryFlow nonce before accepting its submitted contact data or consent. Normal WooCommerce add-to-cart behaviour is unchanged.

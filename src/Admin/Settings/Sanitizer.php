@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Admin\Settings;
 
+use WAcr\RecoveryFlow\Analytics\Ga4_Settings;
 use WAcr\RecoveryFlow\Recovery\Email_Compliance;
 use WAcr\RecoveryFlow\Support\Options;
 
@@ -117,12 +118,46 @@ final class Sanitizer {
 			case 'textarea':
 				return sanitize_textarea_field( (string) $raw );
 
+			case 'measurement_id':
+				return self::measurement_id( $raw, $current );
+
 			default:
 				$value = sanitize_text_field( (string) $raw );
 				$limit = isset( $spec['maxlength'] ) ? (int) $spec['maxlength'] : 0;
 
 				return $limit > 0 ? mb_substr( $value, 0, $limit ) : $value;
 		}//end switch
+	}
+
+	/**
+	 * Clean a GA4 Measurement ID: upper-cased, and only ever a real one.
+	 *
+	 * An empty box is accepted, because that is how reporting is pointed
+	 * nowhere. Anything else that is not G- followed by letters and digits --
+	 * a Universal Analytics UA- id, a Google tag GT- id, a stream number --
+	 * keeps the stored value and says why, because every one of those would
+	 * be accepted by Google's endpoint and silently counted nowhere.
+	 *
+	 * @param mixed $raw     Posted value.
+	 * @param mixed $current Stored value.
+	 * @return string
+	 */
+	private static function measurement_id( $raw, $current ): string {
+		$id = Ga4_Settings::normalize_measurement_id( sanitize_text_field( (string) $raw ) );
+
+		if ( '' === $id || Ga4_Settings::is_valid_measurement_id( $id ) ) {
+			return $id;
+		}
+
+		if ( function_exists( 'add_settings_error' ) ) {
+			add_settings_error(
+				Options::SETTINGS,
+				'recoveryflow_ga4_measurement_id',
+				__( 'That is not a GA4 Measurement ID, so the previous one was kept. A Measurement ID starts with G- and is shown on your web stream in GA4.', 'kdc-wacr-recoveryflow' )
+			);
+		}
+
+		return is_string( $current ) ? $current : '';
 	}
 
 	/**

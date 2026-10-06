@@ -6011,7 +6011,7 @@ $recoveryflow_run = $plugin->admin_run_now()->run();
 
 ok( 'running the passes by hand reports one row per pass that ran', count( $recoveryflow_run['rows'] ) > 0 );
 check(
-	'and runs the same five passes the scheduler does, not a set of its own',
+	'and runs the same passes the scheduler does, not a set of its own',
 	array_column( $recoveryflow_run['rows'], 'pass' ),
 	array_values( Scheduler_Interface::STAGES )
 );
@@ -6049,7 +6049,7 @@ ok(
 	'the button warns that this really sends and really bills, before it is pressed',
 	false !== strpos(
 		$recoveryflow_run_html,
-		esc_html__( 'The dispatch pass is one of the five, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward.', 'kdc-wacr-recoveryflow' )
+		esc_html__( 'The dispatch pass is one of them, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward.', 'kdc-wacr-recoveryflow' )
 	)
 );
 ok(
@@ -8065,6 +8065,328 @@ ok(
 	'and the workflows screen still offers a way to add one',
 	false !== strpos( $recoveryflow_workflows_html, 'Add workflow' )
 );
+
+
+// ------------------------------------------------------- GA4 reporting.
+
+/*
+ * Which journeys are reported, and what leaves the site when they are. The
+ * rules are about absence as much as presence: nothing is queued while
+ * reporting is off, nothing for a journey that never sent a message, nothing
+ * for a basket with no client id, and nothing personal in what is sent.
+ */
+$recoveryflow_ga4_settings_before = get_option( Options::SETTINGS, array() );
+$recoveryflow_ga4_secret_before   = get_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, false );
+$recoveryflow_ga4_reporter        = $plugin->journey_reporter();
+$recoveryflow_ga4_now             = $plugin->clock()->now();
+
+$recoveryflow_ga4_journey = static function ( int $id, ?string $first_sent_at ) use ( $recoveryflow_ga4_now ): array {
+	return array(
+		'id'               => $id,
+		'journey_uid'      => '00000000-0000-4000-8000-0000000000' . $id,
+		'event_id'         => $id * 10,
+		'customer_id'      => 3,
+		'source_id'        => 'woocommerce',
+		'workflow_id'      => 1,
+		'status'           => 'message_sent',
+		'first_sent_at'    => $first_sent_at,
+		'recovered_amount' => '49.5000',
+		'recovered_at'     => $recoveryflow_ga4_now,
+		'expires_at'       => $recoveryflow_ga4_now,
+		'created_at'       => $recoveryflow_ga4_now,
+		'updated_at'       => $recoveryflow_ga4_now,
+	);
+};
+$recoveryflow_ga4_event = static function ( int $id, ?string $client_id, int $ads_denied = 0 ): array {
+	return array(
+		'id'            => $id,
+		'source_id'     => 'woocommerce',
+		'currency'      => 'GBP',
+		'amount'        => '49.5000',
+		'status'        => 'open',
+		'ga_client_id'  => $client_id,
+		'ga_ads_denied' => $ads_denied,
+	);
+};
+$recoveryflow_ga4_queued = static function (): array {
+	return array_values(
+		array_filter(
+			$GLOBALS['wpdb']->queries,
+			static fn ( $sql ) => false !== stripos( (string) $sql, 'INSERT IGNORE INTO `wp_recoveryflow_analytics_queue`' )
+		)
+	);
+};
+
+$GLOBALS['wpdb']->rows = array(
+	'FROM `wp_recoveryflow_journeys` WHERE id = 71' => array( $recoveryflow_ga4_journey( 71, $recoveryflow_ga4_now ) ),
+	'FROM `wp_recoveryflow_events` WHERE id = 710'  => array( $recoveryflow_ga4_event( 710, 'GA1.1.1234567890.1757000000' ) ),
+	'FROM `wp_recoveryflow_journeys` WHERE id = 72' => array( $recoveryflow_ga4_journey( 72, null ) ),
+	'FROM `wp_recoveryflow_events` WHERE id = 720'  => array( $recoveryflow_ga4_event( 720, 'GA1.1.1234567890.1757000000' ) ),
+	'FROM `wp_recoveryflow_journeys` WHERE id = 73' => array( $recoveryflow_ga4_journey( 73, $recoveryflow_ga4_now ) ),
+	'FROM `wp_recoveryflow_events` WHERE id = 730'  => array( $recoveryflow_ga4_event( 730, null ) ),
+);
+
+// Off, which is the default: not even a lookup.
+$GLOBALS['wpdb']->queries = array();
+$recoveryflow_ga4_reporter->on_message_sent( 71 );
+check( 'with GA4 reporting off, a sent message is not looked up, let alone queued', $GLOBALS['wpdb']->queries, array() );
+ok( 'and the off state is the default', ! \WAcr\RecoveryFlow\Analytics\Ga4_Settings::is_reporting() );
+
+// Ticked but incomplete is still off.
+update_option( Options::SETTINGS, array_merge( Options::all(), array( 'ga4_events_enabled' => true ) ) );
+check( 'ticking the box without an ID and a secret is reported as incomplete', \WAcr\RecoveryFlow\Analytics\Ga4_Settings::status(), \WAcr\RecoveryFlow\Analytics\Ga4_Settings::STATUS_INCOMPLETE );
+
+update_option( Options::SETTINGS, array_merge( Options::all(), array( 'ga4_measurement_id' => 'g-test1234' ) ) );
+\WAcr\RecoveryFlow\Analytics\Ga4_Settings::set_api_secret( 'mp-secret-value' );
+check( 'with an ID and a secret it is reporting', \WAcr\RecoveryFlow\Analytics\Ga4_Settings::status(), \WAcr\RecoveryFlow\Analytics\Ga4_Settings::STATUS_ON );
+check( 'and the ID is read back upper-cased', \WAcr\RecoveryFlow\Analytics\Ga4_Settings::measurement_id(), 'G-TEST1234' );
+ok( 'and the secret is not stored in the clear', 'mp-secret-value' !== get_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION ) );
+
+$GLOBALS['wpdb']->queries = array();
+$recoveryflow_ga4_reporter->on_message_sent( 71 );
+$recoveryflow_ga4_rows = $recoveryflow_ga4_queued();
+check( 'a messaged journey with a client id is queued once', count( $recoveryflow_ga4_rows ), 1 );
+ok( 'as recoveryflow_messaged', false !== strpos( (string) ( $recoveryflow_ga4_rows[0] ?? '' ), "'recoveryflow_messaged'" ) );
+
+$GLOBALS['wpdb']->queries = array();
+$recoveryflow_ga4_reporter->on_recovered( 72 );
+check( 'a journey that never sent a message is never reported, even when it recovers', $recoveryflow_ga4_queued(), array() );
+
+$GLOBALS['wpdb']->queries = array();
+$recoveryflow_ga4_reporter->on_opted_out( 73 );
+check( 'a journey whose basket has no client id is never reported', $recoveryflow_ga4_queued(), array() );
+
+$GLOBALS['wpdb']->queries = array();
+$recoveryflow_ga4_reporter->on_expired( 72, 720 );
+ok(
+	'an expired journey that never sent a message has its client id forgotten instead',
+	array() !== array_filter( $GLOBALS['wpdb']->queries, static fn ( $sql ) => false !== strpos( (string) $sql, 'SET ga_client_id = NULL WHERE id = 720' ) )
+);
+check( 'and is not queued', $recoveryflow_ga4_queued(), array() );
+
+// The stage: one queued milestone, one request, nothing personal in it.
+$GLOBALS['__http_posts']            = array();
+$GLOBALS['wpdb']->rows              = array_merge(
+	$GLOBALS['wpdb']->rows,
+	array(
+		"SELECT id FROM `wp_recoveryflow_analytics_queue` WHERE status = 'pending'" => array( array( 'id' => 5 ) ),
+		'SELECT id, journey_id, event_name, occurred_at, attempts FROM `wp_recoveryflow_analytics_queue`' => array(
+			array(
+				'id'          => 5,
+				'journey_id'  => 71,
+				'event_name'  => 'recoveryflow_recovered',
+				'occurred_at' => $recoveryflow_ga4_now,
+				'attempts'    => 0,
+			),
+		),
+	)
+);
+$recoveryflow_ga4_stats = $plugin->runner()->run( \WAcr\RecoveryFlow\Jobs\Scheduler_Interface::REPORT );
+$recoveryflow_ga4_post  = $GLOBALS['__http_posts'][0] ?? array();
+$recoveryflow_ga4_body  = json_decode( (string) ( $recoveryflow_ga4_post['args']['body'] ?? '' ), true );
+
+check( 'the report stage sends one request for one queued milestone', count( $GLOBALS['__http_posts'] ), 1 );
+ok( 'to Google\'s collection endpoint', 0 === strpos( (string) ( $recoveryflow_ga4_post['url'] ?? '' ), 'https://www.google-analytics.com/mp/collect?' ) );
+check( 'keyed on the full cookie value', $recoveryflow_ga4_body['client_id'] ?? null, 'GA1.1.1234567890.1757000000' );
+check( 'carrying the milestone', $recoveryflow_ga4_body['events'][0]['name'] ?? null, 'recoveryflow_recovered' );
+check( 'with the recovered value as GA4 money', $recoveryflow_ga4_body['events'][0]['params']['value'] ?? null, 49.5 );
+ok( 'stamped with when it happened', isset( $recoveryflow_ga4_body['events'][0]['timestamp_micros'] ) );
+ok( 'and with no consent claim when the site\'s consent tool refused nothing', ! array_key_exists( 'consent', (array) $recoveryflow_ga4_body ) );
+ok(
+	'and nothing personal: no phone, no email, no name, no token',
+	1 !== preg_match( '/@|\+44|phone|email|first_name|token/i', (string) ( $recoveryflow_ga4_post['args']['body'] ?? '' ) )
+);
+check( 'and the stage counts it as sent', $recoveryflow_ga4_stats->processed, 1 );
+
+// A marketing refusal travels with the report as DENIED, and only then.
+$GLOBALS['__http_posts']                                       = array();
+$GLOBALS['wpdb']->rows['FROM `wp_recoveryflow_events` WHERE id = 710'] = array( $recoveryflow_ga4_event( 710, 'GA1.1.1234567890.1757000000', 1 ) );
+$plugin->runner()->run( \WAcr\RecoveryFlow\Jobs\Scheduler_Interface::REPORT );
+$recoveryflow_ga4_body = json_decode( (string) ( $GLOBALS['__http_posts'][0]['args']['body'] ?? '' ), true );
+check(
+	'a refused marketing consent is reported as DENIED for both ad uses',
+	$recoveryflow_ga4_body['consent'] ?? null,
+	array(
+		'ad_user_data'       => 'DENIED',
+		'ad_personalization' => 'DENIED',
+	)
+);
+
+// An erased shopper: the client id is gone, so nothing is sent.
+$GLOBALS['__http_posts']                                       = array();
+$GLOBALS['wpdb']->rows['FROM `wp_recoveryflow_events` WHERE id = 710'] = array( $recoveryflow_ga4_event( 710, null ) );
+$plugin->runner()->run( \WAcr\RecoveryFlow\Jobs\Scheduler_Interface::REPORT );
+check( 'a queued milestone whose client id was erased is never sent', $GLOBALS['__http_posts'], array() );
+
+// A timeout may have arrived: never retried, because GA4 would count it twice.
+$recoveryflow_ga4_client = new \WAcr\RecoveryFlow\Analytics\Measurement_Protocol();
+$GLOBALS['__http_response'] = new WP_Error( 'http_request_failed', 'cURL error 28: Operation timed out after 5001 milliseconds' );
+check( 'a timed-out report is unknown, not retried', $recoveryflow_ga4_client->send( 'https://www.google-analytics.com/mp/collect', array() ), \WAcr\RecoveryFlow\Analytics\Measurement_Protocol::OUTCOME_UNKNOWN );
+$GLOBALS['__http_response'] = new WP_Error( 'http_request_failed', 'cURL error 6: Could not resolve host: www.google-analytics.com' );
+check( 'while one that never connected is retried', $recoveryflow_ga4_client->send( 'https://www.google-analytics.com/mp/collect', array() ), \WAcr\RecoveryFlow\Analytics\Measurement_Protocol::OUTCOME_RETRY );
+unset( $GLOBALS['__http_response'] );
+
+update_option( Options::SETTINGS, $recoveryflow_ga4_settings_before );
+if ( false === $recoveryflow_ga4_secret_before ) {
+	delete_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION );
+} else {
+	update_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, $recoveryflow_ga4_secret_before );
+}
+$GLOBALS['wpdb']->rows = array();
+
+
+// ------------------------------------------------- GA4 settings and screens.
+
+$recoveryflow_ga4_settings_before = get_option( Options::SETTINGS, array() );
+$recoveryflow_ga4_secret_before   = get_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, false );
+$GLOBALS['__settings_errors']     = array();
+
+check( 'recovery links are tagged by default, because tagging sends nothing anywhere', Options::defaults()['ga4_utm_enabled'], true );
+check( 'and reporting to Google is off until a merchant asks for it', Options::defaults()['ga4_events_enabled'], false );
+ok( 'the GA4 secret is removed on uninstall with the other credentials', in_array( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, Options::all_option_names(), true ) );
+
+$recoveryflow_ga4_saved = recoveryflow_save_tab(
+	'analytics',
+	array(
+		'ga4_utm_enabled'    => '1',
+		'ga4_events_enabled' => '1',
+		'ga4_measurement_id' => ' g-abc1234 ',
+		'ga4_region'         => 'eu',
+		'ga4_api_secret'     => 'typed-secret-1',
+	)
+);
+check( 'a typed Measurement ID is stored trimmed and upper-cased', $recoveryflow_ga4_saved['ga4_measurement_id'] ?? null, 'G-ABC1234' );
+check( 'the EU endpoint can be chosen', \WAcr\RecoveryFlow\Analytics\Ga4_Settings::region(), \WAcr\RecoveryFlow\Analytics\Ga4_Settings::REGION_EU );
+check( 'the secret is stored and reads back', \WAcr\RecoveryFlow\Analytics\Ga4_Settings::api_secret(), 'typed-secret-1' );
+ok( 'but not in the settings array, where REST and exports could see it', ! array_key_exists( 'ga4_api_secret', $recoveryflow_ga4_saved ) );
+ok( 'and not in the clear in its own option', 'typed-secret-1' !== get_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION ) );
+
+$recoveryflow_ga4_saved = recoveryflow_save_tab(
+	'analytics',
+	array(
+		'ga4_events_enabled' => '1',
+		'ga4_measurement_id' => 'UA-12345678-1',
+		'ga4_api_secret'     => '',
+	)
+);
+check( 'a Universal Analytics id is refused and the previous ID kept', $recoveryflow_ga4_saved['ga4_measurement_id'] ?? null, 'G-ABC1234' );
+check( 'and the merchant is told why', $GLOBALS['__settings_errors'][0]['code'] ?? null, 'recoveryflow_ga4_measurement_id' );
+check( 'an empty secret box keeps the saved secret', \WAcr\RecoveryFlow\Analytics\Ga4_Settings::api_secret(), 'typed-secret-1' );
+
+$_GET['tab']           = 'analytics';
+$recoveryflow_ga4_html = recoveryflow_render_screen( array( Settings_Page::class, 'render' ) );
+unset( $_GET['tab'] );
+
+ok( 'the Analytics tab never prints the saved secret', false === strpos( $recoveryflow_ga4_html, 'typed-secret-1' ) );
+ok( 'and offers an empty password box to replace it', 1 === preg_match( '/<input type="password"[^>]*name="recoveryflow_settings\[ga4_api_secret\]"[^>]*value=""/', $recoveryflow_ga4_html ) || 1 === preg_match( '/<input type="password"[^>]*value=""[^>]*name="recoveryflow_settings\[ga4_api_secret\]"/', $recoveryflow_ga4_html ) );
+ok( 'and states where reporting stands, in words', false !== strpos( $recoveryflow_ga4_html, esc_html( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::status_message( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::STATUS_ON ) ) ) );
+ok( 'and offers the test once there is something to test', false !== strpos( $recoveryflow_ga4_html, esc_html__( 'Send a test event', 'kdc-wacr-recoveryflow' ) ) );
+
+$recoveryflow_ga4_integrations = recoveryflow_render_screen( array( $plugin->admin_integrations(), 'render' ) );
+ok( 'the Integrations screen lists GA4 under its own heading', false !== strpos( $recoveryflow_ga4_integrations, esc_html__( 'Reports to', 'kdc-wacr-recoveryflow' ) ) );
+ok( 'with the same status sentence the settings tab shows', false !== strpos( $recoveryflow_ga4_integrations, esc_html( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::status_message( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::STATUS_ON ) ) ) );
+
+// The test button claims only what it can know.
+$GLOBALS['__http_posts'] = array();
+$recoveryflow_ga4_test   = $plugin->admin_ga4_test()->check();
+ok( 'a test Google accepts is reported as sent', true === $recoveryflow_ga4_test['ok'] );
+ok( 'and sends the debug request first, then the live one', 2 === count( $GLOBALS['__http_posts'] ) && false !== strpos( (string) $GLOBALS['__http_posts'][0]['url'], '/debug/mp/collect?' ) );
+ok( 'to the endpoint the merchant chose', 0 === strpos( (string) ( $GLOBALS['__http_posts'][1]['url'] ?? '' ), 'https://region1.google-analytics.com/mp/collect?' ) );
+ok( 'and sends Google the debug flag DebugView needs', false !== strpos( (string) ( $GLOBALS['__http_posts'][1]['args']['body'] ?? '' ), '"debug_mode":true' ) );
+ok( 'but sends the merchant to DebugView rather than claiming the credentials were checked', false !== strpos( $recoveryflow_ga4_test['message'], 'DebugView' ) && false === stripos( $recoveryflow_ga4_test['message'], 'verified' ) );
+
+$GLOBALS['__http_response'] = array(
+	'response' => array( 'code' => 200 ),
+	'body'     => '{"validationMessages":[{"fieldPath":"events","description":"Event name is reserved.","validationCode":"NAME_RESERVED"}]}',
+	'headers'  => array(),
+);
+$recoveryflow_ga4_test = $plugin->admin_ga4_test()->check();
+unset( $GLOBALS['__http_response'] );
+ok( 'a test Google refuses is reported as not sent', false === $recoveryflow_ga4_test['ok'] );
+ok( 'in Google\'s own words', false !== strpos( $recoveryflow_ga4_test['message'], 'Event name is reserved.' ) );
+
+update_option( Options::SETTINGS, $recoveryflow_ga4_settings_before );
+if ( false === $recoveryflow_ga4_secret_before ) {
+	delete_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION );
+} else {
+	update_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, $recoveryflow_ga4_secret_before );
+}
+$GLOBALS['__settings_errors'] = array();
+
+
+// --------------------------------------------- GA4: reading the cookie.
+
+/*
+ * The three gates in front of the _ga cookie, in a visitor's request. The WP
+ * Consent API is stood in for here, last in this file, because defining it
+ * makes function_exists() true for everything after.
+ */
+if ( ! function_exists( 'wp_has_consent' ) ) {
+	/**
+	 * Stand-in for the WP Consent API.
+	 *
+	 * @param string $category Consent category.
+	 * @return bool
+	 */
+	function wp_has_consent( $category ) {
+		return $GLOBALS['__consent'][ $category ] ?? true;
+	}
+}
+
+$recoveryflow_ga4_settings_before = get_option( Options::SETTINGS, array() );
+$recoveryflow_ga4_secret_before   = get_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, false );
+$GLOBALS['__doing_ajax']          = true; // A visitor's admin-ajax request; is_admin() is always true in this harness.
+$_COOKIE['_ga']                   = 'GA1.1.987654321.1757000000';
+
+check( 'with reporting off the cookie is not read at all', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::all(),
+		array(
+			'ga4_events_enabled' => true,
+			'ga4_measurement_id' => 'G-TEST1234',
+		)
+	)
+);
+\WAcr\RecoveryFlow\Analytics\Ga4_Settings::set_api_secret( 'mp-secret-value' );
+
+$GLOBALS['__consent'] = array();
+check( 'with reporting on and no refusal, the whole cookie is read', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), 'GA1.1.987654321.1757000000' );
+
+$GLOBALS['__consent'] = array( 'statistics' => false );
+check( 'a consent tool refusing statistics stops the read', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+
+$GLOBALS['__consent']   = array( 'marketing' => false );
+$recoveryflow_ga4_draft = new \WAcr\RecoveryFlow\Recovery\Event_Draft( 'woocommerce', 'cart', 'wc:probe' );
+\WAcr\RecoveryFlow\Analytics\Client_Id::attach( $recoveryflow_ga4_draft );
+check( 'a marketing refusal still allows the analytics read', $recoveryflow_ga4_draft->ga_client_id, 'GA1.1.987654321.1757000000' );
+ok( 'and is recorded on the draft, so the later report can say DENIED', true === $recoveryflow_ga4_draft->ga_ads_denied );
+
+$GLOBALS['__consent']  = array();
+$GLOBALS['__doing_cron'] = true;
+check( 'a cron request never reads it, whatever cookies it carries', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+$GLOBALS['__doing_cron'] = false;
+
+$GLOBALS['__doing_ajax'] = false;
+check( 'nor does a wp-admin screen', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+$GLOBALS['__doing_ajax'] = true;
+
+$_COOKIE['_ga'] = 'GA1.1.not-a-number.1757000000';
+check( 'a cookie that is not a GA client id is treated as none', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+
+unset( $_COOKIE['_ga'] );
+check( 'and no cookie at all, which is what a refused Consent Mode leaves, reads as none', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+
+$GLOBALS['__doing_ajax'] = false;
+$GLOBALS['__consent']    = array();
+update_option( Options::SETTINGS, $recoveryflow_ga4_settings_before );
+if ( false === $recoveryflow_ga4_secret_before ) {
+	delete_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION );
+} else {
+	update_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, $recoveryflow_ga4_secret_before );
+}
 
 
 echo "\n";
