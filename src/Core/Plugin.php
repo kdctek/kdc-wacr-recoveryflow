@@ -35,6 +35,7 @@ use WAcr\RecoveryFlow\Admin\Pages\Overview as Overview_Page;
 use WAcr\RecoveryFlow\Admin\Pages\System_Status;
 use WAcr\RecoveryFlow\Admin\Pages\Workflow_Edit;
 use WAcr\RecoveryFlow\Admin\Pages\Workflows as Workflows_Page;
+use WAcr\RecoveryFlow\Analytics\Utm_Tagger;
 use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
@@ -346,8 +347,10 @@ final class Plugin {
 				$c->rate_limiter(),
 				$c->logger(),
 				$c->clock(),
-				$c->suppressor()
+				$c->suppressor(),
+				$c->utm_tagger()
 			),
+			'utm_tagger'          => static fn ( Plugin $c ): Utm_Tagger => new Utm_Tagger( $c->workflows() ),
 			'suppressor'          => static fn ( Plugin $c ): Suppressor => new Suppressor(
 				$c->customers(),
 				$c->consent(),
@@ -1135,6 +1138,15 @@ final class Plugin {
 	 */
 	public function recovery_controller(): Recovery_Controller {
 		return $this->typed( 'recovery_controller', Recovery_Controller::class );
+	}
+
+	/**
+	 * Adds campaign tags to the restore redirect.
+	 *
+	 * @return Utm_Tagger
+	 */
+	public function utm_tagger(): Utm_Tagger {
+		return $this->typed( 'utm_tagger', Utm_Tagger::class );
 	}
 
 	/**

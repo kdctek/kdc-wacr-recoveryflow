@@ -269,6 +269,43 @@ The first poll of a site looks back 30 days (`recoveryflow_gf_first_look_days`).
 
 A **refund does not restart a recovery**. `gform_post_payment_refunded` is not handled: a journey that reached `RECOVERED` is finished, and reopening it would message somebody who has just been given their money back.
 
+## Google Analytics 4
+
+RecoveryFlow does not read from Google Analytics; it writes two things into the merchant's own
+property so that recovery shows up there. Neither needs a Google login, and nothing here stores a
+Google credential beyond what is described below.
+
+### Tagged recovery links
+
+Every tap on a recovery link ends in a redirect to the shop's checkout or form. That redirect
+carries four campaign tags:
+
+| Tag | Value |
+| --- | --- |
+| `utm_source` | `recoveryflow` |
+| `utm_medium` | the channel of the message that was tapped: `whatsapp` or `email` |
+| `utm_campaign` | the workflow's slug |
+| `utm_content` | the workflow step that sent it: `step-1`, `step-2` ... |
+
+**Why on the redirect.** A WhatsApp template's button is a fixed address plus the token, and the
+template is approved by Meta, so there is nowhere per-message to put a tag. The redirect is built per
+tap from the exact message that was tapped.
+
+**Why it matters.** The recovery endpoint sends `Referrer-Policy: no-referrer` so the token in its
+URL cannot leak to the shop's scripts. Without tags every recovered visit therefore arrives with no
+referrer and is counted as "direct".
+
+**Where the sessions land in GA4.** Email-tagged sessions fall into GA4's **Email** channel group.
+WhatsApp-tagged sessions match no default rule and fall into **Unassigned**: GA4 has no messaging
+channel, and tagging WhatsApp as `sms` or `social` to get a tidier bucket would be wrong in every
+report built on it. To see them as their own channel, add a custom channel group in GA4 (Admin ›
+Data display › Channel groups) with a channel whose condition is *Medium exactly matches
+`whatsapp`*, placed above "Unassigned".
+
+The shop's own tags win: a tag the destination already carries is never overwritten. Tagging is on
+by default because it sends nothing anywhere; it is switched off in Settings › Analytics, and
+`recoveryflow_restore_utm_params` changes or removes individual tags.
+
 ## Planned adapters
 
 Nothing below exists yet. Each will be built on the interface above with zero changes to the core, which is the test Gravity Forms has already passed: nothing outside `src/Integration/` mentions Gravity Forms, and the test suite asserts it.
