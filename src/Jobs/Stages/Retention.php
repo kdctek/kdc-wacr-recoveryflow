@@ -274,7 +274,7 @@ final class Retention implements Stage_Interface {
 			foreach ( $ids as $customer_id ) {
 				$after = max( $after, $customer_id );
 
-				$this->anonymizer->anonymize_customer( $customer_id );
+				$this->anonymizer->anonymize_customer( $customer_id, Anonymizer::ON_RETENTION );
 
 				++$stats->processed;
 			}

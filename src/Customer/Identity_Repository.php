@@ -260,4 +260,31 @@ final class Identity_Repository extends Repository {
 			array( 'customer_id' => $customer_id )
 		);
 	}
+
+	/**
+	 * Let go of every way of reaching a customer, hashes included.
+	 *
+	 * Only a record the retention clear-out has aged out does this. While a
+	 * stamped record holds a number, the next basket left with that number
+	 * resolves to it, and a stamped record can never be messaged -- so keeping
+	 * the rows would turn "nobody needs this data any more" into "never contact
+	 * this person again". See Anonymizer for why an erasure on request keeps
+	 * them instead.
+	 *
+	 * Nothing about consent is lost. The ledger keeps its own copy of each
+	 * hash, so an opt-out recorded against this number still holds for
+	 * whichever customer the number belongs to next.
+	 *
+	 * @param int $customer_id Customer whose identities go.
+	 * @return int Rows removed.
+	 */
+	public function release( int $customer_id ): int {
+		if ( $customer_id <= 0 ) {
+			return 0;
+		}
+
+		$rows = $this->db()->delete( $this->table(), array( 'customer_id' => $customer_id ), array( '%d' ) );
+
+		return false === $rows ? 0 : (int) $rows;
+	}
 }
