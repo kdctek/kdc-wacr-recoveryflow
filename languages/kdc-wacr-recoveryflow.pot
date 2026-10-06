@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-06T02:45:35+00:00\n"
+"POT-Creation-Date: 2026-10-06T02:56:13+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -1191,7 +1191,7 @@ msgid "Running the passes by hand needs the \"recoveryflow_manage_journeys\" per
 msgstr ""
 
 #: src/Admin/Run_Now.php:300
-msgid "Runs all five passes once, in the foreground, using exactly the code the scheduler uses. This is the way to answer \"has it stopped working\" without waiting for the next scheduled run."
+msgid "Runs every pass once, in the foreground, using exactly the code the scheduler uses. This is the way to answer \"has it stopped working\" without waiting for the next scheduled run."
 msgstr ""
 
 #: src/Admin/Run_Now.php:305
@@ -1199,7 +1199,7 @@ msgid "This really sends."
 msgstr ""
 
 #: src/Admin/Run_Now.php:306
-msgid "The dispatch pass is one of the five, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward."
+msgid "The dispatch pass is one of them, so any recovery that is due right now will be messaged, and your WA.cr account will be billed for it. Nothing that is not already due is brought forward."
 msgstr ""
 
 #: src/Admin/Run_Now.php:346
@@ -2686,6 +2686,10 @@ msgid "Closing recoveries that ran out of time"
 msgstr ""
 
 #: src/Jobs/Stage_Label.php:52
+msgid "Reporting to Google Analytics"
+msgstr ""
+
+#: src/Jobs/Stage_Label.php:55
 msgid "Clearing out old data"
 msgstr ""
 

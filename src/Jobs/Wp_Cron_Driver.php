@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
  * WP-Cron is not a scheduler, it is a hope: nothing runs until somebody visits
  * the site, its own duplicate-run guard expires after sixty seconds, and a host
  * that sets DISABLE_WP_CRON without wiring a system cron stops it entirely. So
- * this driver is deliberately modest. One recurring event runs all five stages
+ * this driver is deliberately modest. One recurring event runs all six stages
  * in order under a single time budget, which is the only honest thing to do
  * when a request may be killed at any moment, and a stage that still has work
  * left asks for one more pass a few seconds later rather than waiting five

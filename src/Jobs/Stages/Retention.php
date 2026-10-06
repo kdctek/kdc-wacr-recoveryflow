@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Jobs\Stages;
 
+use WAcr\RecoveryFlow\Analytics\Queue_Repository;
 use WAcr\RecoveryFlow\Core\Clock;
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Customer\Customer_Repository;
@@ -61,6 +62,11 @@ final class Retention implements Stage_Interface {
 	private const RECEIPT_DAYS = 30;
 
 	/**
+	 * Days a GA4 queue row is kept, whatever became of it.
+	 */
+	private const ANALYTICS_QUEUE_DAYS = 30;
+
+	/**
 	 * The shortest retention period this plugin will honour.
 	 */
 	private const MINIMUM_DAYS = 7;
@@ -108,6 +114,13 @@ final class Retention implements Stage_Interface {
 	private Clock $clock;
 
 	/**
+	 * The GA4 reporting queue.
+	 *
+	 * @var Queue_Repository
+	 */
+	private Queue_Repository $analytics_queue;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param Event_Repository    $events     Event storage.
@@ -116,6 +129,7 @@ final class Retention implements Stage_Interface {
 	 * @param Customer_Repository $customers  Customer storage.
 	 * @param Anonymizer          $anonymizer The erasure.
 	 * @param Clock               $clock      Clock.
+	 * @param Queue_Repository    $analytics_queue The GA4 reporting queue.
 	 */
 	public function __construct(
 		Event_Repository $events,
@@ -123,7 +137,8 @@ final class Retention implements Stage_Interface {
 		Receipt_Repository $receipts,
 		Customer_Repository $customers,
 		Anonymizer $anonymizer,
-		Clock $clock
+		Clock $clock,
+		Queue_Repository $analytics_queue
 	) {
 		$this->events     = $events;
 		$this->attempts   = $attempts;
@@ -131,6 +146,8 @@ final class Retention implements Stage_Interface {
 		$this->customers  = $customers;
 		$this->anonymizer = $anonymizer;
 		$this->clock      = $clock;
+
+		$this->analytics_queue = $analytics_queue;
 	}
 
 	/**
@@ -166,6 +183,7 @@ final class Retention implements Stage_Interface {
 		$this->prune_unidentified_events( $budget, $stats, $limit );
 		$this->purge_expired_tokens( $budget, $stats, $limit );
 		$this->prune_receipts( $budget, $stats, $limit );
+		$this->prune_analytics_queue( $budget, $stats, $limit );
 		$this->prune_logs( $budget, $stats, $limit );
 
 		return $stats;
@@ -328,6 +346,34 @@ final class Retention implements Stage_Interface {
 
 		while ( $budget->has_time( 2.0 ) ) {
 			$removed = $this->receipts->prune( $before, $limit );
+
+			$stats->processed += $removed;
+
+			if ( $removed < $limit ) {
+				return;
+			}
+		}
+
+		$stats->backlog = max( $stats->backlog, 1 );
+	}
+
+	/**
+	 * Delete GA4 queue rows that are a month old.
+	 *
+	 * Nothing that old can still be sent -- GA4 takes nothing older than 72
+	 * hours -- so the row is history whether it was sent, dropped or never
+	 * got the chance because reporting was switched off.
+	 *
+	 * @param Time_Budget $budget How long there is.
+	 * @param Stage_Stats $stats  Counters for this run.
+	 * @param int         $limit  Rows per batch.
+	 * @return void
+	 */
+	private function prune_analytics_queue( Time_Budget $budget, Stage_Stats $stats, int $limit ): void {
+		$before = $this->clock->offset( -self::ANALYTICS_QUEUE_DAYS * DAY_IN_SECONDS );
+
+		while ( $budget->has_time( 2.0 ) ) {
+			$removed = $this->analytics_queue->prune( $before, $limit );
 
 			$stats->processed += $removed;
 

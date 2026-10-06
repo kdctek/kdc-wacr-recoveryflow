@@ -93,6 +93,22 @@ class Transport {
 	 * @return bool
 	 */
 	protected function may_have_been_sent( string $code, string $message ): bool {
+		return self::failure_may_have_been_sent( $code, $message );
+	}
+
+	/**
+	 * The rule behind may_have_been_sent(), for callers that are not a Transport.
+	 *
+	 * The GA4 reporter asks the same question about its own requests: Google
+	 * does not de-duplicate, so a report that may have arrived must not be
+	 * sent again. One copy of the list, so the two cannot disagree about what
+	 * a timeout means.
+	 *
+	 * @param string $code    WP_Error code.
+	 * @param string $message WP_Error message.
+	 * @return bool
+	 */
+	public static function failure_may_have_been_sent( string $code, string $message ): bool {
 		$definitely_not = array(
 			'could not resolve host',
 			'couldn\'t resolve host',

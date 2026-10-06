@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Jobs\Stages;
 
+use WAcr\RecoveryFlow\Analytics\Journey_Reporter;
 use WAcr\RecoveryFlow\Database\Table_Names;
 use WAcr\RecoveryFlow\Jobs\Scheduler_Interface;
 use WAcr\RecoveryFlow\Jobs\Stage_Interface;
@@ -70,6 +71,13 @@ final class Expire implements Stage_Interface {
 	 */
 	private Attempt_Repository $attempts;
 
+	/**
+	 * Reports expiries to GA4, where the merchant has switched that on.
+	 *
+	 * @var Journey_Reporter
+	 */
+	private Journey_Reporter $reporter;
+
 
 	/**
 	 * Constructor.
@@ -77,11 +85,13 @@ final class Expire implements Stage_Interface {
 	 * @param Journey_Repository $journeys Journey storage.
 	 * @param Event_Repository   $events   Event storage.
 	 * @param Attempt_Repository $attempts Attempt ledger.
+	 * @param Journey_Reporter   $reporter Reports expiries to GA4.
 	 */
-	public function __construct( Journey_Repository $journeys, Event_Repository $events, Attempt_Repository $attempts ) {
+	public function __construct( Journey_Repository $journeys, Event_Repository $events, Attempt_Repository $attempts, Journey_Reporter $reporter ) {
 		$this->journeys = $journeys;
 		$this->events   = $events;
 		$this->attempts = $attempts;
+		$this->reporter = $reporter;
 	}
 
 	/**
@@ -162,6 +172,12 @@ final class Expire implements Stage_Interface {
 				$after = max( $after, $row['journey_id'] );
 
 				$this->attempts->revoke_tokens( $row['journey_id'] );
+
+				// Here because expiry itself is one bulk UPDATE with no hook:
+				// this pass is the one place each expired journey is visited.
+				// It runs before the event closes, so a run killed between the
+				// two reports the expiry on its next visit instead of never.
+				$this->reporter->on_expired( $row['journey_id'], $row['event_id'] );
 
 				// Closing the event frees its dedupe key, so the shopper's next
 				// basket is tracked as a new one rather than reviving this one.

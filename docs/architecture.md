@@ -183,6 +183,7 @@ Guards apply again at every `wait` and every send, not just at creation: quiet h
 | `recoveryflow/dispatch` | 60 s |
 | `recoveryflow/poll` | 300 s |
 | `recoveryflow/expire` | 900 s |
+| `recoveryflow/report` | 300 s |
 | `recoveryflow/retention` | daily |
 
 A stage that ends with a backlog enqueues a unique async `recoveryflow/run` action for itself, so 100,000 due rows drain across successive runs without waiting for the next interval.
@@ -215,8 +216,9 @@ Each stage is: acquire lock → start budget → loop while there is backlog and
 | **Evaluate** | Expires open, journey-less events older than the max age in one indexed `UPDATE … LIMIT 500`. Then selects open, journey-less, identified events past the inactivity threshold (`LIMIT 200`), runs eligibility for each, inserts the journey (`SCHEDULED` with `next_action_at`, or a terminal state with a reason), and stamps `journey_id` on the event `WHERE journey_id IS NULL` |
 | **Dispatch** | Returns immediately if the rate budget is paused. Claims due `SCHEDULED` rows (see below), and for each: re-checks the event is open, consent and opt-out, then asks the Engine for the next step. A `wait` sets `next_action_at`; a `condition` advances `current_step`; an `action` runs the send protocol; the end of the workflow leaves the journey in `MESSAGE_SENT` or moves it to `EXPIRED` |
 | **Poll** | Claims `MESSAGE_SENT` and `ENGAGED` rows by `poll_at` and reads the conversation from WA.cr from a minute before `first_sent_at`. An inbound message after the send means `ENGAGED` (`engaged_via = 'reply'`); a whole-message STOP keyword means `OPTED_OUT`; an outbound message matching an attempt updates it to `delivered`, `read` or `failed`; attempts in `unknown` are reconciled by time window and template. `poll_at` steps through 5 min, 15 min, 1 h, 6 h, 6 h… by `poll_count` and stops 72 hours after the first send |
-| **Expire** | Moves active journeys past `expires_at` to `EXPIRED` in batches of 500, revokes their tokens and closes the open events of terminal journeys |
-| **Retention** | Daily, in primary-key-ordered batches of 500 under the budget: anonymises terminal journeys past the retention period, deletes never-identified events after seven days, purges expired tokens, receipts older than 30 days and logs past their retention |
+| **Expire** | Moves active journeys past `expires_at` to `EXPIRED` in batches of 500, revokes their tokens and closes the open events of terminal journeys. The tidy pass is also where an expiry is queued for GA4, because the bulk `UPDATE` fires no hook; a journey that expired without sending a message has its GA client id forgotten instead |
+| **Report** | Does nothing, not even a query, unless GA4 reporting is switched on and configured. Marks queued milestones older than 71 hours `stale` (GA4 backdates at most 72), claims pending rows from `recoveryflow_analytics_queue`, groups them by browser (25 events per request, one client id each) and posts them to the Measurement Protocol. Rows move to `sending` before the request so a crash can never send twice; a failure that may have arrived is `unknown` and never retried, because GA4 does not de-duplicate |
+| **Retention** | Daily, in primary-key-ordered batches of 500 under the budget: anonymises terminal journeys past the retention period, deletes never-identified events after seven days, purges expired tokens, receipts and GA4 queue rows older than 30 days, and logs past their retention |
 
 Every stage is idempotent (conditional `UPDATE`s and UNIQUE keys), retryable (claims expire), batchable (`LIMIT` and a budget) and observable (`recoveryflow_stage_stats` records last run, duration, processed, backlog and last error per stage, shown on System Status).
 
@@ -316,6 +318,8 @@ Ten tables, each with one job, created by dbDelta and versioned by `recoveryflow
 **`recoveryflow_logs`** is a ring-bounded (2,000 rows) diagnostic log with a level, a category, an optional journey id, a short message and redacted JSON context. Every write passes through the Redactor first. Retention prunes it after 14 days by default.
 
 **`recoveryflow_receipts`** is the deduplication ledger: a primary-key `receipt_key` with a `kind` and a timestamp. It records webhook delivery ids, order-status events and every personal-data reveal in the admin (the audit trail). Receipts older than 30 days are pruned.
+
+**`recoveryflow_analytics_queue`** holds journey milestones waiting to be reported to the merchant's GA4 property: a journey id, an event name, when it happened and a status. `(journey_id, event_name)` is UNIQUE, which is the de-duplication GA4 itself does not have. It holds nothing personal; the GA client id stays on the event row, in `ga_client_id`, beside the `ga_ads_denied` flag, where the exporter and the anonymiser handle it.
 
 **`recoveryflow_locks`** holds seeded rows, one per stage, acquired by a conditional `UPDATE`. It exists because neither `add_option()` nor transients are atomic.
 

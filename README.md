@@ -88,7 +88,7 @@ kdc-wacr-recoveryflow/                (repo root == plugin root == WordPress.org
 │   │                Consent_Field, Hpos}, Custom/ (documented example)
 │   ├── WAcr/        Client, Credentials, Transport, Result, Error, Rate_Budget, Cache, Flow_Hook, Dto/
 │   ├── Jobs/        Scheduler_Interface, Action_Scheduler_Driver, Wp_Cron_Driver, Scheduler_Factory,
-│   │                Stage_Runner, Tick, Lock, Time_Budget, Stages/{Evaluate, Dispatch, Poll, Expire, Retention}
+│   │                Stage_Runner, Tick, Lock, Time_Budget, Stages/{Evaluate, Dispatch, Poll, Expire, Report, Retention}
 │   ├── REST/        Abstract_Controller, Journeys, Status, Integrations, Settings, Templates, Webhook, Args, Dto/
 │   ├── Admin/       Menu, Assets, Notices, Pages/{Overview, Journeys, Journey_Detail, Workflows, Integrations,
 │   │                System_Status}, Settings/{Page, Router, Tab, Section, Card, Field_Renderer, Schema}

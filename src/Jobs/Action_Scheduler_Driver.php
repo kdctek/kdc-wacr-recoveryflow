@@ -10,7 +10,7 @@ namespace WAcr\RecoveryFlow\Jobs;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * Runs the five stages as recurring Action Scheduler actions.
+ * Runs the six stages as recurring Action Scheduler actions.
  *
  * Three things about Action Scheduler are load-bearing here, and all three are
  * easy to get wrong from the documentation alone.
@@ -62,7 +62,7 @@ final class Action_Scheduler_Driver implements Scheduler_Interface {
 	/**
 	 * How often each stage runs, and how far into the first minute it starts.
 	 *
-	 * The starts are staggered so five stages do not land on the same request
+	 * The starts are staggered so six stages do not land on the same request
 	 * on a quiet site, where every one of them would then be competing for the
 	 * same PHP worker and the same time budget.
 	 *
@@ -85,6 +85,10 @@ final class Action_Scheduler_Driver implements Scheduler_Interface {
 			self::EXPIRE    => array(
 				'interval' => 15 * MINUTE_IN_SECONDS,
 				'offset'   => 60,
+			),
+			self::REPORT    => array(
+				'interval' => 5 * MINUTE_IN_SECONDS,
+				'offset'   => 70,
 			),
 			self::RETENTION => array(
 				'interval' => DAY_IN_SECONDS,
@@ -114,7 +118,7 @@ final class Action_Scheduler_Driver implements Scheduler_Interface {
 	}
 
 	/**
-	 * Register the five recurring actions, if they are not already registered.
+	 * Register the recurring actions, if they are not already registered.
 	 *
 	 * @return void
 	 */

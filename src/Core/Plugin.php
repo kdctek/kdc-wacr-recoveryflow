@@ -35,6 +35,9 @@ use WAcr\RecoveryFlow\Admin\Pages\Overview as Overview_Page;
 use WAcr\RecoveryFlow\Admin\Pages\System_Status;
 use WAcr\RecoveryFlow\Admin\Pages\Workflow_Edit;
 use WAcr\RecoveryFlow\Admin\Pages\Workflows as Workflows_Page;
+use WAcr\RecoveryFlow\Analytics\Journey_Reporter;
+use WAcr\RecoveryFlow\Analytics\Measurement_Protocol;
+use WAcr\RecoveryFlow\Analytics\Queue_Repository;
 use WAcr\RecoveryFlow\Analytics\Utm_Tagger;
 use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Consent_Store;
@@ -70,6 +73,7 @@ use WAcr\RecoveryFlow\Jobs\Stages\Dispatch;
 use WAcr\RecoveryFlow\Jobs\Stages\Evaluate;
 use WAcr\RecoveryFlow\Jobs\Stages\Expire;
 use WAcr\RecoveryFlow\Jobs\Stages\Poll;
+use WAcr\RecoveryFlow\Jobs\Stages\Report;
 use WAcr\RecoveryFlow\Jobs\Stages\Retention;
 use WAcr\RecoveryFlow\Jobs\Wp_Cron_Driver;
 use WAcr\RecoveryFlow\Privacy\Anonymizer;
@@ -178,27 +182,30 @@ final class Plugin {
 	 */
 	private function register_factories(): void {
 		$this->factories = array(
-			'clock'               => static fn (): Clock => new Clock(),
-			'logger'              => static fn ( Plugin $c ): Logger => new Logger( $c->clock() ),
+			'clock'                => static fn (): Clock => new Clock(),
+			'logger'               => static fn ( Plugin $c ): Logger => new Logger( $c->clock() ),
 
 			// Storage. Every repository shares the one clock, so freezing time
 			// in a test freezes it for the whole plugin at once.
-			'events'              => static fn ( Plugin $c ): Event_Repository => new Event_Repository( $c->clock() ),
-			'journeys'            => static fn ( Plugin $c ): Journey_Repository => new Journey_Repository( $c->clock() ),
-			'attempts'            => static fn ( Plugin $c ): Attempt_Repository => new Attempt_Repository( $c->clock() ),
-			'identities'          => static fn ( Plugin $c ): Identity_Repository => new Identity_Repository( $c->clock() ),
-			'customers'           => static fn ( Plugin $c ): Customer_Repository => new Customer_Repository( $c->clock(), $c->identities() ),
-			'consents'            => static fn ( Plugin $c ): Consent_Repository => new Consent_Repository( $c->clock() ),
-			'locks'               => static fn ( Plugin $c ): Lock_Repository => new Lock_Repository( $c->clock() ),
-			'receipts'            => static fn ( Plugin $c ): Receipt_Repository => new Receipt_Repository( $c->clock() ),
-			'workflows'           => static fn ( Plugin $c ): Workflow_Repository => new Workflow_Repository( $c->clock() ),
+			'events'               => static fn ( Plugin $c ): Event_Repository => new Event_Repository( $c->clock() ),
+			'journeys'             => static fn ( Plugin $c ): Journey_Repository => new Journey_Repository( $c->clock() ),
+			'attempts'             => static fn ( Plugin $c ): Attempt_Repository => new Attempt_Repository( $c->clock() ),
+			'identities'           => static fn ( Plugin $c ): Identity_Repository => new Identity_Repository( $c->clock() ),
+			'customers'            => static fn ( Plugin $c ): Customer_Repository => new Customer_Repository( $c->clock(), $c->identities() ),
+			'consents'             => static fn ( Plugin $c ): Consent_Repository => new Consent_Repository( $c->clock() ),
+			'locks'                => static fn ( Plugin $c ): Lock_Repository => new Lock_Repository( $c->clock() ),
+			'receipts'             => static fn ( Plugin $c ): Receipt_Repository => new Receipt_Repository( $c->clock() ),
+			'analytics_queue'      => static fn ( Plugin $c ): Queue_Repository => new Queue_Repository( $c->clock() ),
+			'measurement_protocol' => static fn (): Measurement_Protocol => new Measurement_Protocol(),
+			'journey_reporter'     => static fn ( Plugin $c ): Journey_Reporter => new Journey_Reporter( $c->analytics_queue(), $c->journeys(), $c->events(), $c->workflows(), $c->clock() ),
+			'workflows'            => static fn ( Plugin $c ): Workflow_Repository => new Workflow_Repository( $c->clock() ),
 
 			// Identity, consent and the decision to message.
-			'identity'            => static fn ( Plugin $c ): Identity_Resolver => new Identity_Resolver( $c->customers(), $c->identities(), $c->lock(), $c->logger() ),
-			'consent'             => static fn ( Plugin $c ): Consent_Store => new Consent_Store( $c->consents() ),
-			'eligibility'         => static fn ( Plugin $c ): Eligibility_Evaluator => new Eligibility_Evaluator( $c->consent(), $c->journeys(), $c->attempts() ),
-			'ingest'              => static fn ( Plugin $c ): Event_Ingest => new Event_Ingest( $c->events(), $c->identity(), $c->consent(), $c->logger() ),
-			'conversions'         => static fn ( Plugin $c ): Conversion_Tracker => new Conversion_Tracker(
+			'identity'             => static fn ( Plugin $c ): Identity_Resolver => new Identity_Resolver( $c->customers(), $c->identities(), $c->lock(), $c->logger() ),
+			'consent'              => static fn ( Plugin $c ): Consent_Store => new Consent_Store( $c->consents() ),
+			'eligibility'          => static fn ( Plugin $c ): Eligibility_Evaluator => new Eligibility_Evaluator( $c->consent(), $c->journeys(), $c->attempts() ),
+			'ingest'               => static fn ( Plugin $c ): Event_Ingest => new Event_Ingest( $c->events(), $c->identity(), $c->consent(), $c->logger() ),
+			'conversions'          => static fn ( Plugin $c ): Conversion_Tracker => new Conversion_Tracker(
 				$c->journeys(),
 				$c->events(),
 				$c->attempts(),
@@ -208,10 +215,10 @@ final class Plugin {
 			),
 
 			// WA.cr.
-			'credentials'         => static fn (): Credentials => new Credentials(),
-			'transport'           => static fn (): Transport => new Transport(),
-			'rate_budget'         => static fn ( Plugin $c ): Rate_Budget => new Rate_Budget( $c->clock() ),
-			'wacr'                => static fn ( Plugin $c ): Client => new Client(
+			'credentials'          => static fn (): Credentials => new Credentials(),
+			'transport'            => static fn (): Transport => new Transport(),
+			'rate_budget'          => static fn ( Plugin $c ): Rate_Budget => new Rate_Budget( $c->clock() ),
+			'wacr'                 => static fn ( Plugin $c ): Client => new Client(
 				$c->credentials(),
 				$c->transport(),
 				$c->rate_budget(),
@@ -220,17 +227,17 @@ final class Plugin {
 			),
 
 			// Integrations.
-			'sources'             => static fn ( Plugin $c ): Source_Registry => new Source_Registry( $c->ingest() ),
-			'source_cursors'      => static fn (): Source_Cursors => new Source_Cursors(),
-			'wc_session'          => static fn (): Wc_Session => new Wc_Session(),
+			'sources'              => static fn ( Plugin $c ): Source_Registry => new Source_Registry( $c->ingest() ),
+			'source_cursors'       => static fn (): Source_Cursors => new Source_Cursors(),
+			'wc_session'           => static fn (): Wc_Session => new Wc_Session(),
 
 			// The workflow engine and its registries.
-			'send_gate'           => static fn ( Plugin $c ): Send_Gate => new Send_Gate( $c->rate_budget(), $c->wacr(), $c->logger(), $c->clock() ),
-			'composer'            => static fn ( Plugin $c ): Message_Composer => new Message_Composer( $c->logger() ),
-			'email_composer'      => static fn ( Plugin $c ): Email_Composer => new Email_Composer( $c->logger() ),
-			'email_sender'        => static fn ( Plugin $c ): Email_Sender => new Email_Sender( $c->logger() ),
-			'steps'               => static fn ( Plugin $c ): Step_Registry => $c->build_step_registry(),
-			'engine'              => static fn ( Plugin $c ): Engine => new Engine(
+			'send_gate'            => static fn ( Plugin $c ): Send_Gate => new Send_Gate( $c->rate_budget(), $c->wacr(), $c->logger(), $c->clock() ),
+			'composer'             => static fn ( Plugin $c ): Message_Composer => new Message_Composer( $c->logger() ),
+			'email_composer'       => static fn ( Plugin $c ): Email_Composer => new Email_Composer( $c->logger() ),
+			'email_sender'         => static fn ( Plugin $c ): Email_Sender => new Email_Sender( $c->logger() ),
+			'steps'                => static fn ( Plugin $c ): Step_Registry => $c->build_step_registry(),
+			'engine'               => static fn ( Plugin $c ): Engine => new Engine(
 				$c->workflows(),
 				$c->journeys(),
 				$c->events(),
@@ -244,18 +251,18 @@ final class Plugin {
 			),
 
 			// Background processing.
-			'lock'                => static fn ( Plugin $c ): Lock => new Lock( $c->locks(), $c->logger() ),
-			'scheduler'           => static fn (): Scheduler_Factory => new Scheduler_Factory( new Action_Scheduler_Driver(), new Wp_Cron_Driver() ),
-			'runner'              => static fn ( Plugin $c ): Stage_Runner => $c->build_stage_runner(),
+			'lock'                 => static fn ( Plugin $c ): Lock => new Lock( $c->locks(), $c->logger() ),
+			'scheduler'            => static fn (): Scheduler_Factory => new Scheduler_Factory( new Action_Scheduler_Driver(), new Wp_Cron_Driver() ),
+			'runner'               => static fn ( Plugin $c ): Stage_Runner => $c->build_stage_runner(),
 
 			// The health checks, shared by the status screen and the status
 			// endpoint so the two cannot drift into different diagnoses.
-			'health'              => static fn ( Plugin $c ): Health => new Health( $c->credentials(), $c->scheduler() ),
+			'health'               => static fn ( Plugin $c ): Health => new Health( $c->credentials(), $c->scheduler() ),
 
 			// REST. Registered on rest_api_init, which fires on its own request
 			// rather than in wp-admin, so these are built on every request the
 			// same way the public endpoint is.
-			'rest_journeys'       => static fn ( Plugin $c ): Journeys_Controller => new Journeys_Controller(
+			'rest_journeys'        => static fn ( Plugin $c ): Journeys_Controller => new Journeys_Controller(
 				$c->journeys(),
 				$c->events(),
 				$c->customers(),
@@ -264,11 +271,11 @@ final class Plugin {
 				$c->suppressor(),
 				$c->clock()
 			),
-			'rest_status'         => static fn ( Plugin $c ): Status_Controller => new Status_Controller( $c->credentials(), $c->wacr(), $c->health() ),
-			'rest_settings'       => static fn (): Settings_Controller => new Settings_Controller(),
-			'rest_integrations'   => static fn ( Plugin $c ): Integrations_Controller => new Integrations_Controller( $c->sources() ),
-			'rest_templates'      => static fn ( Plugin $c ): Templates_Controller => new Templates_Controller( $c->template_catalog() ),
-			'rest_webhook'        => static fn ( Plugin $c ): Webhook_Controller => new Webhook_Controller(
+			'rest_status'          => static fn ( Plugin $c ): Status_Controller => new Status_Controller( $c->credentials(), $c->wacr(), $c->health() ),
+			'rest_settings'        => static fn (): Settings_Controller => new Settings_Controller(),
+			'rest_integrations'    => static fn ( Plugin $c ): Integrations_Controller => new Integrations_Controller( $c->sources() ),
+			'rest_templates'       => static fn ( Plugin $c ): Templates_Controller => new Templates_Controller( $c->template_catalog() ),
+			'rest_webhook'         => static fn ( Plugin $c ): Webhook_Controller => new Webhook_Controller(
 				$c->customers(),
 				$c->journeys(),
 				$c->suppressor(),
@@ -279,7 +286,7 @@ final class Plugin {
 			// Privacy. The anonymiser is shared: WordPress's eraser and the
 			// daily retention clear-out must not drift into two ideas of what
 			// "erased" means.
-			'anonymizer'          => static fn ( Plugin $c ): Anonymizer => new Anonymizer(
+			'anonymizer'           => static fn ( Plugin $c ): Anonymizer => new Anonymizer(
 				$c->customers(),
 				$c->journeys(),
 				$c->events(),
@@ -287,7 +294,7 @@ final class Plugin {
 				$c->consents(),
 				$c->logger()
 			),
-			'privacy_exporter'    => static fn ( Plugin $c ): Exporter => new Exporter(
+			'privacy_exporter'     => static fn ( Plugin $c ): Exporter => new Exporter(
 				$c->customers(),
 				$c->identities(),
 				$c->consents(),
@@ -295,14 +302,14 @@ final class Plugin {
 				$c->events(),
 				$c->attempts()
 			),
-			'privacy_eraser'      => static fn ( Plugin $c ): Eraser => new Eraser( $c->customers(), $c->anonymizer() ),
+			'privacy_eraser'       => static fn ( Plugin $c ): Eraser => new Eraser( $c->customers(), $c->anonymizer() ),
 
 			// The admin. Built only when a request is actually in wp-admin --
 			// see boot() -- so a shop page never pays for a screen nobody is
 			// looking at.
-			'admin_overview'      => static fn ( Plugin $c ): Overview_Page => new Overview_Page( $c->journeys(), $c->health() ),
-			'admin_journeys'      => static fn ( Plugin $c ): Journeys_Page => new Journeys_Page( $c->journeys(), $c->events(), $c->customers() ),
-			'admin_journey'       => static fn ( Plugin $c ): Journey_Detail => new Journey_Detail(
+			'admin_overview'       => static fn ( Plugin $c ): Overview_Page => new Overview_Page( $c->journeys(), $c->health() ),
+			'admin_journeys'       => static fn ( Plugin $c ): Journeys_Page => new Journeys_Page( $c->journeys(), $c->events(), $c->customers() ),
+			'admin_journey'        => static fn ( Plugin $c ): Journey_Detail => new Journey_Detail(
 				$c->journeys(),
 				$c->events(),
 				$c->customers(),
@@ -310,16 +317,16 @@ final class Plugin {
 				$c->receipts(),
 				$c->sources()
 			),
-			'admin_integrations'  => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
-			'admin_diagnostics'   => static fn ( Plugin $c ): Diagnostics => new Diagnostics( $c->credentials(), $c->health() ),
-			'admin_status'        => static fn ( Plugin $c ): System_Status => new System_Status( $c->health(), $c->admin_diagnostics() ),
-			'admin_workflows'     => static fn ( Plugin $c ): Workflows_Page => new Workflows_Page( $c->workflows() ),
-			'template_catalog'    => static fn ( Plugin $c ): Template_Catalog => new Template_Catalog( $c->wacr() ),
-			'opt_out_sync'        => static fn ( Plugin $c ): Opt_Out_Sync => new Opt_Out_Sync( $c->wacr(), $c->customers(), $c->logger() ),
-			'admin_workflow'      => static fn ( Plugin $c ): Workflow_Edit => new Workflow_Edit( $c->workflows(), $c->steps(), $c->template_catalog() ),
-			'admin_workflow_form' => static fn ( Plugin $c ): Workflow_Form => new Workflow_Form( $c->workflows(), $c->steps() ),
-			'admin_setup'         => static fn ( Plugin $c ): Setup => new Setup( $c->wacr(), $c->credentials() ),
-			'admin_menu'          => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
+			'admin_integrations'   => static fn ( Plugin $c ): Integrations_Page => new Integrations_Page( $c->sources() ),
+			'admin_diagnostics'    => static fn ( Plugin $c ): Diagnostics => new Diagnostics( $c->credentials(), $c->health() ),
+			'admin_status'         => static fn ( Plugin $c ): System_Status => new System_Status( $c->health(), $c->admin_diagnostics() ),
+			'admin_workflows'      => static fn ( Plugin $c ): Workflows_Page => new Workflows_Page( $c->workflows() ),
+			'template_catalog'     => static fn ( Plugin $c ): Template_Catalog => new Template_Catalog( $c->wacr() ),
+			'opt_out_sync'         => static fn ( Plugin $c ): Opt_Out_Sync => new Opt_Out_Sync( $c->wacr(), $c->customers(), $c->logger() ),
+			'admin_workflow'       => static fn ( Plugin $c ): Workflow_Edit => new Workflow_Edit( $c->workflows(), $c->steps(), $c->template_catalog() ),
+			'admin_workflow_form'  => static fn ( Plugin $c ): Workflow_Form => new Workflow_Form( $c->workflows(), $c->steps() ),
+			'admin_setup'          => static fn ( Plugin $c ): Setup => new Setup( $c->wacr(), $c->credentials() ),
+			'admin_menu'           => static fn ( Plugin $c ): Admin_Menu => new Admin_Menu(
 				$c->admin_overview(),
 				$c->admin_journeys(),
 				$c->admin_journey(),
@@ -329,17 +336,17 @@ final class Plugin {
 				$c->admin_workflow(),
 				$c->admin_setup()
 			),
-			'admin_assets'        => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
-			'admin_connection'    => static fn ( Plugin $c ): Connection_Test => new Connection_Test( $c->wacr(), $c->credentials() ),
-			'admin_hook_test'     => static fn ( Plugin $c ): Hook_Test => new Hook_Test( $c->wacr(), $c->credentials() ),
-			'admin_run_now'       => static fn ( Plugin $c ): Run_Now => new Run_Now( $c->runner() ),
-			'admin_journey_acts'  => static fn ( Plugin $c ): Journey_Actions => new Journey_Actions( $c->rest_journeys() ),
-			'privacy_erase_phone' => static fn ( Plugin $c ): Erase_By_Phone => new Erase_By_Phone( $c->customers(), $c->anonymizer() ),
-			'admin_webhook_setup' => static fn (): Webhook_Setup => new Webhook_Setup(),
+			'admin_assets'         => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
+			'admin_connection'     => static fn ( Plugin $c ): Connection_Test => new Connection_Test( $c->wacr(), $c->credentials() ),
+			'admin_hook_test'      => static fn ( Plugin $c ): Hook_Test => new Hook_Test( $c->wacr(), $c->credentials() ),
+			'admin_run_now'        => static fn ( Plugin $c ): Run_Now => new Run_Now( $c->runner() ),
+			'admin_journey_acts'   => static fn ( Plugin $c ): Journey_Actions => new Journey_Actions( $c->rest_journeys() ),
+			'privacy_erase_phone'  => static fn ( Plugin $c ): Erase_By_Phone => new Erase_By_Phone( $c->customers(), $c->anonymizer() ),
+			'admin_webhook_setup'  => static fn (): Webhook_Setup => new Webhook_Setup(),
 
 			// The public endpoint.
-			'rate_limiter'        => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
-			'recovery_controller' => static fn ( Plugin $c ): Recovery_Controller => new Recovery_Controller(
+			'rate_limiter'         => static fn ( Plugin $c ): Rate_Limiter => new Rate_Limiter( $c->clock() ),
+			'recovery_controller'  => static fn ( Plugin $c ): Recovery_Controller => new Recovery_Controller(
 				$c->attempts(),
 				$c->journeys(),
 				$c->events(),
@@ -350,8 +357,8 @@ final class Plugin {
 				$c->suppressor(),
 				$c->utm_tagger()
 			),
-			'utm_tagger'          => static fn ( Plugin $c ): Utm_Tagger => new Utm_Tagger( $c->workflows() ),
-			'suppressor'          => static fn ( Plugin $c ): Suppressor => new Suppressor(
+			'utm_tagger'           => static fn ( Plugin $c ): Utm_Tagger => new Utm_Tagger( $c->workflows() ),
+			'suppressor'           => static fn ( Plugin $c ): Suppressor => new Suppressor(
 				$c->customers(),
 				$c->consent(),
 				$c->journeys(),
@@ -434,7 +441,7 @@ final class Plugin {
 	}
 
 	/**
-	 * Build the stage runner with the five stages attached.
+	 * Build the stage runner with the six stages attached.
 	 *
 	 * @return Stage_Runner
 	 */
@@ -446,8 +453,9 @@ final class Plugin {
 		$runner->add( new Evaluate( $this->events(), $this->journeys(), $this->customers(), $this->eligibility(), $this->sources(), $this->workflows(), $this->ingest(), $this->source_cursors(), $this->clock(), $this->logger() ) );
 		$runner->add( new Dispatch( $this->journeys(), $this->engine(), $this->rate_budget(), $this->logger() ) );
 		$runner->add( new Poll( $this->journeys(), $this->attempts(), $this->customers(), $this->consent(), $this->wacr(), $this->clock(), $this->logger() ) );
-		$runner->add( new Expire( $this->journeys(), $this->events(), $this->attempts() ) );
-		$runner->add( new Retention( $this->events(), $this->attempts(), $this->receipts(), $this->customers(), $this->anonymizer(), $this->clock() ) );
+		$runner->add( new Expire( $this->journeys(), $this->events(), $this->attempts(), $this->journey_reporter() ) );
+		$runner->add( new Report( $this->analytics_queue(), $this->journey_reporter(), $this->measurement_protocol(), $this->journeys(), $this->events(), $this->clock(), $this->logger() ) );
+		$runner->add( new Retention( $this->events(), $this->attempts(), $this->receipts(), $this->customers(), $this->anonymizer(), $this->clock(), $this->analytics_queue() ) );
 
 		return $runner;
 	}
@@ -1150,6 +1158,33 @@ final class Plugin {
 	}
 
 	/**
+	 * The analytics queue.
+	 *
+	 * @return Queue_Repository
+	 */
+	public function analytics_queue(): Queue_Repository {
+		return $this->typed( 'analytics_queue', Queue_Repository::class );
+	}
+
+	/**
+	 * The Measurement Protocol client.
+	 *
+	 * @return Measurement_Protocol
+	 */
+	public function measurement_protocol(): Measurement_Protocol {
+		return $this->typed( 'measurement_protocol', Measurement_Protocol::class );
+	}
+
+	/**
+	 * Decides which journey milestones are reported to GA4.
+	 *
+	 * @return Journey_Reporter
+	 */
+	public function journey_reporter(): Journey_Reporter {
+		return $this->typed( 'journey_reporter', Journey_Reporter::class );
+	}
+
+	/**
 	 * Attach the plugin to WordPress.
 	 *
 	 * @return void
@@ -1219,6 +1254,7 @@ final class Plugin {
 
 		// The public recovery endpoint, the stage hooks and the scheduler.
 		$this->opt_out_sync()->hooks();
+		$this->journey_reporter()->hooks();
 		$this->recovery_controller()->hooks();
 		$this->runner()->hooks();
 		$this->scheduler()->hooks();

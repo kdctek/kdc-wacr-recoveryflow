@@ -13,7 +13,7 @@ defined( 'ABSPATH' ) || exit;
  * One unit of background work, told how long it has.
  *
  * A stage is handed the budget rather than making its own, because the WP-Cron
- * driver runs all five in one request and they have to share. A stage that
+ * driver runs all six in one request and they have to share. A stage that
  * ignored the budget would be the reason the fifth one never ran.
  *
  * A stage owns no locking of its own. Stage_Runner takes the lock named by

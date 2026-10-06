@@ -48,11 +48,14 @@ final class Stage_Label {
 			case Scheduler_Interface::EXPIRE:
 				return __( 'Closing recoveries that ran out of time', 'kdc-wacr-recoveryflow' );
 
+			case Scheduler_Interface::REPORT:
+				return __( 'Reporting to Google Analytics', 'kdc-wacr-recoveryflow' );
+
 			case Scheduler_Interface::RETENTION:
 				return __( 'Clearing out old data', 'kdc-wacr-recoveryflow' );
 
 			default:
 				return $stage;
-		}
+		}//end switch
 	}
 }

@@ -31,11 +31,13 @@ final class RedactionTest extends TestCase {
 	 */
 	public function secrets(): array {
 		return array(
-			'a phone number in E.164' => array( '+447700900123', 'Sending to' ),
-			'an email address'        => array( 'ada@example.test', 'Sending to' ),
-			'a live API key'          => array( 'wacr_live_abcdef0123456789', 'Sending to' ),
-			'a test API key'          => array( 'waht_test_abcdef0123456789', 'Sending to' ),
-			'a bearer header'         => array( 'Bearer abcdef0123456789abcdef', 'Sending to' ),
+			'a phone number in E.164'   => array( '+447700900123', 'Sending to' ),
+			'an email address'          => array( 'ada@example.test', 'Sending to' ),
+			'a live API key'            => array( 'wacr_live_abcdef0123456789', 'Sending to' ),
+			'a test API key'            => array( 'waht_test_abcdef0123456789', 'Sending to' ),
+			'a bearer header'           => array( 'Bearer abcdef0123456789abcdef', 'Sending to' ),
+			'a GA client id cookie'     => array( 'GA1.1.1234567890.1757000000', 'Sending to' ),
+			'a GA4 API secret in a URL' => array( 'https://www.google-analytics.com/mp/collect?measurement_id=G-TEST1234&api_secret=Zq9xK2mP4vR7sT1u', 'measurement_id=G-TEST1234' ),
 		);
 	}
 
@@ -95,6 +97,26 @@ final class RedactionTest extends TestCase {
 		$this->assertIsArray( $scrubbed );
 		$this->assertNotSame( '07700 900123', $scrubbed['phone'] ?? null );
 		$this->assertSame( 'dispatch', $scrubbed['stage'] ?? null, 'The keys that describe what happened are the point of a log.' );
+	}
+
+	/**
+	 * A GA client id and a GA4 secret are removed by their keys too.
+	 *
+	 * @return void
+	 */
+	public function test_ga4_identifiers_are_removed_by_key() {
+		$scrubbed = Redactor::scrub(
+			array(
+				'ga_client_id' => 'GA1.1.1234567890.1757000000',
+				'api_secret'   => 'Zq9xK2mP4vR7sT1u',
+				'stage'        => 'report',
+			)
+		);
+
+		$this->assertIsArray( $scrubbed );
+		$this->assertSame( Redactor::MASK, $scrubbed['ga_client_id'] ?? null );
+		$this->assertSame( Redactor::MASK, $scrubbed['api_secret'] ?? null );
+		$this->assertSame( 'report', $scrubbed['stage'] ?? null );
 	}
 
 	/**

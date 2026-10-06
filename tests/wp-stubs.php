@@ -322,6 +322,17 @@ function delete_transient( $key ) {
 function wp_remote_request( $url, $args = array() ) {
 	return $GLOBALS['__http_response'] ?? array( 'response' => array( 'code' => 200 ), 'body' => '{}', 'headers' => array() );
 }
+/**
+ * Records every POST, so a test can read exactly what would have left the site.
+ */
+function wp_safe_remote_post( $url, $args = array() ) {
+	$GLOBALS['__http_posts'][] = array(
+		'url'  => $url,
+		'args' => $args,
+	);
+
+	return $GLOBALS['__http_response'] ?? array( 'response' => array( 'code' => 204 ), 'body' => '', 'headers' => array() );
+}
 function is_wp_error( $thing ) {
 	return $thing instanceof WP_Error;
 }

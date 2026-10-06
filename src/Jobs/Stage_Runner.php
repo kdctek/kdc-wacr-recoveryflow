@@ -17,7 +17,7 @@ defined( 'ABSPATH' ) || exit;
  * The one place a stage is started, and the only place that has to be careful.
  *
  * Everything a stage needs in order to be safe lives here rather than in the
- * five stages: take the lock, start the clock, run, record what happened, give
+ * six stages: take the lock, start the clock, run, record what happened, give
  * the lock back, and ask for another pass if there is more to do. Putting it
  * here means a new stage cannot forget any of it.
  *
@@ -166,7 +166,7 @@ final class Stage_Runner {
 	/**
 	 * Run every stage in order under one shared budget.
 	 *
-	 * This is the WP-Cron path: one request has to do all five, so they share
+	 * This is the WP-Cron path: one request has to do all six, so they share
 	 * the time between them rather than each assuming it has the whole of it.
 	 * A continuation carries the stage it is for, so a backlog re-runs one
 	 * stage rather than starting the whole tick again.
