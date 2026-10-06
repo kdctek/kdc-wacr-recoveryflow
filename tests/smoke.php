@@ -8314,6 +8314,81 @@ if ( false === $recoveryflow_ga4_secret_before ) {
 $GLOBALS['__settings_errors'] = array();
 
 
+// --------------------------------------------- GA4: reading the cookie.
+
+/*
+ * The three gates in front of the _ga cookie, in a visitor's request. The WP
+ * Consent API is stood in for here, last in this file, because defining it
+ * makes function_exists() true for everything after.
+ */
+if ( ! function_exists( 'wp_has_consent' ) ) {
+	/**
+	 * Stand-in for the WP Consent API.
+	 *
+	 * @param string $category Consent category.
+	 * @return bool
+	 */
+	function wp_has_consent( $category ) {
+		return $GLOBALS['__consent'][ $category ] ?? true;
+	}
+}
+
+$recoveryflow_ga4_settings_before = get_option( Options::SETTINGS, array() );
+$recoveryflow_ga4_secret_before   = get_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, false );
+$GLOBALS['__doing_ajax']          = true; // A visitor's admin-ajax request; is_admin() is always true in this harness.
+$_COOKIE['_ga']                   = 'GA1.1.987654321.1757000000';
+
+check( 'with reporting off the cookie is not read at all', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+
+update_option(
+	Options::SETTINGS,
+	array_merge(
+		Options::all(),
+		array(
+			'ga4_events_enabled' => true,
+			'ga4_measurement_id' => 'G-TEST1234',
+		)
+	)
+);
+\WAcr\RecoveryFlow\Analytics\Ga4_Settings::set_api_secret( 'mp-secret-value' );
+
+$GLOBALS['__consent'] = array();
+check( 'with reporting on and no refusal, the whole cookie is read', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), 'GA1.1.987654321.1757000000' );
+
+$GLOBALS['__consent'] = array( 'statistics' => false );
+check( 'a consent tool refusing statistics stops the read', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+
+$GLOBALS['__consent']   = array( 'marketing' => false );
+$recoveryflow_ga4_draft = new \WAcr\RecoveryFlow\Recovery\Event_Draft( 'woocommerce', 'cart', 'wc:probe' );
+\WAcr\RecoveryFlow\Analytics\Client_Id::attach( $recoveryflow_ga4_draft );
+check( 'a marketing refusal still allows the analytics read', $recoveryflow_ga4_draft->ga_client_id, 'GA1.1.987654321.1757000000' );
+ok( 'and is recorded on the draft, so the later report can say DENIED', true === $recoveryflow_ga4_draft->ga_ads_denied );
+
+$GLOBALS['__consent']  = array();
+$GLOBALS['__doing_cron'] = true;
+check( 'a cron request never reads it, whatever cookies it carries', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+$GLOBALS['__doing_cron'] = false;
+
+$GLOBALS['__doing_ajax'] = false;
+check( 'nor does a wp-admin screen', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+$GLOBALS['__doing_ajax'] = true;
+
+$_COOKIE['_ga'] = 'GA1.1.not-a-number.1757000000';
+check( 'a cookie that is not a GA client id is treated as none', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+
+unset( $_COOKIE['_ga'] );
+check( 'and no cookie at all, which is what a refused Consent Mode leaves, reads as none', \WAcr\RecoveryFlow\Analytics\Client_Id::from_request(), '' );
+
+$GLOBALS['__doing_ajax'] = false;
+$GLOBALS['__consent']    = array();
+update_option( Options::SETTINGS, $recoveryflow_ga4_settings_before );
+if ( false === $recoveryflow_ga4_secret_before ) {
+	delete_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION );
+} else {
+	update_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, $recoveryflow_ga4_secret_before );
+}
+
+
 echo "\n";
 echo "\n";
 echo $failed > 0 ? "FAILED\n" : "PASSED\n";
