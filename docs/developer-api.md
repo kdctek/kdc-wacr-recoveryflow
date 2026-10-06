@@ -371,7 +371,7 @@ For the editor to show a number box, the condition also implements `WAcr\Recover
 | --- | --- |
 | `get_argument_label()` | The box's label, e.g. "Amount" |
 | `get_argument_help()` | One sentence under the box: what the number means, what an empty box does, and the accepted range. Also used to explain a refused save |
-| `get_argument_bounds()` | `array( 'min' => '', 'max' => '', 'step' => '' )` as attribute values; `''` leaves a bound off |
+| `get_argument_bounds()` | `array( 'min' => '', 'max' => '', 'step' => '' )` as attribute values; `''` leaves a bound off. Leaving `step` off means whole numbers only, because that is the browser's default: a number with decimals needs `'step' => 'any'` (or a step that matches every value `normalize_argument()` accepts), or the browser refuses it before it is posted |
 | `normalize_argument( string $raw )` | The value to store, `''` for "use the default", or `null` when it cannot be read |
 
 The box appears for the condition a step holds; after choosing a different one, Save redraws the step with its box. A number `normalize_argument()` rejects refuses the save with your help sentence, naming the step. A condition that does not implement the interface gets no box and works as before. `evaluate()` should still treat an unreadable argument as "no", because a definition can be written by code as well as by the editor.
