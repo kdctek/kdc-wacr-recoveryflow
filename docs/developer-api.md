@@ -44,7 +44,7 @@ Registries are passed by object; return the registry from your callback.
 | --- | --- | --- |
 | `recoveryflow_register_sources` | `Source_Registry $registry` | Add a Recovery Source. Applied on `init` at priority 5 |
 | `recoveryflow_register_workflow_steps` | `Step_Registry $registry` | Add a step type beyond `wait`, `condition` and `action` |
-| `recoveryflow_register_workflow_conditions` | `Step_Registry $registry` | Add a condition usable in `"if"`. Built-ins: `journey.not_completed`, `journey.not_engaged`, `customer.eligible`, `event.amount_gte`, `event.item_count_gte`, `journey.attempts_lt` |
+| `recoveryflow_register_workflow_conditions` | `Step_Registry $registry` | Add a condition usable in `"if"`. Built-ins: `journey.not_completed`, `journey.not_engaged`, `customer.eligible`, `event.amount_gte`, `customer.ignored_fewer_than`. A condition that takes a number also implements `Condition_Argument_Interface`; see [Conditions that take a number](#conditions-that-take-a-number) |
 | `recoveryflow_register_workflow_actions` | `Step_Registry $registry` | Add an action usable in `"do"`. Built-ins: `wacr.send_template`, `wacr.send_email`, `wacr.start_flow`. A generic `webhook.post` is planned |
 | `recoveryflow_normalize_phone` | `?string $e164, string $raw, ?string $country_iso2` | Override or correct the result of phone normalisation. Return `null` to mark the number invalid |
 | `recoveryflow_calling_codes` | `array $codes` | Map of ISO 3166-1 alpha-2 country code to calling code, used by the normaliser. Add or correct entries |
@@ -56,6 +56,7 @@ Registries are passed by object; return the registry from your callback.
 | `recoveryflow_gf_paid_statuses` | `string[] $statuses` | Gravity Forms `payment_status` values that count as a completed sale. Default `Paid`, `Active`, `Approved`, `Authorized` |
 | `recoveryflow_gf_field_overrides` | `array $overrides, array $form` | Pins which Gravity Forms field holds a contact detail, keyed by field type (`email`, `phone`, `name`, `address`). Default: the first field of each type |
 | `recoveryflow_gf_first_look_days` | `int $days` | How far back the first Gravity Forms backfill reads. Default 30 |
+| `recoveryflow_ignored_lookback_days` | `int $days` | How far back `customer.ignored_fewer_than` counts ignored recoveries. Default 180. Values below 1 are read as 1 |
 | `recoveryflow_wc_restore_cart_item_data` | `string[] $allowed_keys, array $line, Recovery_Journey $journey` | Keys of WooCommerce `cart_item_data` that the restorer may copy back from the snapshot. Default none, because that array is where other plugins keep arbitrary data |
 | `recoveryflow_restore_utm_params` | `array $params, Recovery_Journey $journey, Attempt $attempt` | The campaign tags added to a recovery link's destination: `utm_source` (`recoveryflow`), `utm_medium` (the channel), `utm_campaign` (the workflow slug), `utm_content` (`step-N`). Return `array()` to add none. Only `utm_*` keys are used, values are cut to 100 characters, and a tag the destination already carries is never overwritten. Not applied when "Tag recovery links" is off |
 | `recoveryflow_ga_cookie_name` | `string $name` | The cookie the GA client id is read from. Default `_ga`. Change it when the site's tag sets `cookie_prefix` |
@@ -307,7 +308,7 @@ Gravity Forms is a worked example of a source that is both hooked and pollable, 
 
 ## Workflow definition
 
-Workflows are JSON documents stored with an immutable snapshot per version. `Workflow_Definition::schema()` validates them on save. A journey pins the version it started under, so editing a workflow never changes a running journey.
+Workflows are JSON documents stored with an immutable snapshot per version. `Workflow_Definition::validate()` checks them on save, and the repository checks again. A journey pins the version it started under, so editing a workflow never changes a running journey.
 
 ```json
 {
@@ -326,7 +327,7 @@ Workflows are JSON documents stored with an immutable snapshot per version. `Wor
         } } },
     { "type": "wait",      "for": "P1D" },
     { "type": "condition", "if": "journey.not_completed", "else": "stop:recovered" },
-    { "type": "condition", "if": "journey.not_engaged",   "else": "stop:engaged" },
+    { "type": "condition", "if": "journey.not_engaged",   "else": "stop:cancelled" },
     { "type": "action",    "do": "wacr.send_template", "with": {
         "template": "cart_reminder_2", "language": "en",
         "variables": { "body_1": "{{customer.first_name}}", "button_0_url_1": "{{recovery.token}}" } } }
@@ -352,13 +353,30 @@ The Auto Flow hand-off workflow has the same shape with a single step:
 | `trigger.event` | Only `journey.eligible` today |
 | `trigger.source` | A `source_id` or `*` |
 | `steps[].type` | `condition`, `action` or `wait`, plus anything registered through `recoveryflow_register_workflow_steps` |
-| `condition.if` / `condition.else` | A registered condition name; `else` is `stop:recovered`, `stop:cancelled`, `stop:engaged` or omitted to continue |
+| `condition.if` / `condition.else` | A registered condition name, optionally followed by `:` and a number for a condition that takes one (`event.amount_gte:250`, `customer.ignored_fewer_than:2`). `else` is `stop:` followed by a state a journey can end in -- `recovered`, `expired`, `cancelled`, `opted_out`, `invalid` or `failed` -- or omitted to carry on. A failed check can stop the journey or carry on; it cannot skip a step |
 | `action.do` / `action.with` | A registered action and its parameters |
 | `wait.for` | An ISO 8601 duration such as `PT30M` or `P1D`; quiet hours may shift the resulting time |
 
 Execution rules: the Engine runs from `current_step` until a `wait` (which sets `next_action_at` and returns the journey to `SCHEDULED`), a `stop:*`, or the end. Each step executes at most once per `(journey, step_index)`: actions create attempt rows under a UNIQUE key; waits and conditions advance `current_step` in the same optimistic update. Guards on every wait and send: quiet hours, the per-customer frequency cap, one open journey per phone, three journeys per phone per 30 days, and the maximum touches per journey.
 
 Two default workflows are seeded on activation: the direct-send variant and the hand-off variant. A user with `recoveryflow_manage_workflows` builds their own on **Workflows &rsaquo; Edit**, a form-based editor that works with JavaScript switched off. The JSON below is the stored shape, not the way anybody has to author one.
+
+### Conditions that take a number
+
+A condition's question can contain a number: `event.amount_gte:250` asks whether the basket is worth at least 250, and `customer.ignored_fewer_than:2` whether the customer has ignored fewer than two earlier recoveries. The engine hands the part after the colon to `evaluate()` as `$argument`. It is limited to `[A-Za-z0-9_.-]`, up to 32 characters, so it can only be a literal.
+
+For the editor to show a number box, the condition also implements `WAcr\RecoveryFlow\Workflow\Conditions\Condition_Argument_Interface`:
+
+| Method | Returns |
+| --- | --- |
+| `get_argument_label()` | The box's label, e.g. "Amount" |
+| `get_argument_help()` | One sentence under the box: what the number means, what an empty box does, and the accepted range. Also used to explain a refused save |
+| `get_argument_bounds()` | `array( 'min' => '', 'max' => '', 'step' => '' )` as attribute values; `''` leaves a bound off |
+| `normalize_argument( string $raw )` | The value to store, `''` for "use the default", or `null` when it cannot be read |
+
+The box appears for the condition a step holds; after choosing a different one, Save redraws the step with its box. A number `normalize_argument()` rejects refuses the save with your help sentence, naming the step. A condition that does not implement the interface gets no box and works as before. `evaluate()` should still treat an unreadable argument as "no", because a definition can be written by code as well as by the editor.
+
+**`customer.ignored_fewer_than` saves messages; it does not recover more baskets.** A recovery counts as ignored when it sent at least one message and ended (`expired` or `cancelled`) with no click, reply or sale. `opted_out`, `failed` and `invalid` never count, and neither does a recovery the condition stopped before anything was sent. Email link scanners record clicks, so an email-only recovery is less likely to count; every such error leans towards sending.
 
 ## Variable allow-list
 

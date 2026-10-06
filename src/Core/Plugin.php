@@ -108,6 +108,7 @@ use WAcr\RecoveryFlow\Workflow\Actions\Send_Template;
 use WAcr\RecoveryFlow\Workflow\Actions\Send_Email;
 use WAcr\RecoveryFlow\Workflow\Actions\Start_Flow;
 use WAcr\RecoveryFlow\Workflow\Conditions\Customer_Eligible;
+use WAcr\RecoveryFlow\Workflow\Conditions\Customer_Ignored_Fewer_Than;
 use WAcr\RecoveryFlow\Workflow\Conditions\Event_Amount_Gte;
 use WAcr\RecoveryFlow\Workflow\Conditions\Journey_Not_Completed;
 use WAcr\RecoveryFlow\Workflow\Conditions\Journey_Not_Engaged;
@@ -386,6 +387,7 @@ final class Plugin {
 		$registry->add_condition( new Journey_Not_Engaged() );
 		$registry->add_condition( new Customer_Eligible( $this->eligibility() ) );
 		$registry->add_condition( new Event_Amount_Gte() );
+		$registry->add_condition( new Customer_Ignored_Fewer_Than( $this->journeys(), $this->clock() ) );
 
 		$registry->add_action(
 			new Send_Template(

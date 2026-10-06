@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Admin;
 
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Security\Capabilities;
+use WAcr\RecoveryFlow\Workflow\Conditions\Condition_Argument_Interface;
 use WAcr\RecoveryFlow\Workflow\Message_Composer;
 use WAcr\RecoveryFlow\Workflow\Workflow;
 use WAcr\RecoveryFlow\Workflow\Step_Registry;
@@ -239,7 +240,7 @@ final class Workflow_Form {
 		if ( Workflow_Definition::TYPE_CONDITION === $type ) {
 			$step = array(
 				'type' => Workflow_Definition::TYPE_CONDITION,
-				'if'   => sanitize_text_field( (string) ( $row['if'] ?? '' ) ),
+				'if'   => self::condition_expression( $row, $registry ),
 			);
 
 			$else = sanitize_text_field( (string) ( $row['else'] ?? '' ) );
@@ -292,6 +293,90 @@ final class Workflow_Form {
 		}//end if
 
 		return array();
+	}
+
+	/**
+	 * The "if" of a condition step: the chosen condition, and its number if it takes one.
+	 *
+	 * The editor posts the condition and its number as two fields; the stored
+	 * form is one, "event.amount_gte:250". A number is only joined on for a
+	 * condition that declares it takes one, so a stale box posted alongside a
+	 * condition that does not -- a step switched from one to the other without
+	 * a Save in between -- is dropped rather than smuggled into an "if" that
+	 * would then fail for a reason the screen never showed.
+	 *
+	 * A number the condition cannot read is kept exactly as typed, so the save
+	 * can refuse it with a sentence and the editor can show it back. Replacing
+	 * it with the default here would save a step that checks something the
+	 * merchant did not ask for.
+	 *
+	 * @param array<string,mixed> $row      The posted step.
+	 * @param Step_Registry       $registry The registered conditions.
+	 * @return string
+	 */
+	private static function condition_expression( array $row, Step_Registry $registry ): string {
+		$name      = sanitize_text_field( (string) ( $row['if'] ?? '' ) );
+		$condition = $registry->condition( Workflow_Definition::condition_name( $name ) );
+
+		if ( ! $condition instanceof Condition_Argument_Interface ) {
+			return $name;
+		}
+
+		$name  = Workflow_Definition::condition_name( $name );
+		$typed = trim( sanitize_text_field( (string) ( $row['argument'] ?? '' ) ) );
+
+		if ( '' === $typed ) {
+			return $name;
+		}
+
+		$argument = $condition->normalize_argument( $typed );
+
+		if ( '' === $argument ) {
+			return $name;
+		}
+
+		return $name . ':' . ( null === $argument ? $typed : $argument );
+	}
+
+	/**
+	 * The first condition step whose number its condition cannot read.
+	 *
+	 * Asked before the validator, because the validator knows nothing of
+	 * individual conditions and would either accept the number -- and leave
+	 * the step stopping every journey that reached it -- or refuse it with a
+	 * message about permitted characters.
+	 *
+	 * @param array<string,mixed> $definition The rebuilt definition.
+	 * @param Step_Registry       $registry   The registered conditions.
+	 * @return string The refusal, or '' when every number is readable.
+	 */
+	public static function argument_problem( array $definition, Step_Registry $registry ): string {
+		$steps = isset( $definition['steps'] ) && is_array( $definition['steps'] ) ? array_values( $definition['steps'] ) : array();
+
+		foreach ( $steps as $index => $step ) {
+			if ( ! is_array( $step ) || Workflow_Definition::TYPE_CONDITION !== ( $step['type'] ?? '' ) ) {
+				continue;
+			}
+
+			$expression = (string) ( $step['if'] ?? '' );
+			$condition  = $registry->condition( Workflow_Definition::condition_name( $expression ) );
+			$argument   = Workflow_Definition::condition_argument( $expression );
+
+			if ( ! $condition instanceof Condition_Argument_Interface || '' === $argument ) {
+				continue;
+			}
+
+			if ( null === $condition->normalize_argument( $argument ) ) {
+				return sprintf(
+					/* translators: 1: a step number, 2: a sentence saying which numbers that step accepts. */
+					__( 'This workflow was not saved, because the number in step %1$d is not one that check can use. %2$s', 'kdc-wacr-recoveryflow' ),
+					(int) $index + 1,
+					$condition->get_argument_help()
+				);
+			}
+		}//end foreach
+
+		return '';
 	}
 
 	/**
@@ -554,6 +639,16 @@ final class Workflow_Form {
 			return array(
 				'ok'      => false,
 				'message' => self::refusal(),
+				'id'      => $id,
+			);
+		}
+
+		$unreadable = self::argument_problem( $definition, $this->steps );
+
+		if ( '' !== $unreadable ) {
+			return array(
+				'ok'      => false,
+				'message' => $unreadable,
 				'id'      => $id,
 			);
 		}

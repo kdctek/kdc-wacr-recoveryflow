@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Admin;
 
+use WAcr\RecoveryFlow\Workflow\Conditions\Customer_Ignored_Fewer_Than;
 use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
 
 defined( 'ABSPATH' ) || exit;
@@ -137,10 +138,22 @@ final class Step_Describer {
 	 * list headed "Check that" should recognise it as the line they will read
 	 * back on the workflow list afterwards.
 	 *
+	 * A condition that takes a number is offered without one -- "a set amount"
+	 * -- because the number is chosen in its own box, and a label that showed
+	 * the default would go on showing it after the merchant typed another.
+	 *
 	 * @param string $name A registered condition name.
 	 * @return string
 	 */
 	public static function condition_label( string $name ): string {
+		switch ( $name ) {
+			case 'event.amount_gte':
+				return __( 'the basket is worth at least a set amount', 'kdc-wacr-recoveryflow' );
+
+			case Customer_Ignored_Fewer_Than::ID:
+				return __( 'the customer has ignored fewer than a set number of earlier recoveries', 'kdc-wacr-recoveryflow' );
+		}
+
 		return self::condition_phrase( $name );
 	}
 
@@ -263,12 +276,37 @@ final class Step_Describer {
 				return __( 'the customer may still be messaged', 'kdc-wacr-recoveryflow' );
 
 			case 'event.amount_gte':
+				if ( '' === $argument ) {
+					return __( 'the basket is worth at least the shop\'s minimum basket value', 'kdc-wacr-recoveryflow' );
+				}
+
 				return sprintf(
 					/* translators: %s: an amount of money, as typed by the merchant. */
 					__( 'the basket is worth at least %s', 'kdc-wacr-recoveryflow' ),
 					$argument
 				);
-		}
+
+			case Customer_Ignored_Fewer_Than::ID:
+				if ( '' !== $argument && ! ctype_digit( $argument ) ) {
+					// Only code can store this, and the step stops every
+					// journey that reaches it. Show it as stored rather than
+					// as a number it is not.
+					break;
+				}
+
+				$limit = '' === $argument ? Customer_Ignored_Fewer_Than::DEFAULT_LIMIT : (int) $argument;
+
+				return sprintf(
+					/* translators: %d: a number of earlier recoveries. */
+					_n(
+						'the customer has ignored fewer than %d earlier recovery',
+						'the customer has ignored fewer than %d earlier recoveries',
+						$limit,
+						'kdc-wacr-recoveryflow'
+					),
+					$limit
+				);
+		}//end switch
 
 		return '' === $argument ? $name : $name . ':' . $argument;
 	}
