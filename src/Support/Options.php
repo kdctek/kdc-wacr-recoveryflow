@@ -122,6 +122,12 @@ final class Options {
 			// Recovery links.
 			'recovery_link_ttl_days'   => 7,
 			'prefill_guest_checkout'   => true,
+			// Google Analytics 4. Tagging sends nothing anywhere, so it is on;
+			// reporting is a request to Google, so it waits to be asked for.
+			'ga4_utm_enabled'          => true,
+			'ga4_events_enabled'       => false,
+			'ga4_measurement_id'       => '',
+			'ga4_region'               => 'global',
 		);
 	}
 
@@ -195,6 +201,7 @@ final class Options {
 			'recoveryflow_ui_state',
 			\WAcr\RecoveryFlow\Integration\Source_Cursors::OPTION,
 			\WAcr\RecoveryFlow\Admin\Setup::PENDING_OPTION,
+			\WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION,
 		);
 	}
 	/**

@@ -373,13 +373,13 @@ final class Field_Renderer {
 	 * @return void
 	 */
 	private function secret( string $name, string $id, string $described, array $spec ): void {
-		unset( $spec );
+		$placeholder = isset( $spec['placeholder'] ) ? (string) $spec['placeholder'] : __( 'Leave empty to keep the saved key', 'kdc-wacr-recoveryflow' );
 
 		printf(
 			'<input type="password" id="%1$s" name="%2$s" value="" class="regular-text code" autocomplete="off" spellcheck="false" placeholder="%3$s"%4$s />',
 			esc_attr( $id ),
 			esc_attr( $name ),
-			esc_attr__( 'Leave empty to keep the saved key', 'kdc-wacr-recoveryflow' ),
+			esc_attr( $placeholder ),
 			$described // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built by the caller from an escaped id.
 		);
 	}

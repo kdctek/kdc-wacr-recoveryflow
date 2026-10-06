@@ -23,6 +23,9 @@ RecoveryFlow by WA.cr exists to contact people who did not finish something. Tha
 | Webhook secret, Auto Flow signing secret | Options | Secret as SHA-256; signing secret encrypted | Never | Never |
 | Per-site hash key | Options, autoload off | Plaintext (it is a key, not data) | Never | Never |
 | Adapter metadata (coupon codes and the like) | Events table (JSON) | Plaintext; personal data forbidden by contract and stripped by the Redactor | Shown | May appear |
+| Google Analytics client id (the `_ga` cookie value) and whether the site's consent tool refused marketing | Events table, `ga_client_id` and `ga_ads_denied` | Plaintext; only stored once GA4 reporting is switched on and configured | Never | Never; Redactor masks GA client ids and `api_secret` in URLs |
+| GA4 report queue (journey id, event name, time, status) | Analytics queue table | Plaintext; nothing personal | Never | Event name only |
+| GA4 Measurement Protocol API secret | Options | AES-256-GCM, autoload off | Never | Never |
 
 Personal data columns are stored in plaintext, as WooCommerce stores its own. Encrypting searchable columns adds nothing against an attacker who already has `wp-config.php` and the database; what is encrypted is the small set of secrets that can spend money or impersonate the site.
 
@@ -158,6 +161,46 @@ Three answers are deliberately distinct, because two of them look alike and mean
 - IP addresses are stored only as a keyed hash, and only with a consent row.
 - The contact snapshot a WooCommerce guest types at checkout lives in the WooCommerce session until identity is resolved; it is not copied onto the event row.
 - Logs never contain phone numbers, emails, names, message text, tokens or links.
+
+## What is sent to Google Analytics, and when
+
+Nothing, unless the merchant switches on **Settings › Analytics › Report recoveries to Google
+Analytics 4** and saves a Measurement ID and an API secret. Until all three are true, the shopper's
+GA cookie is not even read.
+
+**Tagging recovery links** is separate and on by default, because it sends nothing anywhere: it adds
+`utm_*` parameters to the page a recovery link opens, which the merchant's own analytics reads.
+
+**What is read.** The `_ga` cookie, on the server, in the shopper's own request at the cart, the
+checkout or a Gravity Forms submission. It is read only when the WP Consent API, where the site runs
+it, says statistics consent is granted, and only if the cookie exists at all. Google's own Consent
+Mode does not set it when the visitor refused analytics storage. It is never read in a background
+job, a WP-CLI command or a wp-admin screen. Action Scheduler's async runner carries the cookies of
+the request that triggered it, so reading there would attach an administrator's browser to a
+customer's basket.
+
+**The recovery tick-box is not used for this.** It is consent to WhatsApp reminders. Stretching it
+to cover analytics would make one tick consent to two purposes.
+
+**What is sent, and when.** One event per milestone, only for journeys that sent at least one
+message: `recoveryflow_messaged`, `recoveryflow_recovered`, `recoveryflow_expired` and
+`recoveryflow_opted_out`. Each carries the GA client id, a random journey reference, the workflow
+slug and the source. A recovery adds its value and currency, and an expiry adds the basket's value
+and currency. No name, phone number, email address, address, item or recovery link is ever sent.
+
+**Consent signal.** When the WP Consent API says marketing was refused, the report says
+`ad_user_data` and `ad_personalization` are `DENIED`, so Google will not use it for ads. Otherwise
+the report says nothing about consent, and GA4 applies whatever the site's own tag recorded for that
+browser. The plugin never claims a consent it did not see.
+
+**Where.** `https://www.google-analytics.com/mp/collect`, or `https://region1.google-analytics.com/mp/collect`
+when the merchant chooses the EU endpoint. Reports are sent by a background job, never during a
+shopper's request.
+
+**Erasure and retention.** The client id is part of the personal-data export. Erasure and the
+retention anonymiser remove it, and a queued report whose client id has gone is dropped unsent. A
+journey that ends without sending a message has its client id removed when it expires. Queue rows
+are deleted after 30 days.
 
 ## What is sent to WA.cr, and when
 

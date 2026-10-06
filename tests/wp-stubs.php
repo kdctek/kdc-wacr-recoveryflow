@@ -633,7 +633,18 @@ function register_setting( $group, $option, $args = array() ) {
 function settings_fields( $group ) {
 	echo '<input type="hidden" name="option_page" value="' . esc_attr( $group ) . '" />';
 }
+function wp_rand( $min = 0, $max = 0 ) {
+	return random_int( (int) $min, $max > $min ? (int) $max : PHP_INT_MAX );
+}
 function settings_errors( $slug = '' ) {}
+function add_settings_error( $setting, $code, $message, $type = 'error' ) {
+	$GLOBALS['__settings_errors'][] = array(
+		'setting' => $setting,
+		'code'    => $code,
+		'message' => $message,
+		'type'    => $type,
+	);
+}
 function submit_button( $text = null, $type = 'primary', $name = 'submit' ) {
 	// Core gives this button `name` and a matching `id`, and the id is how a
 	// test can ask WHERE on the page the Save button ended up. Without it the

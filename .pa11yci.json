@@ -112,6 +112,10 @@
 			"rootElement": "#wpbody-content"
 		},
 		{
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=analytics",
+			"rootElement": "#wpbody-content"
+		},
+		{
 			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-settings&tab=privacy",
 			"rootElement": "#wpbody-content"
 		},

@@ -21,6 +21,7 @@ defined( 'ABSPATH' ) || exit;
 use WAcr\RecoveryFlow\Admin\Assets as Admin_Assets;
 use WAcr\RecoveryFlow\Admin\Connection_Test;
 use WAcr\RecoveryFlow\Admin\Diagnostics;
+use WAcr\RecoveryFlow\Admin\Ga4_Test;
 use WAcr\RecoveryFlow\Admin\Hook_Test;
 use WAcr\RecoveryFlow\Admin\Webhook_Setup;
 use WAcr\RecoveryFlow\Admin\Journey_Actions;
@@ -338,6 +339,7 @@ final class Plugin {
 			),
 			'admin_assets'         => static fn ( Plugin $c ): Admin_Assets => new Admin_Assets( $c->admin_menu() ),
 			'admin_connection'     => static fn ( Plugin $c ): Connection_Test => new Connection_Test( $c->wacr(), $c->credentials() ),
+			'admin_ga4_test'       => static fn ( Plugin $c ): Ga4_Test => new Ga4_Test( $c->measurement_protocol() ),
 			'admin_hook_test'      => static fn ( Plugin $c ): Hook_Test => new Hook_Test( $c->wacr(), $c->credentials() ),
 			'admin_run_now'        => static fn ( Plugin $c ): Run_Now => new Run_Now( $c->runner() ),
 			'admin_journey_acts'   => static fn ( Plugin $c ): Journey_Actions => new Journey_Actions( $c->rest_journeys() ),
@@ -1054,6 +1056,15 @@ final class Plugin {
 	}
 
 	/**
+	 * The GA4 test-event button.
+	 *
+	 * @return Ga4_Test
+	 */
+	public function admin_ga4_test(): Ga4_Test {
+		return $this->typed( 'admin_ga4_test', Ga4_Test::class );
+	}
+
+	/**
 	 * The Auto Flow hook test.
 	 *
 	 * @return Hook_Test
@@ -1221,6 +1232,7 @@ final class Plugin {
 			$this->admin_menu()->hooks();
 			$this->admin_assets()->hooks();
 			$this->admin_connection()->hooks();
+			$this->admin_ga4_test()->hooks();
 			$this->admin_workflow_form()->hooks();
 			$this->admin_hook_test()->hooks();
 			$this->admin_run_now()->hooks();

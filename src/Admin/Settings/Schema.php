@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Admin\Settings;
 
+use WAcr\RecoveryFlow\Analytics\Ga4_Settings;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Core\Plugin;
 use WAcr\RecoveryFlow\Integration\Recovery_Source_Interface;
@@ -70,31 +71,35 @@ final class Schema {
 	 */
 	public static function tabs(): array {
 		return array(
-			'general'  => array(
+			'general'   => array(
 				'label'    => __( 'General', 'kdc-wacr-recoveryflow' ),
 				'sections' => self::general_sections(),
 			),
-			'recovery' => array(
+			'recovery'  => array(
 				'label'    => __( 'Recovery', 'kdc-wacr-recoveryflow' ),
 				'sections' => self::recovery_sections(),
 			),
-			'channels' => array(
+			'channels'  => array(
 				'label'    => __( 'Channels', 'kdc-wacr-recoveryflow' ),
 				'sections' => self::channel_sections(),
 			),
-			'wacr'     => array(
+			'wacr'      => array(
 				'label'    => __( 'WA.cr', 'kdc-wacr-recoveryflow' ),
 				'sections' => self::wacr_sections(),
 			),
-			'sources'  => array(
+			'sources'   => array(
 				'label'    => __( 'Integrations', 'kdc-wacr-recoveryflow' ),
 				'sections' => self::source_sections(),
 			),
-			'privacy'  => array(
+			'analytics' => array(
+				'label'    => __( 'Analytics', 'kdc-wacr-recoveryflow' ),
+				'sections' => self::analytics_sections(),
+			),
+			'privacy'   => array(
 				'label'    => __( 'Privacy', 'kdc-wacr-recoveryflow' ),
 				'sections' => self::privacy_sections(),
 			),
-			'advanced' => array(
+			'advanced'  => array(
 				'label'    => __( 'Advanced', 'kdc-wacr-recoveryflow' ),
 				'sections' => self::advanced_sections(),
 			),
@@ -595,6 +600,79 @@ final class Schema {
 								'danger'  => true,
 								'help'    => __( 'Off by default, because deactivating a plugin by accident is common and losing every consent record is not recoverable. With this on, deleting the plugin drops its tables -- including the record of who asked not to be messaged.', 'kdc-wacr-recoveryflow' ),
 								'confirm' => __( 'This will delete every recovery record, including who opted out, when the plugin is deleted. Continue?', 'kdc-wacr-recoveryflow' ),
+							),
+						),
+					),
+				),
+			),
+		);
+	}
+
+	/**
+	 * Analytics: tagged recovery links, and reporting to the merchant's GA4.
+	 *
+	 * Two sections because they are two different promises. Tagging changes
+	 * the address a shopper lands on and sends nothing anywhere. Reporting is a
+	 * request from this site to Google, which is why it is off until the
+	 * merchant switches it on and gives it somewhere to go.
+	 *
+	 * @return array<string,array<string,mixed>>
+	 */
+	private static function analytics_sections(): array {
+		return array(
+			'links' => array(
+				'title'       => __( 'Recovery links', 'kdc-wacr-recoveryflow' ),
+				'description' => __( 'A recovered visit arrives with no referrer, because the recovery link deliberately hides itself from the shop\'s scripts. Without tags, your analytics counts it as direct traffic.', 'kdc-wacr-recoveryflow' ),
+				'cards'       => array(
+					'tagging' => array(
+						'title'  => __( 'Campaign tags', 'kdc-wacr-recoveryflow' ),
+						'fields' => array(
+							'ga4_utm_enabled' => array(
+								'type'  => 'checkbox',
+								'label' => __( 'Tag recovery links so analytics can credit them', 'kdc-wacr-recoveryflow' ),
+								'help'  => __( 'Adds utm_source=recoveryflow, utm_medium (whatsapp or email), utm_campaign (the workflow) and utm_content (the step) to the page a recovery link opens. Nothing is sent anywhere; any analytics tool on your site reads them. Tags your own links already carry are kept.', 'kdc-wacr-recoveryflow' ),
+							),
+						),
+					),
+				),
+			),
+			'ga4'   => array(
+				'title'       => __( 'Google Analytics 4', 'kdc-wacr-recoveryflow' ),
+				'description' => __( 'Report what happened to each recovery to your own GA4 property, so you can retarget the baskets reminders did not win in Google Ads and stop paying for the ones they did. Only recoveries that sent a message are reported, and nothing that identifies the shopper is sent.', 'kdc-wacr-recoveryflow' ),
+				'cards'       => array(
+					'reporting' => array(
+						'title'    => __( 'Measurement Protocol', 'kdc-wacr-recoveryflow' ),
+						'renderer' => 'ga4_reporting',
+						'fields'   => array(
+							'ga4_events_enabled'           => array(
+								'type'  => 'checkbox',
+								'label' => __( 'Report recoveries to Google Analytics 4', 'kdc-wacr-recoveryflow' ),
+								'help'  => __( 'Sends recoveryflow_messaged, recoveryflow_recovered, recoveryflow_expired and recoveryflow_opted_out to your property. The shopper\'s Google Analytics cookie is read only once this is on, and only where your cookie banner allows statistics.', 'kdc-wacr-recoveryflow' ),
+							),
+							'ga4_measurement_id'           => array(
+								'type'        => 'measurement_id',
+								'label'       => __( 'Measurement ID', 'kdc-wacr-recoveryflow' ),
+								'maxlength'   => 24,
+								'placeholder' => 'G-XXXXXXXXXX',
+								'help'        => __( 'In GA4: Admin, Data streams, your web stream. It starts with G-.', 'kdc-wacr-recoveryflow' ),
+							),
+							Ga4_Settings::FIELD_API_SECRET => array(
+								'type'        => 'secret',
+								'virtual'     => true,
+								'label'       => __( 'Measurement Protocol API secret', 'kdc-wacr-recoveryflow' ),
+								'placeholder' => __( 'Leave empty to keep the saved secret', 'kdc-wacr-recoveryflow' ),
+								'help'        => __( 'Created on the same web stream, under Measurement Protocol API secrets. It is stored encrypted and never shown again after saving; entering a new one replaces it.', 'kdc-wacr-recoveryflow' ),
+							),
+						),
+						'advanced' => array(
+							'ga4_region' => array(
+								'type'    => 'select',
+								'label'   => __( 'Where to send', 'kdc-wacr-recoveryflow' ),
+								'options' => array(
+									Ga4_Settings::REGION_GLOBAL => __( 'Google\'s global endpoint', 'kdc-wacr-recoveryflow' ),
+									Ga4_Settings::REGION_EU     => __( 'Google\'s EU endpoint', 'kdc-wacr-recoveryflow' ),
+								),
+								'help'    => __( 'Choose the EU endpoint if your data must be collected in the EU. It changes where Google receives the reports, not what they contain.', 'kdc-wacr-recoveryflow' ),
 							),
 						),
 					),
