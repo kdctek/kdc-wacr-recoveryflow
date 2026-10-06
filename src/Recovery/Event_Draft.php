@@ -20,10 +20,10 @@ defined( 'ABSPATH' ) || exit;
  * and hand it over; deciding whether it is worth recovering, resolving who the
  * visitor is and creating a journey all happen later, in the background.
  *
- * Nothing here may carry personal data except through identity, which is the
- * one field the privacy tooling knows to look at. Putting a phone number in
- * metadata to save a lookup would put it in the event row, where the exporter,
- * the eraser and the redactor would never find it.
+ * Nothing here may carry personal data except through identity and
+ * ga_client_id, the two fields the privacy tooling knows to look at. Putting a
+ * phone number in metadata to save a lookup would put it in the event row,
+ * where the exporter, the eraser and the redactor would never find it.
  */
 final class Event_Draft {
 
@@ -100,6 +100,31 @@ final class Event_Draft {
 	 * @var array<string,mixed>
 	 */
 	public array $metadata = array();
+
+	/**
+	 * The visitor's Google Analytics client id, or '' when there is none.
+	 *
+	 * Personal data -- an online identifier -- which is why it is a field of its
+	 * own rather than a key in metadata: it is stored in a column the exporter
+	 * and the anonymiser handle by name. It is only ever filled in by
+	 * Analytics\Client_Id, which returns '' unless the merchant has switched
+	 * GA4 reporting on and the visitor's own cookie consent allows it.
+	 *
+	 * @var string
+	 */
+	public string $ga_client_id = '';
+
+	/**
+	 * Whether the visitor's consent banner refused marketing use.
+	 *
+	 * Recorded beside the client id because the report is sent later, from a
+	 * background job that has no visitor and no banner to ask. Only a refusal
+	 * is recorded: with no refusal the report says nothing about consent and
+	 * Google applies whatever the site's own tag recorded for that browser.
+	 *
+	 * @var bool
+	 */
+	public bool $ga_ads_denied = false;
 
 	/**
 	 * Who the adapter thinks is shopping.
@@ -185,7 +210,12 @@ final class Event_Draft {
 	}
 
 	/**
-	 * A value that changes whenever the contents or the contact details change.
+	 * A value that changes whenever the contents, the contact details or the
+	 * analytics client id change.
+	 *
+	 * The client id is in it because a consent banner can set the GA cookie
+	 * halfway through a visit; without it the next write would be skipped as
+	 * "nothing changed" and the id would never be stored.
 	 *
 	 * Adapters compare this against the last one they stored so that a visitor
 	 * refreshing the cart page twenty times produces no writes at all.
@@ -203,6 +233,8 @@ final class Event_Draft {
 					$this->item_count,
 					$this->items,
 					$this->identity->fingerprint(),
+					$this->ga_client_id,
+					$this->ga_ads_denied,
 				)
 			)
 		);

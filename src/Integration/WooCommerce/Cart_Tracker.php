@@ -9,6 +9,7 @@ namespace WAcr\RecoveryFlow\Integration\WooCommerce;
 
 use WAcr\RecoveryFlow\Core\Hooks;
 use WAcr\RecoveryFlow\Customer\Identity_Hints;
+use WAcr\RecoveryFlow\Analytics\Client_Id;
 use WAcr\RecoveryFlow\Recovery\Event_Draft;
 use WAcr\RecoveryFlow\Recovery\Event_Ingest;
 use WAcr\RecoveryFlow\Recovery\Recovery_Event;
@@ -237,6 +238,8 @@ final class Cart_Tracker {
 		$draft->with_items( $items );
 		$draft->with_value( $this->cart_amount( $cart ), $this->currency() );
 		$draft->with_identity( $this->identity() );
+
+		Client_Id::attach( $draft );
 
 		if ( $draft->is_empty() ) {
 			$this->close( $dedupe );

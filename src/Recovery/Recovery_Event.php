@@ -144,6 +144,24 @@ final class Recovery_Event {
 	public array $metadata = array();
 
 	/**
+	 * The visitor's Google Analytics client id, if one was captured.
+	 *
+	 * Personal data, held in its own column so the exporter and the anonymiser
+	 * can find it. See Event_Draft::$ga_client_id.
+	 *
+	 * @var string|null
+	 */
+	public ?string $ga_client_id = null;
+
+	/**
+	 * Whether the visitor's consent banner refused marketing use when the
+	 * client id was captured. See Event_Draft::$ga_ads_denied.
+	 *
+	 * @var bool
+	 */
+	public bool $ga_ads_denied = false;
+
+	/**
 	 * When the visitor last touched it, UTC.
 	 *
 	 * @var string
@@ -196,6 +214,8 @@ final class Recovery_Event {
 		$event->status_reason    = isset( $row['status_reason'] ) ? (string) $row['status_reason'] : null;
 		$event->items            = self::decode( $row['items_json'] ?? null );
 		$event->metadata         = self::decode( $row['metadata_json'] ?? null );
+		$event->ga_client_id     = isset( $row['ga_client_id'] ) && '' !== $row['ga_client_id'] ? (string) $row['ga_client_id'] : null;
+		$event->ga_ads_denied    = ! empty( $row['ga_ads_denied'] );
 		$event->last_activity_at = (string) ( $row['last_activity_at'] ?? '' );
 		$event->completed_at     = isset( $row['completed_at'] ) ? (string) $row['completed_at'] : null;
 		$event->created_at       = (string) ( $row['created_at'] ?? '' );

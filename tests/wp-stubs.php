@@ -593,6 +593,9 @@ function check_admin_referer( $action = -1, $name = '_wpnonce' ) {
 function wp_doing_ajax() {
 	return ! empty( $GLOBALS['__doing_ajax'] );
 }
+function wp_doing_cron() {
+	return ! empty( $GLOBALS['__doing_cron'] );
+}
 function is_network_admin() {
 	return ! empty( $GLOBALS['__network_admin'] );
 }

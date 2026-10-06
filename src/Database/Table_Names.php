@@ -28,6 +28,7 @@ final class Table_Names {
 	public const LOGS              = 'recoveryflow_logs';
 	public const RECEIPTS          = 'recoveryflow_receipts';
 	public const LOCKS             = 'recoveryflow_locks';
+	public const ANALYTICS_QUEUE   = 'recoveryflow_analytics_queue';
 
 	/**
 	 * Every table this plugin owns, unprefixed.
@@ -47,6 +48,7 @@ final class Table_Names {
 			self::LOGS,
 			self::RECEIPTS,
 			self::LOCKS,
+			self::ANALYTICS_QUEUE,
 		);
 	}
 

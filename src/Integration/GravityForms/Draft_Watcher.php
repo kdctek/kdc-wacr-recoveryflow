@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Integration\GravityForms;
 
+use WAcr\RecoveryFlow\Analytics\Client_Id;
 use WAcr\RecoveryFlow\Recovery\Event_Draft;
 use WAcr\RecoveryFlow\Recovery\Event_Ingest;
 use WAcr\RecoveryFlow\Recovery\Recovery_Event;
@@ -164,6 +165,8 @@ final class Draft_Watcher {
 		);
 
 		$draft->with_identity( $hints );
+
+		Client_Id::attach( $draft );
 
 		$this->ingest->ingest( $draft );
 	}

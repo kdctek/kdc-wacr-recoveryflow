@@ -10,6 +10,10 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+### Added
+
+- **RecoveryFlow can now remember which Google Analytics visitor a basket belongs to, once a merchant turns on GA4 reporting.** At checkout and in Gravity Forms, the shopper's own `_ga` cookie is read on the server and stored with the basket. Nothing is read until the merchant has switched GA4 reporting on and entered a Measurement ID and API secret. Where the site runs the WP Consent API, nothing is read unless statistics consent is granted. When the visitor's consent banner refused analytics, Google's tag never set the cookie, so there is nothing to read. The recovery tick-box is deliberately not used for this: it is consent to WhatsApp reminders, not to analytics. A marketing refusal from the WP Consent API is stored beside the id, so a later report can tell Google not to use it for ads. The id is a personal identifier and is handled as one. It has its own column, appears in Tools > Export Personal Data, and is removed by erasure and by the retention anonymiser. It is never read in background jobs, because Action Scheduler's async runner carries the cookies of whichever request triggered it, usually an admin's. Database schema 3 adds the column and the table the reports will queue in.
+
 ## [0.1.5] - 2026-09-20
 
 ### Changed

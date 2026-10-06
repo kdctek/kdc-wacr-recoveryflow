@@ -1197,6 +1197,14 @@ final class Plugin {
 		$this->privacy_exporter()->hooks();
 		$this->privacy_eraser()->hooks();
 
+		// The WP Consent API asks every plugin that reads a visitor's cookies
+		// to declare that it honours the site's consent choices. This one does:
+		// the GA client id is read only when statistics consent allows it. See
+		// Analytics\Client_Id.
+		if ( defined( 'KDC_WACR_RECOVERYFLOW_BASENAME' ) ) {
+			add_filter( 'wp_consent_api_registered_' . KDC_WACR_RECOVERYFLOW_BASENAME, '__return_true' );
+		}
+
 		// The public recovery endpoint, the stage hooks and the scheduler.
 		$this->opt_out_sync()->hooks();
 		$this->recovery_controller()->hooks();

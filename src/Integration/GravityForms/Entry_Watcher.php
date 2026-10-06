@@ -7,6 +7,7 @@
 
 namespace WAcr\RecoveryFlow\Integration\GravityForms;
 
+use WAcr\RecoveryFlow\Analytics\Client_Id;
 use WAcr\RecoveryFlow\Database\Receipt_Repository;
 use WAcr\RecoveryFlow\Recovery\Conversion_Tracker;
 use WAcr\RecoveryFlow\Recovery\Event_Draft;
@@ -203,6 +204,10 @@ final class Entry_Watcher {
 
 			return;
 		}
+
+		// Here and not in Unpaid_Entry, which the background poller shares:
+		// only this path runs in the visitor's own request.
+		Client_Id::attach( $draft );
 
 		$this->ingest->ingest( $draft );
 	}

@@ -9,7 +9,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-09-13T02:44:23+00:00\n"
+"POT-Creation-Date: 2026-10-06T02:42:46+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: kdc-wacr-recoveryflow\n"
@@ -2352,6 +2352,22 @@ msgstr ""
 msgid "This workflow was not saved, because one of its steps sends a message from WordPress and this site cannot do that yet. %s Until then, a step can hand the recovery to a WA.cr Auto Flow instead, which needs no API key but does need a WA.cr plan that can run a flow, which is Growth and above."
 msgstr ""
 
+#: src/Analytics/Ga4_Settings.php:234
+msgid "Reporting. Journeys that sent a message are reported to your GA4 property when they are messaged, recovered, expire or opt out."
+msgstr ""
+
+#: src/Analytics/Ga4_Settings.php:237
+msgid "Switched on but not reporting: a Measurement ID and an API secret are both needed."
+msgstr ""
+
+#: src/Analytics/Ga4_Settings.php:240
+msgid "Switched on but not reporting: the saved API secret can no longer be read, usually because the site's security keys changed. Enter it again."
+msgstr ""
+
+#: src/Analytics/Ga4_Settings.php:243
+msgid "Not reporting. Journey milestones are not sent to Google Analytics."
+msgstr ""
+
 #: src/Core/Feature_Gate.php:137
 msgid "Handing journeys to a WA.cr Auto Flow needs a WA.cr plan that can run one, which is Growth and above."
 msgstr ""
@@ -2822,41 +2838,45 @@ msgstr ""
 msgid "Items"
 msgstr ""
 
-#: src/Privacy/Exporter.php:303
+#: src/Privacy/Exporter.php:301
+msgid "Google Analytics client ID"
+msgstr ""
+
+#: src/Privacy/Exporter.php:307
 msgid "Reminder"
 msgstr ""
 
 #. translators: 1: the channel a reminder was sent on. 2: what happened to it. 3: when it was sent.
-#: src/Privacy/Exporter.php:306
+#: src/Privacy/Exporter.php:310
 #, php-format
 msgid "%1$s, %2$s, %3$s"
 msgstr ""
 
-#: src/Privacy/Exporter.php:316
+#: src/Privacy/Exporter.php:320
 msgid "Unfinished order"
 msgstr ""
 
-#: src/Privacy/Exporter.php:317
+#: src/Privacy/Exporter.php:321
 msgid "An order you started and did not complete, and the reminders this shop sent about it."
 msgstr ""
 
-#: src/Privacy/Exporter.php:338
+#: src/Privacy/Exporter.php:342
 msgid "You agreed to be reminded"
 msgstr ""
 
-#: src/Privacy/Exporter.php:341
+#: src/Privacy/Exporter.php:345
 msgid "You were asked and did not agree"
 msgstr ""
 
-#: src/Privacy/Exporter.php:344
+#: src/Privacy/Exporter.php:348
 msgid "You withdrew your agreement"
 msgstr ""
 
-#: src/Privacy/Exporter.php:347
+#: src/Privacy/Exporter.php:351
 msgid "You asked to stop receiving reminders"
 msgstr ""
 
-#: src/Privacy/Exporter.php:350
+#: src/Privacy/Exporter.php:354
 msgid "No decision recorded"
 msgstr ""
 
@@ -3046,7 +3066,7 @@ msgid "This link has been opened a great many times in a short period. Please wa
 msgstr ""
 
 #. translators: 1: comma-separated list of item names, 2: how many further items there are.
-#: src/Recovery/Recovery_Event.php:273
+#: src/Recovery/Recovery_Event.php:293
 #, php-format
 msgid "%1$s and %2$d more"
 msgid_plural "%1$s and %2$d more"

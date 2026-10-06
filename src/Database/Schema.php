@@ -24,7 +24,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Schema {
 
-	public const VERSION        = 2;
+	public const VERSION        = 3;
 	public const VERSION_OPTION = 'recoveryflow_db_version';
 
 	/**
@@ -125,7 +125,7 @@ final class Schema {
 
 		$table = Table_Names::get( Table_Names::LOCKS );
 
-		foreach ( array( 'evaluate', 'dispatch', 'poll', 'expire', 'retention', 'wacr_rate' ) as $key ) {
+		foreach ( array( 'evaluate', 'dispatch', 'poll', 'expire', 'retention', 'report', 'wacr_rate' ) as $key ) {
 			$wpdb->query( // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- $table is Table_Names::get() on a class constant: the site prefix and a literal. The lock key is bound.
 				$wpdb->prepare(
 					"INSERT IGNORE INTO `{$table}` (lock_key, owner, expires_at) VALUES (%s, NULL, NULL)", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
@@ -263,6 +263,8 @@ final class Schema {
 			status_reason varchar(32) NULL,
 			items_json longtext NULL,
 			metadata_json longtext NULL,
+			ga_client_id varchar(64) NULL,
+			ga_ads_denied tinyint(1) unsigned NOT NULL DEFAULT 0,
 			last_activity_at datetime NOT NULL,
 			completed_at datetime NULL,
 			created_at datetime NOT NULL,
@@ -422,6 +424,39 @@ final class Schema {
 			created_at datetime NOT NULL,
 			PRIMARY KEY  (receipt_key),
 			KEY kind_created (kind,created_at)
+		) {$charset_collate};";
+
+		/*
+		 * Journey milestones waiting to be reported to the merchant's own
+		 * Google Analytics 4 property over the Measurement Protocol.
+		 *
+		 * A queue rather than a request at the moment the milestone happens,
+		 * because two of those moments are inside a shopper's own request --
+		 * the order that recovered the basket and the unsubscribe POST -- and
+		 * a call to Google there would make the shopper wait on it. The UNIQUE
+		 * key is the de-duplication GA4 itself does not have: a milestone that
+		 * fires twice is queued once and counted once.
+		 *
+		 * Nothing personal is held here. The client id stays on the event row,
+		 * where the exporter and the eraser look for it, and is read at the
+		 * moment of sending; an erased person's queued rows are dropped
+		 * unsent.
+		 */
+		$sql[] = "CREATE TABLE {$p}recoveryflow_analytics_queue (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			journey_id bigint(20) unsigned NOT NULL,
+			event_name varchar(40) NOT NULL,
+			occurred_at datetime NOT NULL,
+			status varchar(12) NOT NULL DEFAULT 'pending',
+			attempts tinyint(3) unsigned NOT NULL DEFAULT 0,
+			claim_token char(36) NULL,
+			claimed_until datetime NULL,
+			created_at datetime NOT NULL,
+			sent_at datetime NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY journey_event (journey_id,event_name),
+			KEY pending (status,created_at),
+			KEY claim_token (claim_token)
 		) {$charset_collate};";
 
 		$sql[] = "CREATE TABLE {$p}recoveryflow_locks (
