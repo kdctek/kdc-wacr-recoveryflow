@@ -459,6 +459,63 @@ final class Journey_Repository extends Repository {
 	}
 
 	/**
+	 * How many earlier recoveries this customer ignored, since a cut-off.
+	 *
+	 * Backs the "ignored fewer than N earlier recoveries" condition. Ignored
+	 * means all of: a message went out; the journey is over; nobody followed
+	 * the link, replied or bought. The test is on those columns rather than on
+	 * the status, because `cancelled` means opposite things -- the customer
+	 * answered and `journey.not_engaged` stopped the sequence, or they became
+	 * unreachable -- and only the columns can tell the two apart.
+	 *
+	 * Only `expired` and `cancelled` can qualify. `recovered` is a sale even
+	 * when no click was recorded. `opted_out` is a refusal the consent ledger
+	 * already enforces, so counting it again would let one "stop" also count
+	 * as an ignore. `failed` was the plugin's fault and `invalid` means the
+	 * person was never reachable, so neither says anything about them.
+	 *
+	 * Every mistake this can make leans towards sending: an email scanner that
+	 * fetches the link ahead of the reader records a click, and a click means
+	 * not ignored. That is the safe side for a rule whose job is to stop
+	 * messages.
+	 *
+	 * "Earlier" is by row id, so the journey asking is never counted, and
+	 * neither is anything that started after it.
+	 *
+	 * @param int    $customer_id Customer id.
+	 * @param string $since       UTC datetime; journeys created before it are not counted.
+	 * @param int    $before_id   The asking journey's id.
+	 * @return int
+	 */
+	public function count_ignored_since( int $customer_id, string $since, int $before_id ): int {
+		if ( $customer_id <= 0 || $before_id <= 0 ) {
+			return 0;
+		}
+
+		$table = $this->table();
+
+		return (int) $this->scalar(
+			// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name from a class constant.
+			$this->db()->prepare(
+				"SELECT COUNT(*) FROM `{$table}`
+				WHERE customer_id = %d
+					AND status IN (%s, %s)
+					AND id < %d
+					AND created_at >= %s
+					AND first_sent_at IS NOT NULL
+					AND clicks_count = 0
+					AND engaged_at IS NULL
+					AND recovered_at IS NULL",
+				$customer_id,
+				Journey_State::EXPIRED,
+				Journey_State::CANCELLED,
+				$before_id,
+				$since
+			)
+		);
+	}
+
+	/**
 	 * Record that a recovery link was followed.
 	 *
 	 * @param int $id Journey id.

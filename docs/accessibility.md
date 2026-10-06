@@ -105,7 +105,7 @@ off within a week.
 
 ```sh
 npm run env:start      # a WordPress with the plugin and WooCommerce on it
-npm run a11y           # the gate: 24 screens at AA, then the AAA report
+npm run a11y           # the gate: 26 screens at AA, then the AAA report
 npm run a11y:keyboard  # the keyboard pass over the same screens
 npm run a11y:clear     # remove the demo data again
 ```
@@ -125,8 +125,10 @@ trust: every admin entry sets `rootElement` to `#wpbody-content`, which exists
 only inside wp-admin, so a run that lost its session fails instead of passing.
 Verified by mutation — point `rootElement` at a selector that does not exist and
 all 19 admin URLs fail. That was measured when the list held 22 entries; it
-holds 24 now, and both additions are public pages, which set no `rootElement`
-and are not what this mutation reaches.
+holds 26 now. The first two additions are public pages, which set no `rootElement`
+and are not what this mutation reaches; the next two -- the Analytics tab and the
+workflow editor showing its number boxes -- are admin screens that do set it, but
+were added after that measurement and are not in its count.
 
 **Rows on the screens.** An empty `WP_List_Table` renders none of the status
 badges, none of the shortened contact columns and none of the row actions this
@@ -304,7 +306,12 @@ walked -- 98 to 149 stops on each of the 19 admin screens, and 32, 2 and 1 on
 the three public ones -- no traps, no invisible stops, every stop paints and
 announces. The deeplinked field is focused on arrival.
 
-Two of the 24 screens the AA gate checks are not walked: the page after the
+**Re-run 2026-10-06, for the workflow editor's number boxes:** the AA gate passed
+26 of 26 screens, and the keyboard walk covered 24 -- including the editor with a
+history check and a basket threshold loaded (123 stops) -- with no traps and no
+invisible stops.
+
+Two of the 26 screens the AA gate checks are not walked: the page after the
 unsubscribe button has been pressed, and the basket. Both are only reachable by
 pressing something, and this walk presses nothing, so they are checked against
 AA and against contrast but their tab order is not. That is a real gap and it

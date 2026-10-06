@@ -118,6 +118,9 @@ use WAcr\RecoveryFlow\WAcr\Send_Request;
 use WAcr\RecoveryFlow\WAcr\Transport;
 use WAcr\RecoveryFlow\Admin\Step_Describer;
 use WAcr\RecoveryFlow\Admin\Workflow_Form;
+use WAcr\RecoveryFlow\Workflow\Conditions\Condition_Argument_Interface;
+use WAcr\RecoveryFlow\Workflow\Conditions\Customer_Ignored_Fewer_Than;
+use WAcr\RecoveryFlow\Workflow\Conditions\Event_Amount_Gte;
 use WAcr\RecoveryFlow\Workflow\Message_Composer;
 use WAcr\RecoveryFlow\Workflow\Variable_Context;
 use WAcr\RecoveryFlow\Workflow\Workflow_Definition;
@@ -8549,6 +8552,283 @@ if ( false === $recoveryflow_ga4_secret_before ) {
 	delete_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION );
 } else {
 	update_option( \WAcr\RecoveryFlow\Analytics\Ga4_Settings::API_SECRET_OPTION, $recoveryflow_ga4_secret_before );
+}
+
+
+/*
+ * ---------------------------------------------------------------------------
+ * A condition built on the customer's own recovery history, and the number box
+ * that lets a merchant set the number in a condition's question.
+ *
+ * Before this, the editor offered conditions by name alone. A threshold such
+ * as "event.amount_gte:250" could not be typed, and re-saving a workflow that
+ * had one dropped it, so the step quietly checked the minimum order value.
+ * Nothing asserted it because nothing tested event.amount_gte at all.
+ */
+
+// What counts as ignored is decided in SQL, and the fake database cannot run
+// SQL -- so the query itself is the witness. Each clause below is one reason a
+// recovery is NOT ignored; dropping any of them makes the rule count somebody
+// who bought, answered, opted out or was never messaged.
+$recoveryflow_hist_clock = new Clock();
+$recoveryflow_hist_clock->freeze( 1757000000 );
+
+$recoveryflow_ignored = new Customer_Ignored_Fewer_Than( $plugin->journeys(), $recoveryflow_hist_clock );
+
+$recoveryflow_hist_journey              = new Recovery_Journey();
+$recoveryflow_hist_journey->id          = 99;
+$recoveryflow_hist_journey->customer_id = 42;
+
+$GLOBALS['wpdb']->queries = array();
+$GLOBALS['wpdb']->vars    = array( 'clicks_count = 0' => '1' );
+
+ok( 'one ignored recovery is fewer than the default two, so the sequence carries on', $recoveryflow_ignored->evaluate( $recoveryflow_hist_journey, array() ) );
+
+$recoveryflow_hist_sql = (string) end( $GLOBALS['wpdb']->queries );
+
+$recoveryflow_window = "created_at >= '" . gmdate( 'Y-m-d H:i:s', 1757000000 - 180 * DAY_IN_SECONDS ) . "'";
+
+foreach (
+	array(
+		'customer_id = 42'                   => 'counts this customer only',
+		"status IN ('expired', 'cancelled')" => 'only recoveries that ended without a sale or an opt-out',
+		'id < 99'                            => 'only earlier recoveries, never the one asking',
+		'first_sent_at IS NOT NULL'          => 'only recoveries that actually sent something',
+		'clicks_count = 0'                   => 'not one whose link was opened',
+		'engaged_at IS NULL'                 => 'not one somebody replied to',
+		'recovered_at IS NULL'               => 'not one that ended in a sale',
+		$recoveryflow_window                 => 'and only from the last 180 days',
+	) as $recoveryflow_clause => $recoveryflow_why
+) {
+	$recoveryflow_has_clause = false !== strpos( $recoveryflow_hist_sql, $recoveryflow_clause );
+
+	ok( 'the ignored count ' . $recoveryflow_why, $recoveryflow_has_clause );
+}
+
+$GLOBALS['wpdb']->vars = array( 'clicks_count = 0' => '2' );
+ok( 'two ignored recoveries stop it at the default', ! $recoveryflow_ignored->evaluate( $recoveryflow_hist_journey, array() ) );
+ok( 'unless the step allows three', $recoveryflow_ignored->evaluate( $recoveryflow_hist_journey, array(), '3' ) );
+ok( 'and "1" means somebody who ignored even one is not chased again', ! $recoveryflow_ignored->evaluate( $recoveryflow_hist_journey, array(), '1' ) );
+
+foreach ( array( 'abc', '0', '21', '-1', '2.5' ) as $recoveryflow_bad_limit ) {
+	$GLOBALS['wpdb']->vars = array( 'clicks_count = 0' => '0' );
+	ok(
+		'a limit of "' . $recoveryflow_bad_limit . '" cannot be read, so the journey stops rather than messaging on a guess',
+		! $recoveryflow_ignored->evaluate( $recoveryflow_hist_journey, array(), $recoveryflow_bad_limit )
+	);
+}
+
+$recoveryflow_hist_anon                 = new Recovery_Journey();
+$recoveryflow_hist_anon->id             = 100;
+$GLOBALS['wpdb']->queries               = array();
+$GLOBALS['wpdb']->vars                  = array( 'clicks_count = 0' => '9' );
+
+ok( 'no customer means no history, and customer.eligible decides the rest', $recoveryflow_ignored->evaluate( $recoveryflow_hist_anon, array() ) );
+check( 'without asking the database', count( $GLOBALS['wpdb']->queries ), 0 );
+
+// The look-back is a filter, not a setting, and it must reach the query.
+$recoveryflow_lookback = static fn (): int => 30;
+add_filter( Hooks::FILTER_IGNORED_LOOKBACK, $recoveryflow_lookback );
+$GLOBALS['wpdb']->queries = array();
+$recoveryflow_ignored->evaluate( $recoveryflow_hist_journey, array() );
+remove_filter( Hooks::FILTER_IGNORED_LOOKBACK, $recoveryflow_lookback );
+
+ok(
+	'the look-back filter moves the window the query counts in',
+	false !== strpos( (string) end( $GLOBALS['wpdb']->queries ), "created_at >= '" . gmdate( 'Y-m-d H:i:s', 1757000000 - 30 * DAY_IN_SECONDS ) . "'" )
+);
+
+$recoveryflow_lookback_zero = static fn (): int => 0;
+add_filter( Hooks::FILTER_IGNORED_LOOKBACK, $recoveryflow_lookback_zero );
+check( 'and a filter returning nonsense still looks back at least a day', $recoveryflow_ignored->lookback_days(), 1 );
+remove_filter( Hooks::FILTER_IGNORED_LOOKBACK, $recoveryflow_lookback_zero );
+$GLOBALS['wpdb']->vars = array();
+
+check( 'a customer id of zero is never counted', $plugin->journeys()->count_ignored_since( 0, '2026-01-01 00:00:00', 5 ), 0 );
+
+ok( 'the condition is registered', $plugin->steps()->condition( Customer_Ignored_Fewer_Than::ID ) instanceof Customer_Ignored_Fewer_Than );
+ok( 'and declares that it takes a number', $plugin->steps()->condition( Customer_Ignored_Fewer_Than::ID ) instanceof Condition_Argument_Interface );
+ok( 'as does the basket amount', $plugin->steps()->condition( 'event.amount_gte' ) instanceof Condition_Argument_Interface );
+ok( 'while a condition with no number does not', ! $plugin->steps()->condition( 'journey.not_completed' ) instanceof Condition_Argument_Interface );
+
+// What each condition will store, from what a merchant might type.
+foreach (
+	array(
+		array( $recoveryflow_ignored, '', '' ),
+		array( $recoveryflow_ignored, '3', '3' ),
+		array( $recoveryflow_ignored, '03', '3' ),
+		array( $recoveryflow_ignored, ' 4 ', '4' ),
+		array( $recoveryflow_ignored, '20', '20' ),
+		array( $recoveryflow_ignored, '21', null ),
+		array( $recoveryflow_ignored, '0', null ),
+		array( $recoveryflow_ignored, '1e1', null ),
+		array( new Event_Amount_Gte(), '250', '250' ),
+		array( new Event_Amount_Gte(), '249.99', '249.99' ),
+		array( new Event_Amount_Gte(), '', '' ),
+		array( new Event_Amount_Gte(), '-5', null ),
+		array( new Event_Amount_Gte(), '1e3', null ),
+		array( new Event_Amount_Gte(), '1.23456', null ),
+	) as $recoveryflow_case
+) {
+	check(
+		get_class( $recoveryflow_case[0] ) . ' reads "' . $recoveryflow_case[1] . '"',
+		$recoveryflow_case[0]->normalize_argument( $recoveryflow_case[1] ),
+		$recoveryflow_case[2]
+	);
+}
+
+// The basket amount had no test at all. Its number is now reachable, so it
+// gets one: the threshold decides, and an empty one means the shop's minimum.
+$recoveryflow_amount_event = Recovery_Event::from_row(
+	array(
+		'id'        => 1,
+		'event_uid' => 'evt-amount',
+		'source_id' => 'woocommerce',
+		'amount'    => '300.00',
+		'currency'  => 'GBP',
+	)
+);
+
+ok( 'a 300 basket is worth at least 250', ( new Event_Amount_Gte() )->evaluate( new Recovery_Journey(), array( 'event' => $recoveryflow_amount_event ), '250' ) );
+ok( 'but not at least 300.01', ! ( new Event_Amount_Gte() )->evaluate( new Recovery_Journey(), array( 'event' => $recoveryflow_amount_event ), '300.01' ) );
+
+// The editor's half: the box appears for a condition that takes a number, shows
+// what is stored, carries its bounds, and is labelled and described.
+set_transient(
+	'recoveryflow_workflow_draft_' . get_current_user_id(),
+	array(
+		'name'  => 'History check',
+		'steps' => array(
+			array(
+				'type' => 'condition',
+				'if'   => 'customer.ignored_fewer_than:3',
+				'else' => 'stop:cancelled',
+			),
+			array(
+				'type' => 'condition',
+				'if'   => 'journey.not_completed',
+				'else' => 'stop:recovered',
+			),
+			array(
+				'type' => 'condition',
+				'if'   => 'event.amount_gte',
+			),
+		),
+	),
+	60
+);
+
+$recoveryflow_hist_html = recoveryflow_render_screen( array( $plugin->admin_workflow(), 'render' ) );
+
+ok(
+	'a condition that takes a number gets a number box holding what is stored',
+	1 === preg_match( '/<input type="number" id="recoveryflow-step-0-argument" name="step\[0\]\[argument\]" value="3" min="1" max="20" step="1"/', $recoveryflow_hist_html )
+);
+ok( 'with a label tied to it', false !== strpos( $recoveryflow_hist_html, '<label for="recoveryflow-step-0-argument">' ) );
+ok(
+	'and the help that says what an empty box means',
+	false !== strpos( $recoveryflow_hist_html, 'aria-describedby="recoveryflow-step-0-argument-help"' )
+		&& false !== strpos( $recoveryflow_hist_html, 'id="recoveryflow-step-0-argument-help"' )
+);
+ok( 'a condition with no number gets no box', false === strpos( $recoveryflow_hist_html, 'id="recoveryflow-step-1-argument"' ) );
+ok(
+	'and the basket amount, stored without one, offers an empty box rather than none',
+	1 === preg_match( '/id="recoveryflow-step-2-argument" name="step\[2\]\[argument\]" value="" min="0" step="0.01"/', $recoveryflow_hist_html )
+);
+ok( 'the step says, in words, the number in force', false !== strpos( $recoveryflow_hist_html, 'the customer has ignored fewer than 3 earlier recoveries' ) );
+ok( 'and the amount step says what its empty box means', false !== strpos( $recoveryflow_hist_html, esc_html( "the basket is worth at least the shop's minimum basket value" ) ) );
+ok(
+	'the condition picker offers both without a number in the label',
+	false !== strpos( $recoveryflow_hist_html, 'the customer has ignored fewer than a set number of earlier recoveries' )
+		&& false !== strpos( $recoveryflow_hist_html, 'the basket is worth at least a set amount' )
+);
+ok( 'and the picker no longer offers a label that ends mid-sentence', false === strpos( $recoveryflow_hist_html, 'the basket is worth at least </option>' ) );
+
+// The round trip that was broken: what the box posts is what is saved.
+$recoveryflow_arg_post = array(
+	'workflow_name' => 'Thresholds',
+	'step'          => array(
+		array(
+			'type'     => 'condition',
+			'if'       => 'event.amount_gte',
+			'argument' => '250',
+			'else'     => 'stop:cancelled',
+		),
+		array(
+			'type'     => 'condition',
+			'if'       => 'customer.ignored_fewer_than',
+			'argument' => '02',
+			'else'     => 'stop:cancelled',
+		),
+		array(
+			'type'     => 'condition',
+			'if'       => 'journey.not_completed',
+			'argument' => '7',
+			'else'     => 'stop:recovered',
+		),
+		array(
+			'type'     => 'condition',
+			'if'       => 'customer.ignored_fewer_than',
+			'argument' => '',
+		),
+	),
+);
+
+$recoveryflow_arg_read = Workflow_Form::read( $recoveryflow_arg_post, $plugin->steps() );
+
+check( 'saving a basket threshold of 250 keeps the 250', $recoveryflow_arg_read['steps'][0]['if'], 'event.amount_gte:250' );
+check( 'a number is stored the way the condition reads it', $recoveryflow_arg_read['steps'][1]['if'], 'customer.ignored_fewer_than:2' );
+check( 'a stale box beside a condition that takes no number is dropped', $recoveryflow_arg_read['steps'][2]['if'], 'journey.not_completed' );
+check( 'and an empty box stores the bare name, meaning the default', $recoveryflow_arg_read['steps'][3]['if'], 'customer.ignored_fewer_than' );
+ok( 'what the form builds still validates', true === Workflow_Definition::validate( $recoveryflow_arg_read ) );
+check( 'and has nothing to refuse', Workflow_Form::argument_problem( $recoveryflow_arg_read, $plugin->steps() ), '' );
+
+$recoveryflow_arg_post['step'][1]['argument'] = '25';
+$recoveryflow_arg_bad                         = Workflow_Form::read( $recoveryflow_arg_post, $plugin->steps() );
+
+check( 'a number the condition cannot read is kept as typed, so it can be shown back', $recoveryflow_arg_bad['steps'][1]['if'], 'customer.ignored_fewer_than:25' );
+
+$recoveryflow_arg_refusal = Workflow_Form::argument_problem( $recoveryflow_arg_bad, $plugin->steps() );
+
+ok( 'and the save is refused', '' !== $recoveryflow_arg_refusal );
+ok( 'naming the step', false !== strpos( $recoveryflow_arg_refusal, 'step 2' ) );
+ok( 'and saying which numbers it takes', false !== strpos( $recoveryflow_arg_refusal, 'from 1 to 20' ) );
+
+$recoveryflow_arg_store = $plugin->admin_workflow_form()->store( 0, $recoveryflow_arg_bad, array() );
+
+ok( 'the refusal is what store() answers, before anything is written', false === $recoveryflow_arg_store['ok'] && $recoveryflow_arg_refusal === $recoveryflow_arg_store['message'] );
+
+// The documentation that names the built-in conditions is checked against the
+// registry, in both directions: it listed two that never existed.
+$recoveryflow_api_doc = (string) file_get_contents( dirname( __DIR__ ) . '/docs/developer-api.md' );
+
+preg_match( '/`recoveryflow_register_workflow_conditions`[^\n]*Built-ins: ([^|\n]+)\|/', $recoveryflow_api_doc, $recoveryflow_builtin_line );
+preg_match_all( '/`([a-z_]+\.[a-z_]+)`/', $recoveryflow_builtin_line[1] ?? '', $recoveryflow_documented );
+
+$recoveryflow_documented  = $recoveryflow_documented[1];
+$recoveryflow_registered  = array_keys( $plugin->build_step_registry()->conditions() );
+sort( $recoveryflow_documented );
+sort( $recoveryflow_registered );
+
+check( 'the developer docs list exactly the built-in conditions', $recoveryflow_documented, $recoveryflow_registered );
+
+// And the example workflows in that document must be ones the validator
+// accepts. One used "stop:engaged", which is not a state a journey can stop in.
+$recoveryflow_def_section = (string) strstr( $recoveryflow_api_doc, '## Workflow definition' );
+$recoveryflow_def_section = (string) strstr( $recoveryflow_def_section, '## Variable allow-list', true );
+
+preg_match_all( '/```json\n(.*?)\n```/s', $recoveryflow_def_section, $recoveryflow_examples );
+
+ok( 'the workflow definition section has examples to check', count( $recoveryflow_examples[1] ) >= 2 );
+
+foreach ( $recoveryflow_examples[1] as $recoveryflow_example_index => $recoveryflow_example ) {
+	$recoveryflow_example_def = json_decode( $recoveryflow_example, true );
+	$recoveryflow_example_ok  = is_array( $recoveryflow_example_def ) ? Workflow_Definition::validate( $recoveryflow_example_def ) : false;
+
+	ok(
+		'documented example workflow ' . ( $recoveryflow_example_index + 1 ) . ' is one the validator accepts',
+		true === $recoveryflow_example_ok
+	);
 }
 
 

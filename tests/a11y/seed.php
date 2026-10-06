@@ -62,6 +62,14 @@ final class RecoveryFlow_A11y_Command {
 	private const URLS_FILE = 'tests/a11y/urls.generated.json';
 
 	/**
+	 * The slug of the workflow written to show the editor's number boxes.
+	 *
+	 * The default workflows use no condition that takes a number, so without
+	 * this the run would never see that box at all.
+	 */
+	private const HISTORY_SLUG = 'a11yseed-history-check';
+
+	/**
 	 * Fills the site with demo recoveries and writes the URL substitutions.
 	 *
 	 * The states are chosen for what they RENDER, not for coverage of the state
@@ -116,7 +124,7 @@ final class RecoveryFlow_A11y_Command {
 			'submit' => $this->live_token( $plugin, $journeys, 1 ),
 		);
 
-		$this->write_urls( $plugin, $journeys, $tokens );
+		$this->write_urls( $plugin, $journeys, $tokens, $this->history_workflow( $plugin ) );
 
 		WP_CLI::success( sprintf( 'Seeded. Substitutions written to %s', self::URLS_FILE ) );
 	}
@@ -506,9 +514,10 @@ final class RecoveryFlow_A11y_Command {
 	 * @param Plugin               $plugin   The container.
 	 * @param array<int,int>       $journeys Journey ids.
 	 * @param array<string,string> $tokens   Live recovery tokens, keyed view and submit.
+	 * @param int                  $history  The workflow that shows the number boxes.
 	 * @return void
 	 */
-	private function write_urls( Plugin $plugin, array $journeys, array $tokens ): void {
+	private function write_urls( Plugin $plugin, array $journeys, array $tokens, int $history ): void {
 		$workflow = $plugin->workflows()->find_by_slug( Workflow_Repository::SLUG_DIRECT );
 		$journey  = isset( $journeys[0] ) ? $plugin->journeys()->find( $journeys[0] ) : null;
 		$view     = (string) ( $tokens['view'] ?? '' );
@@ -517,6 +526,7 @@ final class RecoveryFlow_A11y_Command {
 		$values = array(
 			'JOURNEY_UID'         => null === $journey ? '' : $journey->journey_uid,
 			'WORKFLOW_ID'         => (string) ( null === $workflow ? 0 : $workflow->id ),
+			'HISTORY_WORKFLOW_ID' => (string) $history,
 			'OPT_OUT_URL'         => '' === $view ? '' : Rewrites::url( $view, 'opt-out' ),
 			'OPT_OUT_SUBMIT_URL'  => '' === $submit ? '' : Rewrites::url( $submit, 'opt-out' ),
 			/*
@@ -561,6 +571,55 @@ final class RecoveryFlow_A11y_Command {
 	}
 
 	/**
+	 * A workflow whose steps take numbers, so the editor shows its number boxes.
+	 *
+	 * Saved as a draft, so it never runs a recovery. Written through the same
+	 * repository the editor uses, so what the run checks is what a merchant
+	 * who saved it would see.
+	 *
+	 * @param Plugin $plugin The container.
+	 * @return int Workflow id, or 0 when it could not be saved.
+	 */
+	private function history_workflow( Plugin $plugin ): int {
+		$existing = $plugin->workflows()->find_by_slug( self::HISTORY_SLUG );
+
+		return $plugin->workflows()->save(
+			array(
+				'id'         => null === $existing ? 0 : $existing->id,
+				'name'       => 'Skip people who never answer',
+				'slug'       => self::HISTORY_SLUG,
+				'source_id'  => '',
+				'status'     => 'draft',
+				'is_default' => false,
+				'definition' => array(
+					'name'    => 'Skip people who never answer',
+					'version' => 1,
+					'trigger' => array(
+						'event'  => 'journey.eligible',
+						'source' => '*',
+					),
+					'steps'   => array(
+						array(
+							'type' => 'condition',
+							'if'   => 'customer.ignored_fewer_than:3',
+							'else' => 'stop:cancelled',
+						),
+						array(
+							'type' => 'condition',
+							'if'   => 'event.amount_gte:250',
+							'else' => 'stop:cancelled',
+						),
+						array(
+							'type' => 'wait',
+							'for'  => 'PT1H',
+						),
+					),
+				),
+			)
+		);
+	}
+
+	/**
 	 * Delete every row this seeder wrote, in every table it reached.
 	 *
 	 * THE CONSENT LEDGER IS THE PART THAT MATTERS, and leaving it behind was a
@@ -589,13 +648,20 @@ final class RecoveryFlow_A11y_Command {
 		$like    = $wpdb->esc_like( self::TAG ) . '%';
 
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders
+		$history = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$prefix}workflows WHERE slug = %s", self::HISTORY_SLUG ) );
+
+		if ( $history > 0 ) {
+			$removed += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$prefix}workflow_versions WHERE workflow_id = %d", $history ) );
+			$removed += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM {$prefix}workflows WHERE id = %d", $history ) );
+		}
+
 		$event_ids = array_map(
 			'intval',
 			(array) $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$prefix}events WHERE dedupe_key LIKE %s", $like ) )
 		);
 
 		if ( array() === $event_ids ) {
-			return 0;
+			return $removed;
 		}
 
 		$events = implode( ',', $event_ids );

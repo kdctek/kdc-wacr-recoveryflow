@@ -24,8 +24,18 @@ defined( 'ABSPATH' ) || exit;
  * With no argument it falls back to the site's minimum order value, so a
  * merchant who has already set that number once does not have to repeat it in
  * every workflow.
+ *
+ * Until the editor learned to show a number box, the threshold could only be
+ * written by code, and saving the workflow in the editor dropped it -- the
+ * step then quietly checked the minimum order value instead. That is what
+ * Condition_Argument_Interface is for.
  */
-final class Event_Amount_Gte implements Condition_Interface {
+final class Event_Amount_Gte implements Condition_Interface, Condition_Argument_Interface {
+
+	/**
+	 * What a readable threshold looks like: a plain decimal, no sign, no exponent.
+	 */
+	private const AMOUNT_PATTERN = '/^[0-9]{1,12}(?:\.[0-9]{1,4})?$/';
 
 	/**
 	 * The name a workflow refers to this by.
@@ -43,6 +53,53 @@ final class Event_Amount_Gte implements Condition_Interface {
 	 */
 	public function get_label(): string {
 		return __( 'The abandoned total is at least a given amount', 'kdc-wacr-recoveryflow' );
+	}
+
+	/**
+	 * The label for the number box.
+	 *
+	 * @return string
+	 */
+	public function get_argument_label(): string {
+		return __( 'Amount', 'kdc-wacr-recoveryflow' );
+	}
+
+	/**
+	 * What the number means.
+	 *
+	 * @return string
+	 */
+	public function get_argument_help(): string {
+		return __( 'In the shop currency, with up to four decimal places. Leave it empty to use the shop\'s "Ignore baskets worth less than" setting.', 'kdc-wacr-recoveryflow' );
+	}
+
+	/**
+	 * The number box's bounds.
+	 *
+	 * @return array{min:string,max:string,step:string}
+	 */
+	public function get_argument_bounds(): array {
+		return array(
+			'min'  => '0',
+			'max'  => '',
+			'step' => '0.01',
+		);
+	}
+
+	/**
+	 * The argument as it should be stored.
+	 *
+	 * @param string $raw What was typed.
+	 * @return string|null
+	 */
+	public function normalize_argument( string $raw ): ?string {
+		$raw = trim( $raw );
+
+		if ( '' === $raw ) {
+			return '';
+		}
+
+		return 1 === preg_match( self::AMOUNT_PATTERN, $raw ) ? $raw : null;
 	}
 
 	/**
@@ -66,7 +123,7 @@ final class Event_Amount_Gte implements Condition_Interface {
 			return $rules instanceof Rule_Set && $event->amount_value() >= $rules->min_amount();
 		}
 
-		if ( 1 !== preg_match( '/^[0-9]+(?:\.[0-9]{1,4})?$/', $argument ) ) {
+		if ( null === $this->normalize_argument( $argument ) ) {
 			// A threshold nobody can read is not a reason to message somebody.
 			return false;
 		}

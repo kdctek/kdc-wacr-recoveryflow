@@ -14,6 +14,7 @@ use WAcr\RecoveryFlow\Admin\Workflow_Form;
 use WAcr\RecoveryFlow\Core\Feature_Gate;
 use WAcr\RecoveryFlow\Security\Capabilities;
 use WAcr\RecoveryFlow\WAcr\Template_Catalog;
+use WAcr\RecoveryFlow\Workflow\Conditions\Condition_Argument_Interface;
 use WAcr\RecoveryFlow\Workflow\Email_Composer;
 use WAcr\RecoveryFlow\Workflow\Step_Registry;
 use WAcr\RecoveryFlow\Workflow\Variable_Context;
@@ -416,6 +417,14 @@ final class Workflow_Edit {
 			$stops[ 'stop:' . $state ] = Step_Describer::stop_label( (string) $state );
 		}
 
+		$expression = isset( $step['if'] ) ? (string) $step['if'] : '';
+		$chosen     = Workflow_Definition::condition_name( $expression );
+		$takes      = $this->registry->condition( $chosen );
+		$any_takes  = array() !== array_filter(
+			$this->registry->conditions(),
+			static fn ( $condition ): bool => $condition instanceof Condition_Argument_Interface
+		);
+
 		echo '<tr><th scope="row">';
 		printf( '<label for="recoveryflow-step-%1$d-if">%2$s</label>', (int) $index, esc_html__( 'Check that', 'kdc-wacr-recoveryflow' ) );
 		echo '</th><td>';
@@ -423,9 +432,21 @@ final class Workflow_Edit {
 			sprintf( 'step[%d][if]', $index ),
 			sprintf( 'recoveryflow-step-%d-if', $index ),
 			$conditions,
-			isset( $step['if'] ) ? Workflow_Definition::condition_name( (string) $step['if'] ) : ''
+			$chosen
 		);
+
+		if ( $any_takes ) {
+			printf(
+				'<p class="description">%s</p>',
+				esc_html__( 'Some checks take a number, such as an amount. After choosing one, use Save to show its box.', 'kdc-wacr-recoveryflow' )
+			);
+		}
+
 		echo '</td></tr>';
+
+		if ( $takes instanceof Condition_Argument_Interface ) {
+			$this->render_condition_argument( $index, $takes, Workflow_Definition::condition_argument( $expression ) );
+		}
 
 		echo '<tr><th scope="row">';
 		printf( '<label for="recoveryflow-step-%1$d-else">%2$s</label>', (int) $index, esc_html__( 'If it is not true', 'kdc-wacr-recoveryflow' ) );
@@ -435,6 +456,65 @@ final class Workflow_Edit {
 			sprintf( 'recoveryflow-step-%d-else', $index ),
 			$stops,
 			isset( $step['else'] ) ? (string) $step['else'] : ''
+		);
+		echo '</td></tr>';
+	}
+
+	/**
+	 * The number a condition's question contains.
+	 *
+	 * Rendered only for the condition the step holds now. A merchant who picks
+	 * a different one sees its box after the next Save, the same as changing a
+	 * step's type -- the editor has no script to redraw it sooner, and an empty
+	 * box means the condition's own default, so nothing is lost meanwhile.
+	 *
+	 * The value is shown as it was posted, even when it could not be read, so a
+	 * refusal sends the merchant back to the number they typed rather than to
+	 * one they did not.
+	 *
+	 * @param int                          $index     Zero-based position.
+	 * @param Condition_Argument_Interface $condition The step's condition.
+	 * @param string                       $value     The argument as stored or posted.
+	 * @return void
+	 */
+	private function render_condition_argument( int $index, Condition_Argument_Interface $condition, string $value ): void {
+		// Merged over blanks so a condition from another plugin that leaves a
+		// bound out gets a box without it rather than a warning.
+		$bounds = array_merge(
+			array(
+				'min'  => '',
+				'max'  => '',
+				'step' => '',
+			),
+			$condition->get_argument_bounds()
+		);
+		$limits = '';
+
+		foreach ( array( 'min', 'max', 'step' ) as $attribute ) {
+			$bound = (string) $bounds[ $attribute ];
+
+			if ( '' !== $bound ) {
+				$limits .= sprintf( ' %1$s="%2$s"', $attribute, esc_attr( $bound ) );
+			}
+		}
+
+		echo '<tr><th scope="row">';
+		printf(
+			'<label for="recoveryflow-step-%1$d-argument">%2$s</label>',
+			(int) $index,
+			esc_html( $condition->get_argument_label() )
+		);
+		echo '</th><td>';
+		printf(
+			'<input type="number" id="recoveryflow-step-%1$d-argument" name="step[%1$d][argument]" value="%2$s"%3$s class="small-text" aria-describedby="recoveryflow-step-%1$d-argument-help">',
+			(int) $index,
+			esc_attr( $value ),
+			$limits // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- each value escaped as it was built above.
+		);
+		printf(
+			'<p class="description" id="recoveryflow-step-%1$d-argument-help">%2$s</p>',
+			(int) $index,
+			esc_html( $condition->get_argument_help() )
 		);
 		echo '</td></tr>';
 	}

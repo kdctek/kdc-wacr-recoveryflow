@@ -81,6 +81,11 @@
 			"rootElement": "#wpbody-content"
 		},
 		{
+			"comment": "The editor with steps whose checks take a number, so each shows its labelled number box.",
+			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-workflow&workflow={{HISTORY_WORKFLOW_ID}}",
+			"rootElement": "#wpbody-content"
+		},
+		{
 			"comment": "The editor with nothing loaded, which is how a new workflow is started.",
 			"url": "{{SITE_URL}}wp-admin/admin.php?page=recoveryflow-workflow&workflow=0",
 			"rootElement": "#wpbody-content"

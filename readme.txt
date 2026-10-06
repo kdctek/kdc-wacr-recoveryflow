@@ -182,6 +182,10 @@ No. Cart activity sets a flag, and one small database write happens at the end o
 
 The link keeps working while it is valid. Clicks are counted only for real browsers, never for WhatsApp's link preview fetcher, and restoring the cart merges rather than duplicates. Expired, revoked and unknown links all show the same neutral page.
 
+= Can it stop messaging people who never answer? =
+
+Yes, in a workflow you build in WordPress. Put the check "the customer has ignored fewer than a set number of earlier recoveries" in front of a touch, for example the last one that carries a discount. A recovery counts as ignored when a message went out and nobody opened the link, replied or bought before it ended, and only the last 180 days count. It saves billed messages and discount margin; it does not recover more baskets, and a new shop has no history for it to use yet.
+
 = Where do I get help? =
 
 Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wacr-recoveryflow/tree/main/docs). For WA.cr accounts, templates and Auto Flows, see [help.wa.cr](https://help.wa.cr).
