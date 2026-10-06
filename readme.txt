@@ -111,32 +111,12 @@ WA.cr: [https://wa.cr](https://wa.cr). Terms of service: [https://wa.cr/terms](h
 
 **Google Analytics 4 (optional, off by default)**
 
-Only if you switch on "Report recoveries to Google Analytics 4" in Settings › Analytics and save your own GA4 Measurement ID and Measurement Protocol API secret, RecoveryFlow sends recovery outcomes to **your own** Google Analytics 4 property through Google's Measurement Protocol.
+Only after you save your own Measurement ID and API secret and switch on "Report recoveries to Google Analytics 4" in Settings › Analytics does RecoveryFlow send recovery outcomes to **your own** GA4 property, from a background task, at `https://www.google-analytics.com/mp/collect` (or `https://region1.google-analytics.com/mp/collect` if you choose the EU endpoint).
 
-* Where: `https://www.google-analytics.com/mp/collect`, or `https://region1.google-analytics.com/mp/collect` if you choose the EU endpoint.
-* What: one event when a journey sends its first message, is recovered, expires or is opted out of (`recoveryflow_messaged`, `recoveryflow_recovered`, `recoveryflow_expired`, `recoveryflow_opted_out`). Each carries the shopper's Google Analytics client ID (the value of the `_ga` cookie your own Google tag set), a random journey reference, the workflow name and the source, plus the order or basket value and currency where it applies. Your Measurement ID and API secret are in the request address. No name, phone number, email address, address, cart item or recovery link is sent.
-* When: from a background task, only for journeys that sent at least one message, and only for shoppers whose `_ga` cookie could be read. The cookie is read only when your site's consent tool (through the WP Consent API, where installed) allows statistics cookies. Where marketing consent was refused, the event tells Google not to use it for ads. Pressing "Send a test event" sends one `recoveryflow_test` event.
+* What: one event when a messaged journey is recovered, expires or is opted out of, or sends its first message, plus one when you press "Send a test event". Journey events carry the shopper's `_ga` cookie value, a random journey reference, the workflow, the source and any order or basket value. No name, phone number, email, address, cart item or recovery link.
+* When: only for journeys that sent a message, and only where the shopper's `_ga` cookie exists and the WP Consent API, if installed, allows statistics cookies. A marketing refusal is passed on so Google does not use the event for ads.
 
-Nothing is sent to Google while this setting is off, which is the default. Separately, and on by default, recovery links open your shop with `utm_source=recoveryflow` and related campaign parameters in the address; that sends nothing anywhere.
-
-Google Analytics: [https://marketingplatform.google.com/about/analytics/](https://marketingplatform.google.com/about/analytics/). Terms of service: [https://marketingplatform.google.com/about/analytics/terms/us/](https://marketingplatform.google.com/about/analytics/terms/us/). Privacy policy: [https://policies.google.com/privacy](https://policies.google.com/privacy).
-
-== Privacy ==
-
-RecoveryFlow keeps its data in its own tables in your WordPress database. It stores:
-
-* **Identity**: first and last name, email address, phone number as entered and in E.164 form, country, and the linked WordPress user ID when there is one. Phone and email are also stored as keyed one-way hashes for matching.
-* **A cart snapshot per journey**: product names, SKUs, quantities and amounts. Never addresses.
-* **A consent record**: granted, denied or withdrawn; where it came from (classic checkout, block checkout, account, opt-out link, STOP keyword, WA.cr, admin); the wording version; the time; and the IP address as a keyed hash only.
-* **Journey and message history**: states, timestamps, template names, delivery status, message IDs returned by WA.cr, link clicks and attribution. Message text is never stored.
-* **An opt-out record.** After a privacy erasure this is kept only as a one-way hash of the phone number so that the opt-out continues to be honoured.
-* **A Google Analytics client ID**, only when you have switched on GA4 reporting: the value of the shopper's `_ga` cookie, read only where your consent tool allows statistics cookies, and whether marketing consent was refused. It is included in exports, removed on erasure and anonymisation, and removed when a journey ends without sending a message.
-
-**Retention.** Finished journeys are anonymised after 90 days by default; you can change the period or set it to manual. Carts that never identified a customer are deleted after 7 days. Logs are kept for 14 days and never contain phone numbers, emails, names, message text or recovery links.
-
-**Privacy tools.** Tools › Export Personal Data includes RecoveryFlow data for the email address and the phone numbers linked to it. Tools › Erase Personal Data anonymises it: names, email, phone and cart items are removed, totals are kept for reporting, and the eraser reports that a one-way hash is retained to keep honouring the opt-out.
-
-**Uninstall.** Deleting the plugin always removes your API key, the hash key, capabilities and scheduled tasks. Tables and settings are removed only if you enable "Delete all data on uninstall" in Settings › Privacy.
+Google Analytics terms: [https://marketingplatform.google.com/about/analytics/terms/us/](https://marketingplatform.google.com/about/analytics/terms/us/). Privacy policy: [https://policies.google.com/privacy](https://policies.google.com/privacy).
 
 == Installation ==
 
@@ -164,6 +144,23 @@ No. RecoveryFlow is a recovery engine; WooCommerce is its first supported integr
 = Does it send messages without consent? =
 
 No. Explicit consent is the default: an unchecked checkbox at checkout that names your site and WhatsApp. The plugin records what was agreed, where and when. A merchant can switch to "identified contact" mode only after reading a warning and typing an acknowledgement, which is stored with their user ID and the wording version. Opt-outs are honoured in every mode.
+
+= What does RecoveryFlow store, and for how long? =
+
+RecoveryFlow keeps its data in its own tables in your WordPress database. It stores:
+
+* **Identity**: first and last name, email address, phone number as entered and in E.164 form, country, and the linked WordPress user ID when there is one. Phone and email are also stored as keyed one-way hashes for matching.
+* **A cart snapshot per journey**: product names, SKUs, quantities and amounts. Never addresses.
+* **A consent record**: granted, denied or withdrawn; where it came from (classic checkout, block checkout, account, opt-out link, STOP keyword, WA.cr, admin); the wording version; the time; and the IP address as a keyed hash only.
+* **Journey and message history**: states, timestamps, template names, delivery status, message IDs returned by WA.cr, link clicks and attribution. Message text is never stored.
+* **An opt-out record.** After a privacy erasure this is kept only as a one-way hash of the phone number so that the opt-out continues to be honoured.
+* **A Google Analytics client ID**, only with GA4 reporting on: the shopper's `_ga` cookie value and whether marketing consent was refused. It is exported, erased and anonymised with the rest, and dropped when a journey ends without a message.
+
+**Retention.** Finished journeys are anonymised after 90 days by default; you can change the period or set it to manual. Carts that never identified a customer are deleted after 7 days. Logs are kept for 14 days and never contain phone numbers, emails, names, message text or recovery links.
+
+**Privacy tools.** Tools › Export Personal Data includes RecoveryFlow data for the email address and the phone numbers linked to it. Tools › Erase Personal Data anonymises it: names, email, phone and cart items are removed, totals are kept for reporting, and the eraser reports that a one-way hash is retained to keep honouring the opt-out.
+
+**Uninstall.** Deleting the plugin always removes your API key, the hash key, capabilities and scheduled tasks. Tables and settings are removed only if you enable "Delete all data on uninstall" in Settings › Privacy.
 
 = Which WA.cr plan do I need? =
 
