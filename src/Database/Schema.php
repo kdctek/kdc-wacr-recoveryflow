@@ -186,9 +186,11 @@ final class Schema {
 		 * and the database, not the calling code, remains the arbiter of a race
 		 * between two requests enrolling the same number.
 		 *
-		 * value_raw is nulled by the anonymiser. value_hash is not: the consent
-		 * ledger is keyed by that hash, and forgetting it would resurrect a
-		 * suppression the customer asked for.
+		 * An erasure on request nulls value_raw and keeps the row, hash and
+		 * all, so the same number resolves to the erased record and stays
+		 * refused. The retention clear-out deletes the rows instead, so a
+		 * shopper returning later starts a new customer. Neither touches an
+		 * opt-out: the consent ledger keeps its own copy of each hash.
 		 */
 		$sql[] = "CREATE TABLE {$p}recoveryflow_identities (
 			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,

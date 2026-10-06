@@ -283,12 +283,18 @@ final class Webhook_Controller extends Abstract_Controller {
 	 * @return \WP_REST_Response
 	 */
 	private function handle( string $event, array $payload ): \WP_REST_Response {
-		$customer = $this->customer_from( $payload );
+		$phone_hash = $this->phone_hash_from( $payload );
+		$customer   = $this->customer_from( $phone_hash );
 
 		if ( null === $customer ) {
+			if ( 'recovery.opt_out' === $event ) {
+				$this->suppressor->suppress_unmatched( Identity::E164, $phone_hash, Suppressor::SOURCE_FLOW );
+			}
+
 			// Nobody here by that number. The flow did nothing wrong, and a 404
 			// would let this endpoint be asked which numbers belong to this
-			// shop's customers.
+			// shop's customers -- which is also why a refusal recorded above
+			// answers exactly as one that was not.
 			return new \WP_REST_Response(
 				array(
 					'ok'      => true,
@@ -346,20 +352,20 @@ final class Webhook_Controller extends Abstract_Controller {
 	}
 
 	/**
-	 * Which customer a payload is about.
+	 * The keyed hash of the number a payload is about.
 	 *
 	 * The number is normalised through the same resolver the checkout stored it
 	 * with, because a flow reports whatever WhatsApp gave it and this site
 	 * stored a hash of the E.164 form.
 	 *
 	 * @param array<string,mixed> $payload The decoded body.
-	 * @return int|null Customer id, or null when nobody here matches.
+	 * @return string The hash, or '' when there is no readable number.
 	 */
-	private function customer_from( array $payload ): ?int {
+	private function phone_hash_from( array $payload ): string {
 		$raw = isset( $payload['phone'] ) ? sanitize_text_field( (string) $payload['phone'] ) : '';
 
 		if ( '' === $raw ) {
-			return null;
+			return '';
 		}
 
 		$e164 = Identity_Resolver::to_e164( $raw, Identity_Resolver::site_country() );
@@ -367,12 +373,24 @@ final class Webhook_Controller extends Abstract_Controller {
 		if ( '' === $e164 ) {
 			$this->logger->warning( 'webhook', 'A flow reported an event for a number that could not be read.' );
 
+			return '';
+		}
+
+		return Identity_Repository::hash_for( Identity::E164, $e164 );
+	}
+
+	/**
+	 * Which customer holds a number.
+	 *
+	 * @param string $phone_hash Keyed hash of the number, or ''.
+	 * @return int|null Customer id, or null when nobody here matches.
+	 */
+	private function customer_from( string $phone_hash ): ?int {
+		if ( '' === $phone_hash ) {
 			return null;
 		}
 
-		$customer = $this->customers->find_by_phone_hash(
-			Identity_Repository::hash_for( Identity::E164, $e164 )
-		);
+		$customer = $this->customers->find_by_phone_hash( $phone_hash );
 
 		return null === $customer ? null : $customer->id;
 	}

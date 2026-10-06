@@ -50,11 +50,32 @@ defined( 'ABSPATH' ) || exit;
  *   person permanently unmessageable: eligibility refuses an anonymised
  *   customer outright.
  *
- * Nothing here deletes rows. Everything is a blanking update, which means an
- * erasure that fails halfway leaves records that are already unreadable rather
- * than a hole where the trading history was.
+ * **Why it was erased decides what happens when they come back.** Somebody who
+ * asked to be forgotten keeps their identity hashes on this record, so the same
+ * number entered again resolves here and is refused: the cautious reading of an
+ * erasure request. The retention clear-out is a request from nobody. It only
+ * means the data has stopped being needed, so a record that has aged out also
+ * lets go of the identity rows and the WordPress account link, and the next
+ * basket the shopper leaves starts a new customer. Before that distinction,
+ * every shopper whose last recovery finished more than `retention_days` ago
+ * could never be messaged again. Either way the opt-outs survive, because the
+ * consent ledger keeps its own copy of each hash.
+ *
+ * Nothing here deletes rows except those identity rows. Everything else is a
+ * blanking update, which means an erasure that fails halfway leaves records
+ * that are already unreadable rather than a hole where the trading history was.
  */
 final class Anonymizer {
+
+	/**
+	 * The person asked: core's privacy eraser, or erasing by phone number.
+	 */
+	public const ON_REQUEST = 'request';
+
+	/**
+	 * Nobody asked: the daily clear-out reached data past its retention period.
+	 */
+	public const ON_RETENTION = 'retention';
 
 	/**
 	 * Customer storage.
@@ -131,10 +152,13 @@ final class Anonymizer {
 	 * links are revoked first, because a working recovery link is the only part
 	 * of this that is reachable from outside the site.
 	 *
-	 * @param int $customer_id Customer id.
+	 * @param int    $customer_id Customer id.
+	 * @param string $reason      ON_REQUEST or ON_RETENTION. Anything else is
+	 *                            treated as a request, the reading that keeps
+	 *                            the person unmessageable.
 	 * @return bool Whether anything was changed.
 	 */
-	public function anonymize_customer( int $customer_id ): bool {
+	public function anonymize_customer( int $customer_id, string $reason = self::ON_REQUEST ): bool {
 		if ( $customer_id <= 0 ) {
 			return false;
 		}
@@ -186,12 +210,28 @@ final class Anonymizer {
 		// or the opt-out dies with it.
 		$this->consents->detach_customer( $customer_id );
 
+		/*
+		 * Released before the record is stamped, never after. Stamping is what
+		 * takes a customer out of the clear-out's query, so a pass interrupted
+		 * between the two steps must leave an unstamped record holding nothing
+		 * -- which the next pass picks up and finishes -- rather than a stamped
+		 * one still holding the shopper's number, which nothing would revisit.
+		 */
+		$reason = self::ON_RETENTION === $reason ? self::ON_RETENTION : self::ON_REQUEST;
+
+		if ( self::ON_RETENTION === $reason ) {
+			$this->customers->release( $customer_id );
+		}
+
 		$done = $this->customers->anonymize( $customer_id );
 
 		$this->logger->info(
 			'privacy',
 			'Anonymised a customer record.',
-			array( 'customer_id' => $customer_id )
+			array(
+				'customer_id' => $customer_id,
+				'reason'      => $reason,
+			)
 		);
 
 		return $done;

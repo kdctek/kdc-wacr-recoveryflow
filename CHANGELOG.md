@@ -10,6 +10,12 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A shopper who comes back after the retention period is recovered like anyone else, instead of never being messaged again.** The daily retention pass anonymises a customer once their last recovery is older than `retention_days` (90 by default). It used to keep their identity hashes on the anonymised record, exactly as an erasure request does. So the next basket left with the same phone number, email address or WordPress account resolved back to that record, and eligibility refuses an anonymised record outright. Every shopper whose last recovery finished more than `retention_days` ago was silently unreachable. At the default setting the first shoppers would have reached this around 7 December 2026; a shop that shortened the period may already have. The retention pass now deletes the record's identity rows and drops its WordPress account link before stamping it, so a return visit starts a new customer. Opt-outs still hold, because the consent ledger keeps its own copy of each hash: a returning shopper who opted out is refused as `suppressed`. An erasure the person asked for (Tools › Erase Personal Data, or erasing by phone) is unchanged and keeps them unmessageable. Records anonymised by earlier versions cannot be told apart by route, so they keep the old behaviour. A retention-anonymised record also stops being reachable from the person's email or phone, so a later export or erasure request finds nothing.
+
+- **A STOP reported by a WA.cr flow for a number RecoveryFlow does not hold is now recorded, so the first basket that number leaves is not messaged.** The webhook receiver used to drop an `opt_out` when no customer matched. That number might belong to a record the retention pass has just let go of, and WA.cr does not refuse a send to somebody who opted out, so the plugin's consent ledger is the only thing that can. The suppression is recorded against the number's hash on every channel. The response is the same `200` with `matched: 0` either way, so the endpoint still answers nothing about who is a customer. A reply from an unknown number still records nothing.
+
 ## [0.2.0] - 2026-10-06
 
 ### Added

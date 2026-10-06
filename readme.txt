@@ -156,7 +156,7 @@ RecoveryFlow keeps its data in its own tables in your WordPress database. It sto
 * **An opt-out record.** After a privacy erasure this is kept only as a one-way hash of the phone number so that the opt-out continues to be honoured.
 * **A Google Analytics client ID**, only with GA4 reporting on: the shopper's `_ga` cookie value and whether marketing consent was refused. It is exported, erased and anonymised with the rest, and dropped when a journey ends without a message.
 
-**Retention.** Finished journeys are anonymised after 90 days by default; you can change the period or set it to manual. Carts that never identified a customer are deleted after 7 days. Logs are kept for 14 days and never contain phone numbers, emails, names, message text or recovery links.
+**Retention.** Finished journeys are anonymised after 90 days by default; you can change the period or set it to manual. A shopper who comes back after that is treated as a new customer, and an opt-out they gave still holds. Carts that never identified a customer are deleted after 7 days. Logs are kept for 14 days and never contain phone numbers, emails, names, message text or recovery links.
 
 **Privacy tools.** Tools › Export Personal Data includes RecoveryFlow data for the email address and the phone numbers linked to it. Tools › Erase Personal Data anonymises it: names, email, phone and cart items are removed, totals are kept for reporting, and the eraser reports that a one-way hash is retained to keep honouring the opt-out.
 

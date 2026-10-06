@@ -30,6 +30,7 @@ use WAcr\RecoveryFlow\Core\Upgrader;
 use WAcr\RecoveryFlow\Core\Plugin;
 use WAcr\RecoveryFlow\Core\Requirements;
 use WAcr\RecoveryFlow\Core\Rewrites;
+use WAcr\RecoveryFlow\Customer\Consent_Repository;
 use WAcr\RecoveryFlow\Customer\Identity;
 use WAcr\RecoveryFlow\Customer\Identity_Repository;
 use WAcr\RecoveryFlow\Customer\Identity_Resolver;
@@ -2106,6 +2107,121 @@ $recoveryflow_due = kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/sr
 ok( 'and only reaches customers with no journey still running', false !== strpos( $recoveryflow_due, 'NOT IN' ) );
 ok( 'walking by primary key, so a clear-out cannot skip rows', false !== strpos( $recoveryflow_due, 'c.id > %d' ) );
 ok( 'and never re-anonymising somebody already done', false !== strpos( $recoveryflow_due, 'anonymized_at IS NULL' ) );
+
+/*
+ * Why somebody was erased decides whether they can ever be messaged again.
+ *
+ * Until this existed the retention clear-out and an erasure request did the
+ * same thing, and both left the identity hashes on the stamped record. So the
+ * next basket left with that number resolved straight back to it, and a stamped
+ * record is refused outright: every shopper whose last recovery finished more
+ * than retention_days ago could never be messaged again. Shipped in 0.1.0; a
+ * live install reproduced it before the fix.
+ *
+ * Asserted from the writes the anonymiser makes, in order, and in BOTH
+ * directions -- an aged-out record lets go, a requested erasure does not --
+ * because a one-sided assertion passes just as well for the opposite bug.
+ */
+$recoveryflow_release_saved = $GLOBALS['wpdb']->rows;
+
+$GLOBALS['wpdb']->rows = array(
+	'recoveryflow_customers'  => array(
+		array(
+			'id'            => 77,
+			'wp_user_id'    => 5,
+			'anonymized_at' => null,
+		),
+	),
+	'recoveryflow_identities' => array(
+		array(
+			'id'          => 1,
+			'customer_id' => 77,
+			'kind'        => Identity::E164,
+			'value_hash'  => str_repeat( 'a', 64 ),
+		),
+	),
+	'recoveryflow_journeys'   => array(),
+);
+
+$recoveryflow_anonymised_writes = static function ( string $reason ): array {
+	$GLOBALS['wpdb']->writes = array();
+
+	if ( '' === $reason ) {
+		Plugin::instance()->anonymizer()->anonymize_customer( 77 );
+	} else {
+		Plugin::instance()->anonymizer()->anonymize_customer( 77, $reason );
+	}
+
+	return $GLOBALS['wpdb']->writes;
+};
+
+$recoveryflow_write_at = static function ( array $writes, string $verb, string $table, callable $match ): int {
+	foreach ( $writes as $index => $write ) {
+		if ( $verb === $write[0] && false !== strpos( (string) $write[1], $table ) && $match( $write ) ) {
+			return (int) $index;
+		}
+	}
+
+	return -1;
+};
+
+$recoveryflow_is_release = static fn ( array $write ): bool => 77 === ( $write[2]['customer_id'] ?? null );
+$recoveryflow_is_unlink  = static fn ( array $write ): bool => array_key_exists( 'wp_user_id', $write[2] ) && null === $write[2]['wp_user_id'];
+$recoveryflow_is_stamp   = static fn ( array $write ): bool => isset( $write[2]['anonymized_at'] );
+
+$recoveryflow_aged     = $recoveryflow_anonymised_writes( Anonymizer::ON_RETENTION );
+$recoveryflow_asked    = $recoveryflow_anonymised_writes( '' );
+$recoveryflow_garbled  = $recoveryflow_anonymised_writes( 'retention ' );
+$GLOBALS['wpdb']->rows = $recoveryflow_release_saved;
+
+$recoveryflow_aged_release = $recoveryflow_write_at( $recoveryflow_aged, 'delete', 'recoveryflow_identities', $recoveryflow_is_release );
+$recoveryflow_aged_stamp   = $recoveryflow_write_at( $recoveryflow_aged, 'update', 'recoveryflow_customers', $recoveryflow_is_stamp );
+
+ok( 'a record the retention clear-out ages out lets go of the shopper\'s identities', $recoveryflow_aged_release >= 0 );
+ok(
+	'and of the WordPress account link, which would lead a logged-in return straight back to it',
+	$recoveryflow_write_at( $recoveryflow_aged, 'update', 'recoveryflow_customers', $recoveryflow_is_unlink ) >= 0
+);
+ok(
+	'and lets go BEFORE it is stamped, so an interrupted pass is finished next time rather than left holding the number',
+	$recoveryflow_aged_release >= 0 && $recoveryflow_aged_stamp > $recoveryflow_aged_release
+);
+ok(
+	'an erasure the person asked for is still stamped',
+	$recoveryflow_write_at( $recoveryflow_asked, 'update', 'recoveryflow_customers', $recoveryflow_is_stamp ) >= 0
+);
+ok(
+	'but keeps its identity hashes, so the same number stays unmessageable',
+	-1 === $recoveryflow_write_at( $recoveryflow_asked, 'delete', 'recoveryflow_identities', static fn (): bool => true )
+);
+ok(
+	'and keeps the WordPress account link',
+	-1 === $recoveryflow_write_at( $recoveryflow_asked, 'update', 'recoveryflow_customers', $recoveryflow_is_unlink )
+);
+ok(
+	'a reason the anonymiser does not recognise is read as a request, the reading that keeps somebody unmessageable',
+	-1 === $recoveryflow_write_at( $recoveryflow_garbled, 'delete', 'recoveryflow_identities', static fn (): bool => true )
+);
+
+// The behaviour above is only reached if the clear-out says why it is calling.
+// Read from code with the comments stripped, so a docblock naming the constant
+// cannot satisfy it.
+$recoveryflow_aging = kdc_wacr_recoveryflow_code_only(
+	kdc_wacr_recoveryflow_method_body( dirname( __DIR__ ) . '/src/Jobs/Stages/Retention.php', 'anonymize_finished_customers' )
+);
+
+ok(
+	'and the daily clear-out says it is the clear-out',
+	false !== strpos( $recoveryflow_aging, 'anonymize_customer( $customer_id, Anonymizer::ON_RETENTION )' )
+);
+
+foreach ( array( 'Eraser.php', 'Erase_By_Phone.php' ) as $recoveryflow_request_route ) {
+	$recoveryflow_request_code = kdc_wacr_recoveryflow_code_only( (string) file_get_contents( dirname( __DIR__ ) . '/src/Privacy/' . $recoveryflow_request_route ) );
+
+	$recoveryflow_request_quiet = false === strpos( $recoveryflow_request_code, 'ON_RETENTION' );
+
+	ok( 'while ' . $recoveryflow_request_route . ' never claims to be', $recoveryflow_request_quiet );
+}
 
 
 
@@ -5288,6 +5404,7 @@ ok(
 // nothing wrong, and a 404 would answer "is this number one of your customers".
 $GLOBALS['wpdb']->rows['recoveryflow_identities'] = array();
 $GLOBALS['wpdb']->rows['recoveryflow_customers']  = array();
+$GLOBALS['wpdb']->writes                          = array();
 
 $recoveryflow_nobody = $recoveryflow_hook->receive(
 	$recoveryflow_post(
@@ -5306,6 +5423,52 @@ check(
 	$recoveryflow_nobody instanceof WP_REST_Response ? $recoveryflow_nobody->get_data()['matched'] : -1,
 	0
 );
+
+/*
+ * But the STOP is still recorded, against the number itself. "Nobody here" may
+ * mean a record the retention clear-out let go of, and WA.cr does not refuse a
+ * send to somebody who opted out -- so without this row the next basket left
+ * with that number would be messaged by the only system able to refuse it.
+ */
+$recoveryflow_nobody_hash = Identity_Repository::hash_for( Identity::E164, '+447700900999' );
+$recoveryflow_suppressed  = static function () use ( &$recoveryflow_nobody_hash ): array {
+	return array_values(
+		array_filter(
+			$GLOBALS['wpdb']->writes,
+			static fn ( array $write ): bool => 'insert' === $write[0]
+				&& false !== strpos( (string) $write[1], 'recoveryflow_consents' )
+				&& Consent_Repository::SUPPRESSED === ( $write[2]['status'] ?? '' )
+				&& hash_equals( $recoveryflow_nobody_hash, (string) ( $write[2]['identity_hash'] ?? '' ) )
+		)
+	);
+};
+
+$recoveryflow_nobody_rows = $recoveryflow_suppressed();
+
+check( 'and the STOP is recorded against that number anyway', count( $recoveryflow_nobody_rows ), 1 );
+ok(
+	'against no customer, because there is none',
+	isset( $recoveryflow_nobody_rows[0][2] )
+		&& array_key_exists( 'customer_id', $recoveryflow_nobody_rows[0][2] )
+		&& null === $recoveryflow_nobody_rows[0][2]['customer_id']
+);
+check( 'on every channel', $recoveryflow_nobody_rows[0][2]['channel'] ?? '', Channel::ALL );
+
+// A reply from an unknown number is not a refusal and must record nothing.
+$GLOBALS['wpdb']->writes = array();
+
+$recoveryflow_hook->receive(
+	$recoveryflow_post(
+		array(
+			'event' => 'recovery.replied',
+			'id'    => 'evt-nobody-2',
+			'phone' => '+447700900999',
+		),
+		$recoveryflow_secret
+	)
+);
+
+check( 'while a reply from an unknown number records nothing', count( $recoveryflow_suppressed() ), 0 );
 
 // A STOP reported by a flow suppresses here and now. Every minute of waiting
 // for a poll is a minute another reminder can reach somebody who said stop.

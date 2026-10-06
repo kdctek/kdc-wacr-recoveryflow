@@ -132,7 +132,7 @@ Send JSON:
 
 **A `401` is the same answer whether the secret was wrong, missing, or never generated at all.** Telling those apart would tell somebody probing which sites are worth returning to.
 
-**A customer this site does not know is a `200` with `matched: 0`, not a `404`.** The flow did nothing wrong, and a `404` would turn the endpoint into a way to ask which phone numbers belong to this shop's customers.
+**A customer this site does not know is a `200` with `matched: 0`, not a `404`.** The flow did nothing wrong, and a `404` would turn the endpoint into a way to ask which phone numbers belong to this shop's customers. An `opt_out` for such a number is still recorded against the number, so the first basket it leaves later is refused; the answer is the same `matched: 0` either way.
 
 **A shared secret is replayable in a way a signature is not**, since it is not bound to the body. Two things narrow that: the endpoint is HTTPS, and every event carrying an `id` is deduplicated through the receipt ledger, so a replay is recognised and does nothing the first one did not.
 

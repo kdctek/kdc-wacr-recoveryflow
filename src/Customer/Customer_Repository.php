@@ -212,6 +212,31 @@ final class Customer_Repository extends Repository {
 	}
 
 	/**
+	 * Detach a record from the person it described, so a return visit is somebody new.
+	 *
+	 * The identity rows go, and so does the WordPress account link: either one
+	 * would otherwise lead the next visit straight back to this record.
+	 *
+	 * @param int $id Customer id.
+	 * @return bool
+	 */
+	public function release( int $id ): bool {
+		if ( $id <= 0 ) {
+			return false;
+		}
+
+		$this->identities->release( $id );
+
+		return 0 !== $this->update(
+			array(
+				'wp_user_id' => null,
+				'updated_at' => $this->clock->now(),
+			),
+			array( 'id' => $id )
+		);
+	}
+
+	/**
 	 * Customers whose recovery work is long finished and who still carry a name.
 	 *
 	 * The retention clear-out uses this. Two conditions have to hold together

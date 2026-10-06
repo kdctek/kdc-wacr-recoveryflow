@@ -141,11 +141,11 @@ final class Suppressor {
 			);
 
 		if ( null === $customer || array() === $identities ) {
-			// An erased customer has no identity left to suppress, and that is
-			// correct rather than broken: the hashes ARE the suppression list,
-			// and erasure deliberately keeps them. Reaching here means there
-			// was never a contact detail, so there is nothing that could be
-			// messaged and nothing to record.
+			// Reaching here means this record holds no contact detail: there
+			// never was one, or the retention clear-out let it go. Either way
+			// nothing could be messaged through this record and there is no
+			// hash here to record against. An erasure on request keeps its
+			// hashes, so it suppresses normally above.
 			$this->logger->warning(
 				'recovery',
 				'An opt-out arrived for a customer with no contact left to suppress.',
@@ -192,5 +192,32 @@ final class Suppressor {
 			'journeys'   => $closed,
 			'reason'     => '',
 		);
+	}
+
+	/**
+	 * Stop messaging a contact detail that no customer here holds.
+	 *
+	 * A STOP can arrive for a number nobody here holds today: one this site
+	 * never recorded, or one the retention clear-out let go of. It is recorded
+	 * anyway, against the hash, because the consent ledger outlives customers
+	 * and the next basket left with that number must find the refusal waiting.
+	 * WA.cr does not refuse a send to somebody who opted out, so nothing else
+	 * would stop that message.
+	 *
+	 * There is no journey to close and nothing to sync: both need a customer.
+	 *
+	 * @param string $identity_kind An Identity kind.
+	 * @param string $identity_hash Keyed hash of the value.
+	 * @param string $source        Where the request came from, for the consent row.
+	 * @return bool Whether a refusal was recorded.
+	 */
+	public function suppress_unmatched( string $identity_kind, string $identity_hash, string $source = self::SOURCE_FLOW ): bool {
+		if ( '' === $identity_kind || '' === $identity_hash ) {
+			return false;
+		}
+
+		$this->consent->suppress( $identity_kind, $identity_hash, null, $source );
+
+		return true;
 	}
 }

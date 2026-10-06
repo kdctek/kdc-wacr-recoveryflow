@@ -160,7 +160,7 @@ does. A redactor that erased the message would be perfectly safe and useless.
 - Stored XSS through a customer name and a product title in the list, the detail timeline and the DTO.
 - Token regex (42 and 44 characters rejected), uniform 404 for unknown, expired and revoked tokens, 429 after the limit, fixed redirect target, response headers, preview-UA click suppression.
 - Opt-out: GET changes nothing, POST suppresses and cancels.
-- Webhook: wrong secret, oversized body, wrong content type, duplicate receipt, disallowed event, unknown phone (200 with `matched: 0`).
+- Webhook: wrong secret, oversized body, wrong content type, duplicate receipt, disallowed event, unknown phone (200 with `matched: 0`, and an `opt_out` still records a suppression against the number).
 - Redactor patterns; an erased customer stays suppressed; reveal without the capability is 403 and with it writes an audit row; the HTTP client never logs the key and always verifies TLS.
 
 ### Failure simulations
