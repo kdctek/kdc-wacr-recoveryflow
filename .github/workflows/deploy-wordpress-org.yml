@@ -124,10 +124,15 @@ jobs:
 
           svn add --force --no-ignore trunk
 
+          # Capture the status once and test the text. Piping svn into grep -q
+          # under pipefail is a race: grep exits at the first match, svn takes
+          # SIGPIPE writing the rest, the pipeline fails, and a release with a
+          # long status list (0.2.0) reads as "no changes" and is never committed.
+          TRUNK_STATUS="$(svn status --no-ignore trunk)"
           echo "SVN trunk status:"
-          svn status --no-ignore trunk
+          echo "$TRUNK_STATUS"
 
-          if svn status --no-ignore trunk | grep -qE '^[?AMDR~!]'; then
+          if grep -qE '^[?AMDR~!]' <<<"$TRUNK_STATUS"; then
             svn commit trunk \
               -m "Release ${VERSION}" \
               --username "$SVN_USERNAME" \
@@ -151,10 +156,12 @@ jobs:
           # --no-ignore is important because some SVN environments ignore SVG files.
           svn add --force --no-ignore assets
 
+          # Captured, not piped into grep -q: see "Commit trunk".
+          ASSET_STATUS="$(svn status --no-ignore assets)"
           echo "SVN asset status:"
-          svn status --no-ignore assets
+          echo "$ASSET_STATUS"
 
-          if svn status --no-ignore assets | grep -qE '^[?AMDR~!]'; then
+          if grep -qE '^[?AMDR~!]' <<<"$ASSET_STATUS"; then
             svn commit assets \
               -m "Sync WordPress.org assets for ${VERSION}" \
               --username "$SVN_USERNAME" \
@@ -173,9 +180,10 @@ jobs:
           cd svn
 
           echo "Checking for unversioned asset files..."
-          if svn status --no-ignore assets | grep -q '^?'; then
+          ASSET_STATUS="$(svn status --no-ignore assets)"
+          if grep -q '^?' <<<"$ASSET_STATUS"; then
             echo "ERROR: Unversioned files remain in SVN assets working copy:"
-            svn status --no-ignore assets
+            echo "$ASSET_STATUS"
             exit 1
           fi
 
@@ -235,6 +243,7 @@ jobs:
         env:
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
           SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
 
@@ -254,7 +263,20 @@ jobs:
             exit 1
           fi
 
-          echo "WordPress.org trunk is populated."
+          # Populated is not released. WordPress.org serves whatever the Stable tag
+          # in trunk's readme names, so a trunk commit that silently did not happen
+          # leaves every site on the old version while this job goes green.
+          REMOTE_README="$(svn cat "$SVN_URL/trunk/readme.txt" --non-interactive --trust-server-cert)"
+          REMOTE_MAIN="$(svn cat "$SVN_URL/trunk/kdc-wacr-recoveryflow.php" --non-interactive --trust-server-cert)"
+          REMOTE_STABLE="$(sed -n 's/^Stable tag:[[:space:]]*//p' <<<"$REMOTE_README" | head -n1 | tr -d '[:space:]')"
+          REMOTE_HEADER="$(sed -n 's/^ \* Version:[[:space:]]*//p' <<<"$REMOTE_MAIN" | head -n1 | tr -d '[:space:]')"
+
+          if [ "$REMOTE_STABLE" != "$VERSION" ] || [ "$REMOTE_HEADER" != "$VERSION" ]; then
+            echo "ERROR: remote trunk is not ${VERSION}: Stable tag '${REMOTE_STABLE}', plugin header '${REMOTE_HEADER}'."
+            exit 1
+          fi
+
+          echo "WordPress.org trunk is populated and declares ${VERSION}."
 
       - name: Create WordPress.org SVN tag
         env:
