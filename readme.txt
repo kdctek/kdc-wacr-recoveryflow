@@ -4,7 +4,7 @@ Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.1.5
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -201,6 +201,13 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 
 == Changelog ==
 
+= 0.2.0 =
+
+* **Recovered visits now show in Google Analytics as RecoveryFlow traffic, not as "direct".** A recovery link redirects to the shop with `utm_source=recoveryflow`, `utm_medium` set to the channel, `utm_campaign` set to the workflow and `utm_content` set to the step. On by default; it sends nothing anywhere.
+* **Optional reporting to the merchant's own Google Analytics 4 property.** Once a Measurement ID and a Measurement Protocol API secret are saved and reporting is switched on, journeys that sent a message are reported as `recoveryflow_messaged`, `recoveryflow_recovered`, `recoveryflow_expired` and `recoveryflow_opted_out`, so Google Ads can retarget the baskets WhatsApp did not win. Off by default. The visitor's GA cookie is read only where the site's consent tool allows statistics, and a marketing refusal is passed on to Google.
+* A new Settings › Analytics tab with a test event, and a "Reports to" card on the Integrations screen.
+* Database schema 3 adds a column for the GA client id, which personal-data export, erasure and the retention anonymiser all cover, and a queue table for reports that holds nothing personal.
+
 = 0.1.5 =
 
 * **Published to the WordPress.org Plugin Repository.**
@@ -233,6 +240,9 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 * First release.
 
 == Upgrade Notice ==
+
+= 0.2.0 =
+Recovery links now carry UTM tags so recovered visits show in Google Analytics, and journeys can optionally be reported to your own GA4 property (off until you set it up). Includes a database update that runs on its own after updating.
 
 = 0.1.4 =
 Security update: the WooCommerce add-to-cart early-capture path now verifies a RecoveryFlow nonce before accepting its submitted contact data or consent. Normal WooCommerce add-to-cart behaviour is unchanged.

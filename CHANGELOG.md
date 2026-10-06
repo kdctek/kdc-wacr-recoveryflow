@@ -10,6 +10,8 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-06
+
 ### Added
 
 - **A new Settings › Analytics tab, and a "Reports to" card on the Integrations screen, put both GA4 features in one place.** "Tag recovery links" is on by default. "Report recoveries to Google Analytics 4" is off until a Measurement ID and a Measurement Protocol API secret are saved. The Measurement ID is checked when saved: a Universal Analytics `UA-`, a Google tag `GT-` or a stream number is refused with a message, because Google's endpoint would accept each one and count it nowhere. The API secret is stored encrypted like the WA.cr key, never printed back and never exposed over REST, and it is removed on uninstall. An EU endpoint can be chosen. "Send a test event" checks the event with Google's validation endpoint, then sends one `recoveryflow_test` event with debug mode on. Google does not let a plugin check a Measurement ID and secret, so the result sends the merchant to GA4's DebugView instead of claiming the credentials work. The card and the tab state where reporting stands in the same sentence, from the same check the reporter uses. `readme.txt` now discloses Google Analytics as an optional external service with what is sent, when and where.
@@ -106,7 +108,8 @@ First release. RecoveryFlow detects abandoned journeys across WordPress commerce
 - Personal data is removed or masked from logs.
 
 [0.1.5]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.4...v0.1.5
-[Unreleased]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.5...v0.2.0
 [0.1.4]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/kdctek/kdc-wacr-recoveryflow/compare/v0.1.1...v0.1.2
