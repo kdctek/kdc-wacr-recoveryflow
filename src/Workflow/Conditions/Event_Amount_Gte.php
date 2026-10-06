@@ -76,13 +76,17 @@ final class Event_Amount_Gte implements Condition_Interface, Condition_Argument_
 	/**
 	 * The number box's bounds.
 	 *
+	 * The step is "any" because the box takes up to four decimal places, and a
+	 * step of 0.01 would have the browser refuse 12.345 before it was posted --
+	 * shutting out every shop priced in dinars or rials, which have three.
+	 *
 	 * @return array{min:string,max:string,step:string}
 	 */
 	public function get_argument_bounds(): array {
 		return array(
 			'min'  => '0',
 			'max'  => '',
-			'step' => '0.01',
+			'step' => 'any',
 		);
 	}
 

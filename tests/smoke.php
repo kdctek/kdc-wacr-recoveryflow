@@ -8733,7 +8733,7 @@ ok(
 ok( 'a condition with no number gets no box', false === strpos( $recoveryflow_hist_html, 'id="recoveryflow-step-1-argument"' ) );
 ok(
 	'and the basket amount, stored without one, offers an empty box rather than none',
-	1 === preg_match( '/id="recoveryflow-step-2-argument" name="step\[2\]\[argument\]" value="" min="0" step="0.01"/', $recoveryflow_hist_html )
+	1 === preg_match( '/id="recoveryflow-step-2-argument" name="step\[2\]\[argument\]" value="" min="0" step="any"/', $recoveryflow_hist_html )
 );
 ok( 'the step says, in words, the number in force', false !== strpos( $recoveryflow_hist_html, 'the customer has ignored fewer than 3 earlier recoveries' ) );
 ok( 'and the amount step says what its empty box means', false !== strpos( $recoveryflow_hist_html, esc_html( "the basket is worth at least the shop's minimum basket value" ) ) );
@@ -8743,6 +8743,65 @@ ok(
 		&& false !== strpos( $recoveryflow_hist_html, 'the basket is worth at least a set amount' )
 );
 ok( 'and the picker no longer offers a label that ends mid-sentence', false === strpos( $recoveryflow_hist_html, 'the basket is worth at least </option>' ) );
+
+// Nothing a condition would store may be something its box refuses first. The
+// browser checks min, max and step before anything is posted, with its own
+// message and no way round it, so a box tighter than its normaliser locks the
+// merchant out of values the save would take: a step of 0.01 on a box that
+// takes four decimal places refused 12.345 for every shop priced in dinars or
+// rials. Checked by the browser's rules -- a missing step is 1, counted from
+// min -- over every registered condition, not only the two built in.
+$recoveryflow_box_checked = array();
+$recoveryflow_box_refused = array();
+
+foreach ( $plugin->steps()->conditions() as $recoveryflow_box_id => $recoveryflow_box_condition ) {
+	if ( ! $recoveryflow_box_condition instanceof Condition_Argument_Interface ) {
+		continue;
+	}
+
+	$recoveryflow_box_bounds = array_merge(
+		array(
+			'min'  => '',
+			'max'  => '',
+			'step' => '',
+		),
+		$recoveryflow_box_condition->get_argument_bounds()
+	);
+	$recoveryflow_box_min    = (string) $recoveryflow_box_bounds['min'];
+	$recoveryflow_box_max    = (string) $recoveryflow_box_bounds['max'];
+	$recoveryflow_box_step   = (string) $recoveryflow_box_bounds['step'];
+
+	foreach ( array( '0', '1', '2', '3', '19', '20', '21', '25', '0.5', '12.34', '12.345', '12.3456', '250' ) as $recoveryflow_box_probe ) {
+		$recoveryflow_box_stored = $recoveryflow_box_condition->normalize_argument( $recoveryflow_box_probe );
+
+		if ( null === $recoveryflow_box_stored || '' === $recoveryflow_box_stored ) {
+			continue;
+		}
+
+		$recoveryflow_box_checked[ $recoveryflow_box_id ] = true;
+
+		$recoveryflow_box_value = (float) $recoveryflow_box_probe;
+		$recoveryflow_box_takes = ( '' === $recoveryflow_box_min || $recoveryflow_box_value >= (float) $recoveryflow_box_min )
+			&& ( '' === $recoveryflow_box_max || $recoveryflow_box_value <= (float) $recoveryflow_box_max );
+
+		if ( 'any' !== $recoveryflow_box_step ) {
+			$recoveryflow_box_steps = ( $recoveryflow_box_value - ( '' === $recoveryflow_box_min ? 0.0 : (float) $recoveryflow_box_min ) )
+				/ ( '' === $recoveryflow_box_step ? 1.0 : (float) $recoveryflow_box_step );
+			$recoveryflow_box_takes = $recoveryflow_box_takes && abs( $recoveryflow_box_steps - round( $recoveryflow_box_steps ) ) < 0.000001;
+		}
+
+		if ( ! $recoveryflow_box_takes ) {
+			$recoveryflow_box_refused[] = $recoveryflow_box_id . ' ' . $recoveryflow_box_probe;
+		}
+	}//end foreach
+}//end foreach
+
+ok( 'the box check reached both conditions that take a number', isset( $recoveryflow_box_checked['customer.ignored_fewer_than'], $recoveryflow_box_checked['event.amount_gte'] ) );
+ok( 'and no box refuses a number its condition would store', array() === $recoveryflow_box_refused );
+
+if ( array() !== $recoveryflow_box_refused ) {
+	fwrite( STDERR, '  refused by the box: ' . implode( ', ', $recoveryflow_box_refused ) . "\n" );
+}
 
 // The round trip that was broken: what the box posts is what is saved.
 $recoveryflow_arg_post = array(
