@@ -118,34 +118,120 @@ final class Action_Scheduler_Driver implements Scheduler_Interface {
 	}
 
 	/**
-	 * Register the recurring actions, if they are not already registered.
+	 * Register the recurring actions, if they are not already registered, and
+	 * cancel any second chain of them.
+	 *
+	 * The check below cannot stop a second chain from starting, and nothing on
+	 * this side can. Action Scheduler marks a recurring action complete before
+	 * it stores the next one, and that next one ignores uniqueness. A request
+	 * landing in between finds nothing pending or running, schedules a new
+	 * chain, and then the old chain carries on as well -- from then on the
+	 * stage wakes twice as often, for good. On a busy store this is not rare:
+	 * a live site had picked up a second chain on four of the six stages
+	 * within three weeks.
+	 *
+	 * So the duplicate is healed rather than prevented. Every request that
+	 * finds two pending actions on a stage hook keeps the oldest and cancels
+	 * the rest. The choice is deterministic, so two requests healing at once
+	 * keep the same row and can never cancel both.
 	 *
 	 * @return void
 	 */
 	public function schedule_all(): void {
-		if ( ! $this->is_available() || ! function_exists( 'as_has_scheduled_action' ) ) {
+		if ( ! $this->is_available() || ! function_exists( 'as_has_scheduled_action' ) || ! function_exists( 'as_get_scheduled_actions' ) ) {
 			return;
 		}
 
 		$now = time();
 
 		foreach ( $this->plan() as $stage => $timing ) {
-			$hook = self::hook( $stage );
+			$this->sync_stage( self::hook( $stage ), $timing, $now );
+		}
+	}
 
-			// Passing null rather than an empty array asks "any arguments",
-			// which is what makes re-registration a genuine no-op rather than
-			// a second identical schedule.
-			if ( as_has_scheduled_action( $hook, null, self::GROUP ) ) {
+	/**
+	 * Leave one recurring chain on a stage hook: start it, keep it, or cancel
+	 * the extras.
+	 *
+	 * @param string                         $hook   A stage's recurring hook.
+	 * @param array{interval:int,offset:int} $timing The stage's plan.
+	 * @param int                            $now    Unix timestamp.
+	 * @return void
+	 */
+	private function sync_stage( string $hook, array $timing, int $now ): void {
+		$pending = $this->pending_ids( $hook );
+
+		if ( count( $pending ) > 1 ) {
+			$this->cancel( array_slice( $pending, 1 ) );
+			return;
+		}
+
+		// A run in progress has no pending successor yet, so the second check
+		// is what stops that moment reading as "not scheduled". Passing null
+		// rather than an empty array asks "any arguments".
+		if ( array() !== $pending || as_has_scheduled_action( $hook, null, self::GROUP ) ) {
+			return;
+		}
+
+		as_schedule_recurring_action(
+			$now + $timing['offset'],
+			$timing['interval'],
+			$hook,
+			array(),
+			self::GROUP
+		);
+	}
+
+	/**
+	 * The pending actions on a stage's recurring hook, oldest first.
+	 *
+	 * Continuations live on their own hooks, so everything this returns
+	 * belongs to a recurring chain. The cap only bounds the query; a site with
+	 * more duplicates than that loses the rest on the following requests.
+	 *
+	 * @param string $hook A stage's recurring hook.
+	 * @return array<int,int>
+	 */
+	private function pending_ids( string $hook ): array {
+		$ids = as_get_scheduled_actions(
+			array(
+				'hook'     => $hook,
+				'group'    => self::GROUP,
+				'status'   => 'pending',
+				'per_page' => 50,
+				'orderby'  => 'none',
+			),
+			'ids'
+		);
+
+		$ids = array_map( 'intval', $ids );
+		sort( $ids );
+
+		return $ids;
+	}
+
+	/**
+	 * Cancel actions by id.
+	 *
+	 * By id, not by hook: as_unschedule_action() cancels whichever action on
+	 * the hook is due next, which may be the one being kept. A row another
+	 * request cancelled a moment ago makes the store throw, and that row is
+	 * already where it should be.
+	 *
+	 * @param array<int,int> $ids Action ids.
+	 * @return void
+	 */
+	private function cancel( array $ids ): void {
+		if ( ! class_exists( 'ActionScheduler' ) ) {
+			return;
+		}
+
+		foreach ( $ids as $id ) {
+			try {
+				\ActionScheduler::store()->cancel_action( $id );
+			} catch ( \Exception $e ) {
 				continue;
 			}
-
-			as_schedule_recurring_action(
-				$now + $timing['offset'],
-				$timing['interval'],
-				$hook,
-				array(),
-				self::GROUP
-			);
 		}
 	}
 

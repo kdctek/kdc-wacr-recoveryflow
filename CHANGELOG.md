@@ -10,6 +10,10 @@ affected, followed by the detail.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A busy shop no longer ends up running its background stages twice as often as it should.** Action Scheduler marks a recurring action complete before it stores the next one, and a request arriving in between found the stage unscheduled and started a second schedule beside the first. From then on that stage woke twice as often, for good. A live shop had picked up a second schedule on four of the six stages (evaluate, dispatch, poll and expire) within three weeks. Nothing was sent twice, because every stage takes a database lock before it does anything, but every extra run cost a background worker. The gap is in Action Scheduler and cannot be closed from a plugin, so RecoveryFlow now repairs it instead: whenever it checks its schedules, a stage with more than one pending run keeps the oldest and cancels the rest. Sites that already have duplicates are repaired on the first request after updating, with no action needed. The cancelled rows stay visible under Tools › Scheduled Actions as "Canceled".
+
 ## [0.2.1] - 2026-10-06
 
 ### Added
