@@ -4,7 +4,7 @@ Tags: abandoned cart, whatsapp, conversion recovery, woocommerce, recovery
 Requires at least: 6.5
 Tested up to: 7.1
 Requires PHP: 8.0
-Stable tag: 0.2.1
+Stable tag: 0.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -202,6 +202,10 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 
 == Changelog ==
 
+= 0.2.2 =
+
+* **Fixed: a busy shop no longer runs its background stages twice as often as it should.** A gap in Action Scheduler could start a second schedule beside the first for a stage. Nothing was ever sent twice, but every extra run cost a background worker. RecoveryFlow now keeps the oldest schedule and cancels the rest, and repairs sites that already have duplicates on the first request after updating.
+
 = 0.2.1 =
 
 * **A workflow can now skip shoppers who keep ignoring recoveries.** The new check "the customer has ignored fewer than a set number of earlier recoveries" (2 unless you set a number from 1 to 20) stops a journey for somebody who let that many earlier recoveries end without opening the link, replying or buying. Only the last 180 days count, and it is not added to the default workflows, so nothing changes until you add it.
@@ -248,6 +252,9 @@ Documentation lives in the [plugin repository](https://github.com/kdctek/kdc-wac
 * First release.
 
 == Upgrade Notice ==
+
+= 0.2.2 =
+Stops a busy shop's background stages from running twice as often as they should, and repairs any duplicate schedules already there.
 
 = 0.2.1 =
 Shoppers who come back after the retention period are recovered again instead of being silently skipped, and workflows gain an optional check that skips shoppers who keep ignoring recoveries.
